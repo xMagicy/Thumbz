@@ -13,6 +13,7 @@
     "@google-cloud/storage": "^7.16.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "better-auth": "^1.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
