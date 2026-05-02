@@ -249,45 +249,82 @@ export default function Home() {
           <span className="thumbz-z">z</span>
         </div>
 
-        {/* Subtle live indicator */}
+        {/* Refined live indicator: green pulsing dot, LIVE small caps, N matches today secondary */}
         <div
-          className="flex items-center gap-2.5 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10"
+          className="flex items-center gap-2.5 bg-black/30 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10"
           style={{ fontFamily: inter }}
         >
-          <div className="w-1.5 h-1.5 rounded-full bg-red-500 live-dot" />
+          <div
+            className="w-1.5 h-1.5 rounded-full live-dot"
+            style={{ background: "#10b981" }}
+          />
           <span
-            className="text-white/70 uppercase"
-            style={{ fontWeight: 500, fontSize: "0.7rem", letterSpacing: "0.1em" }}
+            className="text-white/85 uppercase"
+            style={{ fontWeight: 600, fontSize: "0.68rem", letterSpacing: "0.14em" }}
           >
             Live
           </span>
           <div className="w-px h-3 bg-white/15" />
-          <span className="text-white/80" style={{ fontWeight: 600, fontSize: "0.75rem" }}>
-            {stats?.totalVotes ? stats.totalVotes.toLocaleString() : 0}
-            <span className="text-white/50 ml-1" style={{ fontWeight: 400 }}>
-              matches
-            </span>
+          <span style={{ fontWeight: 500, fontSize: "0.72rem", color: "rgba(255,255,255,0.55)" }}>
+            <span style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>
+              {stats?.totalVotes ? stats.totalVotes.toLocaleString() : 0}
+            </span>{" "}
+            matches today
           </span>
         </div>
       </header>
 
       {/* Main Arena */}
-      <main className="w-full max-w-7xl mx-auto px-8 mt-10 md:mt-16 mb-28 flex flex-col items-center z-20 relative">
-        <h2
-          className="text-white text-center mb-4"
-          style={{
-            fontFamily: inter,
-            fontWeight: 900,
-            fontSize: "clamp(1.125rem, 2.25vw, 1.7rem)",
-            letterSpacing: "-0.02em",
-            lineHeight: 1.2,
-          }}
-        >
-          Which thumbnail makes you click?
-        </h2>
+      <main className="w-full max-w-7xl mx-auto px-8 mt-8 md:mt-12 mb-28 flex flex-col items-center z-20 relative">
+        {/* Intro section — tagline pill + headline + subtitle */}
+        <div className="flex flex-col items-center text-center max-w-2xl mb-10">
+          <div
+            className="px-3 py-1 rounded-full backdrop-blur-md mb-5"
+            style={{
+              fontFamily: inter,
+              fontWeight: 500,
+              fontSize: "0.72rem",
+              letterSpacing: "0.05em",
+              color: "rgba(255,255,255,0.75)",
+              background: "rgba(139,92,246,0.12)",
+              border: "1px solid rgba(217,70,239,0.25)",
+              textTransform: "uppercase",
+            }}
+          >
+            The thumbnail rating game
+          </div>
+
+          <h2
+            className="text-white"
+            style={{
+              fontFamily: inter,
+              fontWeight: 900,
+              fontSize: "clamp(1.125rem, 2.25vw, 1.7rem)",
+              letterSpacing: "-0.02em",
+              lineHeight: 1.2,
+            }}
+          >
+            Which thumbnail makes you click?
+          </h2>
+
+          <p
+            className="mt-3"
+            style={{
+              fontFamily: inter,
+              fontWeight: 400,
+              fontSize: "16px",
+              color: "#888",
+              lineHeight: 1.55,
+              maxWidth: 520,
+            }}
+          >
+            Vote on real YouTube thumbnails. Watch the rankings change in
+            real-time. The best thumbnails rise to the top.
+          </p>
+        </div>
 
         {/* Streak indicator */}
-        <div className="h-7 mb-12 flex items-center">
+        <div className="h-7 mb-10 flex items-center">
           <AnimatePresence>
             {streak >= 3 && (
               <motion.div
@@ -396,6 +433,11 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Faint divider between battle area and championship rankings */}
+      <div className="w-full max-w-5xl mx-auto px-6 z-20 relative">
+        <div className="h-px w-full" style={{ background: "rgba(255,255,255,0.05)" }} />
+      </div>
 
       <Leaderboard thumbnails={thumbnails} isLoading={isLoadingLeaderboard} />
 
