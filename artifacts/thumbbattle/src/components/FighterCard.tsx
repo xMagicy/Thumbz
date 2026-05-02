@@ -1,9 +1,11 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useTransform, animate, PanInfo } from "framer-motion";
+import { Youtube } from "lucide-react";
 import type { Thumbnail } from "@workspace/api-client-react";
 
 interface FighterCardProps {
   thumbnail: Thumbnail;
+  side: "left" | "right";
   isVoting: boolean;
   voteResult: "winner" | "loser" | null;
   onVote: () => void;
@@ -11,22 +13,38 @@ interface FighterCardProps {
 
 const SWIPE_THRESHOLD = 100;
 
-export function FighterCard({ thumbnail, isVoting, voteResult, onVote }: FighterCardProps) {
+function deriveCategory(title: string, channel: string): string {
+  const t = `${title} ${channel}`.toLowerCase();
+  if (/(minecraft|fortnite|gaming|game|gta|fps|pvp|speedrun|roblox)/.test(t)) return "Gaming";
+  if (/(tutorial|how to|guide|learn|tips)/.test(t)) return "Tutorial";
+  if (/(music|song|remix|beat|album|cover|artist)/.test(t)) return "Music";
+  if (/(invest|money|finance|stock|crypto|wealth|trading)/.test(t)) return "Finance";
+  if (/(react|code|programming|javascript|python|dev)/.test(t)) return "Coding";
+  if (/(food|recipe|cook|chef|baking)/.test(t)) return "Food";
+  if (/(workout|fitness|gym|exercise)/.test(t)) return "Fitness";
+  if (/(vlog|day in|life|story)/.test(t)) return "Lifestyle";
+  return "Trending";
+}
+
+function extractYoutubeUrl(imageUrl: string): string | null {
+  const match = imageUrl.match(/\/vi\/([^/]+)\//);
+  return match ? `https://www.youtube.com/watch?v=${match[1]}` : null;
+}
+
+export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: FighterCardProps) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
   const voteOverlayOpacity = useTransform(x, [-200, -40, 0, 40, 200], [0.55, 0, 0, 0, 0.55]);
 
-  // Reset card position when a new battle pair loads (thumbnail.id changes)
+  const [swipeFlying, setSwipeFlying] = useState(false);
+  const swipedRef = useRef(false);
+
+  // Reset card position when a new battle pair loads
   useEffect(() => {
     x.set(0);
+    setSwipeFlying(false);
+    swipedRef.current = false;
   }, [thumbnail.id, x]);
-
-  // When this card becomes the LOSER from the other side's vote, ensure it's reset
-  useEffect(() => {
-    if (voteResult === null) {
-      x.set(0);
-    }
-  }, [voteResult, x]);
 
   const handleDragEnd = (_e: unknown, info: PanInfo) => {
     if (isVoting) return;
@@ -36,28 +54,55 @@ export function FighterCard({ thumbnail, isVoting, voteResult, onVote }: Fighter
     const swiped = Math.abs(offset) > SWIPE_THRESHOLD || Math.abs(velocity) > 600;
 
     if (swiped) {
-      // Fly off-screen in the swipe direction, then register the vote
-      const flyTo = offset > 0 ? 800 : -800;
-      animate(x, flyTo, {
-        duration: 0.35,
-        ease: "easeOut",
-      });
+      swipedRef.current = true;
+      setSwipeFlying(true);
+      const flyTo = offset > 0 ? 900 : -900;
+      animate(x, flyTo, { duration: 0.4, ease: "easeOut" });
       onVote();
     } else {
-      // Snap back
       animate(x, 0, { type: "spring", stiffness: 400, damping: 30 });
     }
   };
 
-  // Animation states driven by voteResult
-  const animateState =
-    voteResult === "winner"
-      ? { scale: 1.06, opacity: 1, filter: "grayscale(0%) blur(0px)" }
-      : voteResult === "loser"
-      ? { scale: 0.92, opacity: 0.3, filter: "grayscale(100%) blur(4px)", x: 0 }
-      : { scale: 1, opacity: 1, filter: "grayscale(0%) blur(0px)" };
+  // Cinematic vote animations (click path) — winner grows + slides toward center, then up-and-out.
+  // Loser fades, tilts away, then slides down-and-out.
+  const winnerSlide = side === "left" ? 70 : -70;
+  const loserTilt = side === "left" ? -10 : 10;
 
-  const winnerGlow = "0 0 60px rgba(217, 70, 239, 0.55), 0 24px 50px -16px rgba(0,0,0,0.7)";
+  const winnerKeyframes = {
+    scale: [1, 1.1, 1.1],
+    x: [0, winnerSlide, winnerSlide],
+    y: [0, 0, -900],
+    opacity: [1, 1, 0.9],
+  };
+  const loserKeyframes = {
+    scale: [1, 0.94, 0.92],
+    rotate: [0, loserTilt, loserTilt + (side === "left" ? -4 : 4)],
+    opacity: [1, 0.3, 0.2],
+    y: [0, 0, 900],
+  };
+  const restState = { scale: 1, x: 0, y: 0, rotate: 0, opacity: 1 };
+
+  // If this card was swiped, let imperative animate handle x — skip cinematic state on this card
+  const animateState = swipeFlying
+    ? undefined
+    : voteResult === "winner"
+    ? winnerKeyframes
+    : voteResult === "loser"
+    ? loserKeyframes
+    : restState;
+
+  const cinematicTransition = voteResult
+    ? { duration: 0.8, times: [0, 0.4, 1], ease: "easeOut" as const }
+    : { type: "spring" as const, stiffness: 280, damping: 22 };
+
+  const winnerGlow =
+    "0 0 80px rgba(217, 70, 239, 0.7), 0 0 32px rgba(139, 92, 246, 0.5), 0 24px 50px -16px rgba(0,0,0,0.7)";
+  const hoverGlow =
+    "0 16px 40px -12px rgba(139, 92, 246, 0.55), 0 0 24px rgba(217, 70, 239, 0.25), 0 24px 50px -16px rgba(0,0,0,0.6)";
+
+  const category = deriveCategory(thumbnail.title, thumbnail.channelName);
+  const youtubeUrl = extractYoutubeUrl(thumbnail.imageUrl);
 
   return (
     <motion.div
@@ -69,20 +114,24 @@ export function FighterCard({ thumbnail, isVoting, voteResult, onVote }: Fighter
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.7}
       onDragEnd={handleDragEnd}
-      whileHover={voteResult || isVoting ? undefined : { scale: 1.03, y: -6 }}
+      whileHover={voteResult || isVoting ? undefined : { scale: 1.04, y: -8 }}
       animate={animateState}
-      transition={{ type: "spring", stiffness: 280, damping: 22 }}
+      transition={cinematicTransition}
       onClick={() => {
         if (isVoting) return;
-        // Only treat as click if the card hasn't been dragged
         if (Math.abs(x.get()) < 5) onVote();
       }}
     >
       <div
         className="thumb-card-shadow relative aspect-video overflow-hidden border-2 border-white/10 group-hover:border-purple-400/70 transition-[border-color,box-shadow] duration-300"
         style={{
-          borderRadius: 16,
-          boxShadow: voteResult === "winner" ? winnerGlow : undefined,
+          borderRadius: 18,
+          boxShadow:
+            voteResult === "winner"
+              ? winnerGlow
+              : !voteResult && !isVoting
+              ? undefined
+              : undefined,
         }}
       >
         <img
@@ -91,13 +140,49 @@ export function FighterCard({ thumbnail, isVoting, voteResult, onVote }: Fighter
           className="w-full h-full object-cover pointer-events-none select-none"
           draggable={false}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-60 group-hover:opacity-40 transition-opacity pointer-events-none" />
 
-        {/* Hover glow */}
+        {/* Bottom dark gradient overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent opacity-70 group-hover:opacity-50 transition-opacity pointer-events-none" />
+
+        {/* Hover purple glow inset */}
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-          style={{ boxShadow: "inset 0 0 50px rgba(192, 38, 211, 0.45)" }}
+          style={{
+            boxShadow: "inset 0 0 60px rgba(192, 38, 211, 0.4), inset 0 0 0 1px rgba(217,70,239,0.4)",
+          }}
         />
+
+        {/* Top-left: Category pill */}
+        <div className="absolute top-3 left-3 z-10 pointer-events-none">
+          <div
+            className="px-2.5 py-1 rounded-full backdrop-blur-md border"
+            style={{
+              fontFamily: "'Inter', system-ui, sans-serif",
+              fontWeight: 500,
+              fontSize: "0.7rem",
+              letterSpacing: "0.02em",
+              color: "rgba(255,255,255,0.9)",
+              background: "rgba(0,0,0,0.45)",
+              borderColor: "rgba(255,255,255,0.15)",
+            }}
+          >
+            {category}
+          </div>
+        </div>
+
+        {/* Top-right: YouTube link */}
+        {youtubeUrl && (
+          <a
+            href={youtubeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full backdrop-blur-md border border-white/15 bg-black/45 text-white/80 hover:text-white hover:bg-red-600/80 hover:border-red-400/50 transition-colors"
+            title="Watch on YouTube"
+          >
+            <Youtube className="w-4 h-4" />
+          </a>
+        )}
 
         {/* Swipe vote overlay (green = "vote for this") */}
         <motion.div
@@ -122,7 +207,6 @@ export function FighterCard({ thumbnail, isVoting, voteResult, onVote }: Fighter
             Vote
           </div>
         </motion.div>
-
       </div>
 
       <div className="flex flex-col gap-1.5 px-1 text-left">

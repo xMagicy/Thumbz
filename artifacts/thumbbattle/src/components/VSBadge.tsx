@@ -4,91 +4,144 @@ import { motion } from "framer-motion";
 export function VSBadge() {
   return (
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none flex items-center justify-center">
-      <motion.div
-        className="vs-badge-pulse relative flex items-center justify-center"
-        style={{ width: 110, height: 110 }}
-        initial={{ scale: 0.7, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-      >
-        {/* Soft purple halo */}
+      <div className="relative" style={{ width: 180, height: 180 }}>
+        {/* Soft outer purple/pink halo */}
         <div
           className="absolute inset-0 rounded-full"
           style={{
             background:
-              "radial-gradient(closest-side, rgba(217,70,239,0.45) 0%, rgba(139,92,246,0.25) 45%, rgba(0,0,0,0) 75%)",
-            filter: "blur(8px)",
+              "radial-gradient(closest-side, rgba(217,70,239,0.55) 0%, rgba(139,92,246,0.32) 50%, rgba(0,0,0,0) 80%)",
+            filter: "blur(16px)",
           }}
         />
 
-        {/* Crossed swords SVG */}
-        <svg
-          viewBox="0 0 120 120"
-          width="100"
-          height="100"
-          className="relative drop-shadow-[0_6px_14px_rgba(0,0,0,0.55)]"
-          fill="none"
+        {/* Pulsing wrapper — affects medallion + swords + VS together */}
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center"
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          <defs>
-            <linearGradient id="swordGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#8b5cf6" />
-              <stop offset="100%" stopColor="#d946ef" />
-            </linearGradient>
-            <linearGradient id="swordHilt" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#1a1a2a" />
-              <stop offset="100%" stopColor="#3a2a4a" />
-            </linearGradient>
-          </defs>
-
-          {/* Sword 1 — top-left to bottom-right */}
-          <g transform="rotate(45 60 60)">
-            {/* Blade */}
-            <polygon points="60,6 67,58 60,66 53,58" fill="url(#swordGrad)" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
-            {/* Blade highlight */}
-            <polygon points="60,8 62,58 60,62" fill="rgba(255,255,255,0.35)" />
-            {/* Crossguard */}
-            <rect x="44" y="62" width="32" height="6" rx="1.5" fill="url(#swordHilt)" stroke="rgba(255,255,255,0.25)" strokeWidth="0.6" />
-            {/* Grip */}
-            <rect x="56" y="68" width="8" height="16" fill="#2a1a3a" stroke="rgba(255,255,255,0.2)" strokeWidth="0.6" />
-            {/* Pommel */}
-            <circle cx="60" cy="86" r="4" fill="url(#swordGrad)" stroke="rgba(255,255,255,0.3)" strokeWidth="0.6" />
-          </g>
-
-          {/* Sword 2 — top-right to bottom-left */}
-          <g transform="rotate(-45 60 60)">
-            <polygon points="60,6 67,58 60,66 53,58" fill="url(#swordGrad)" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
-            <polygon points="60,8 62,58 60,62" fill="rgba(255,255,255,0.35)" />
-            <rect x="44" y="62" width="32" height="6" rx="1.5" fill="url(#swordHilt)" stroke="rgba(255,255,255,0.25)" strokeWidth="0.6" />
-            <rect x="56" y="68" width="8" height="16" fill="#2a1a3a" stroke="rgba(255,255,255,0.2)" strokeWidth="0.6" />
-            <circle cx="60" cy="86" r="4" fill="url(#swordGrad)" stroke="rgba(255,255,255,0.3)" strokeWidth="0.6" />
-          </g>
-
-          {/* Center medallion */}
-          <circle
-            cx="60"
-            cy="60"
-            r="20"
-            fill="#0a0a14"
-            stroke="url(#swordGrad)"
-            strokeWidth="3"
-          />
-          <text
-            x="60"
-            y="60"
-            textAnchor="middle"
-            dominantBaseline="central"
-            fill="#ffffff"
+          {/* Solid gradient medallion (90px circle) */}
+          <div
+            className="absolute rounded-full"
             style={{
-              fontFamily: "'Inter', system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: 16,
-              letterSpacing: "-0.03em",
+              width: 90,
+              height: 90,
+              background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
+              boxShadow:
+                "inset 0 2px 6px rgba(255,255,255,0.28), inset 0 -3px 8px rgba(0,0,0,0.25), 0 0 32px rgba(217,70,239,0.55), 0 8px 24px rgba(0,0,0,0.55)",
+              border: "2px solid rgba(255,255,255,0.22)",
+            }}
+          />
+
+          {/* Slow-rotating crossed swords (one full rotation every 30s) — sit on top of medallion, tips poke out */}
+          <motion.div
+            className="absolute inset-0 flex items-center justify-center"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+          >
+            <svg
+              viewBox="0 0 200 200"
+              width="180"
+              height="180"
+              fill="none"
+              className="drop-shadow-[0_4px_8px_rgba(0,0,0,0.4)]"
+            >
+              <defs>
+                <linearGradient id="swordDarkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#5b21b6" />
+                  <stop offset="100%" stopColor="#4c1d95" />
+                </linearGradient>
+              </defs>
+
+              {/* Sword 1 — vertical, then rotated 45° */}
+              <g transform="rotate(45 100 100)">
+                {/* Blade */}
+                <polygon
+                  points="100,18 109,108 100,116 91,108"
+                  fill="url(#swordDarkGrad)"
+                  stroke="#3b0764"
+                  strokeWidth="1"
+                />
+                {/* Crossguard */}
+                <rect
+                  x="78"
+                  y="116"
+                  width="44"
+                  height="8"
+                  rx="2"
+                  fill="#3b0764"
+                  stroke="#1e1b4b"
+                  strokeWidth="0.6"
+                />
+                {/* Grip */}
+                <rect x="95" y="124" width="10" height="22" fill="#1e1b4b" />
+                {/* Pommel */}
+                <circle
+                  cx="100"
+                  cy="150"
+                  r="5.5"
+                  fill="url(#swordDarkGrad)"
+                  stroke="#3b0764"
+                  strokeWidth="0.8"
+                />
+              </g>
+
+              {/* Sword 2 — vertical, then rotated -45° */}
+              <g transform="rotate(-45 100 100)">
+                <polygon
+                  points="100,18 109,108 100,116 91,108"
+                  fill="url(#swordDarkGrad)"
+                  stroke="#3b0764"
+                  strokeWidth="1"
+                />
+                <rect
+                  x="78"
+                  y="116"
+                  width="44"
+                  height="8"
+                  rx="2"
+                  fill="#3b0764"
+                  stroke="#1e1b4b"
+                  strokeWidth="0.6"
+                />
+                <rect x="95" y="124" width="10" height="22" fill="#1e1b4b" />
+                <circle
+                  cx="100"
+                  cy="150"
+                  r="5.5"
+                  fill="url(#swordDarkGrad)"
+                  stroke="#3b0764"
+                  strokeWidth="0.8"
+                />
+              </g>
+            </svg>
+          </motion.div>
+
+          {/* VS text — front layer, centered on top of swords + medallion */}
+          <div
+            className="absolute flex items-center justify-center"
+            style={{
+              width: 90,
+              height: 90,
             }}
           >
-            VS
-          </text>
-        </svg>
-      </motion.div>
+            <span
+              style={{
+                fontFamily: "'Inter', system-ui, sans-serif",
+                fontWeight: 900,
+                fontSize: 32,
+                color: "#ffffff",
+                letterSpacing: "-0.04em",
+                textShadow: "0 2px 6px rgba(0,0,0,0.45)",
+                lineHeight: 1,
+              }}
+            >
+              VS
+            </span>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }

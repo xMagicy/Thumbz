@@ -1,0 +1,83 @@
+Big update — three improvements to combine:
+
+1. KEEP THE CURRENT LOGO EXACTLY AS IT IS
+The "thumbz" wordmark with the gradient Z-thumbnail is perfect. DO NOT change the logo at all. Leave it untouched.
+
+2. NEW VS BADGE — A CHAMPIONSHIP MEDALLION WITH SWORDS
+
+The current crossed swords design is too small and looks detached. Replace it with a circular medallion design:
+
+Shape: A solid circle, 90px diameter, filled with the brand gradient (#8b5cf6 to #d946ef).
+
+Inside the circle, layered from back to front:
+- BACK LAYER: Two crossed swords forming an X, positioned BEHIND the VS text. Swords extend slightly beyond the circle edge on all four points (like sword tips poking out of a medallion). Color: a darker purple (#5b21b6) so they don't compete with the white VS text but are clearly visible.
+- FRONT LAYER: The letters "VS" in white, Inter Black (weight 900), 32px, perfectly centered on top of the swords.
+
+Think: championship belt buckle or UFC medallion — swords are PART of the badge, not floating separately.
+
+Animations:
+- Slow pulse: 2 second cycle, scale 1.0 to 1.05
+- Sword rotation: crossed swords behind rotate VERY slowly (one full rotation every 30 seconds) — subtle but adds life
+- Soft outer purple/pink halo glow around the circle
+
+Positioning: dead center between thumbnails, both vertically and horizontally. z-index higher than thumbnails so it sits ON TOP. Never pushed to one side.
+
+3. MAKE IT FEEL MORE LIKE TINDER (not just a versus poll)
+
+The current design feels too "voting tool" and not enough "addictive swipe game". Make these changes:
+
+CARD INTERACTION FEEL:
+- When you hover over a thumbnail (desktop), it should LIFT UP slightly (translate-y -8px) AND scale up to 1.04x with a smooth purple glow border (shadow with rgba(139, 92, 246, 0.4))
+- When clicked/swiped, the WINNING card animates: it grows to 1.1x scale, glows brighter, and slides slightly toward the center
+- The LOSING card simultaneously fades to 30% opacity and slightly tilts away
+- Then both cards slide off-screen (winner up-and-out, loser down-and-out) in 400ms
+- New pair fades in from the bottom with a slight bounce
+
+VISUAL FEEDBACK ON CARDS:
+- Add small "category/niche" pills on each card (e.g., "Gaming", "Tutorial", "Music") in the top corner — small, subtle, sentence case
+- Add a small icon on each card showing "view this video" link to the actual YouTube URL (small youtube logo in a corner, optional click)
+- Card backgrounds should have a subtle dark gradient overlay at the bottom for text readability
+
+PROGRESS / GAMIFICATION:
+- Add a small streak counter somewhere visible: "🔥 3 in a row" when user is making consistent picks
+- After every 10 votes, show a brief celebration overlay: "10 battles judged! Keep going" with confetti
+- Below the cards, show a tiny progress indicator: "You've judged 7 battles today"
+
+OVERALL VIBE:
+- Reduce the size of "Which thumbnail makes you click?" header by 25% so cards dominate
+- Add more breathing room around the battle cards
+- Round thumbnail corners to 18px (slightly more)
+- Make the hover/swipe interactions FEEL premium — like Tinder, Hinge, or Tonal apps
+
+4. IMPROVE THE CHAMPIONSHIP RANKINGS SECTION
+
+Current rankings look basic. Refine:
+- Add tier labels: top 3 are "Champions" (gold/silver/bronze medal styling), 4-10 are "Top Contenders", 11-20 are "Rising"
+- Each ranking row should have:
+  - Rank number in a colored badge (gold for #1, silver #2, bronze #3, gradient purple for others)
+  - Thumbnail preview (slightly larger than now)
+  - Title in Inter SemiBold
+  - Channel name below in smaller grey text
+  - ELO rating in big bold gradient text on the right
+  - Win rate as a percentage with a horizontal progress bar
+  - Total battles count in small grey text
+- On hover (desktop), each row gets a subtle purple glow and lifts slightly
+- Add a section header with description: "The thumbnails the world loves most"
+- Add filter buttons above the rankings: "All time" / "This week" / "Today" (for now they can all show the same data, we'll wire them up later)
+
+5. ADD "BY xMAGICY" CREDIT
+
+In the footer of the page, add a small clean line:
+"Built by xMagicy" — Inter Regular, 14px, color #888, with the "xMagicy" part in white and slightly bolder. Make it a subtle link styled like text, hover state shows a soft underline.
+
+Place it centered at the bottom, with some breathing room. Don't make it loud — it should feel like a designer's signature, not an ad.
+
+KEEP THESE THINGS UNCHANGED
+- The thumbz logo (do not touch it)
+- The background gradient with particles
+- The Inter font usage everywhere
+- Sentence case throughout
+- The purple/magenta color scheme
+- The swipe gestures we just added (they work)
+
+Apply all these changes in parallel and rebuild.
