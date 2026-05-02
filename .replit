@@ -1,5 +1,9 @@
 modules = ["nodejs-24", "python-3.11", "postgresql-16"]
 
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
 [workflows]
 runButton = "Project"
 
