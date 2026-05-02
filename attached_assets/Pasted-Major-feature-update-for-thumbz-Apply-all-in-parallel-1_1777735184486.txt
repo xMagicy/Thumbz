@@ -1,0 +1,91 @@
+Major feature update for thumbz. Apply all in parallel.
+
+1. NICHE FILTERING
+
+Add a horizontal scrollable filter bar above the battle area:
+- "All" (default, active)
+- "Gaming"
+- "Tutorial"
+- "Finance"
+- "Music"
+- "Lifestyle"
+- "Tech"
+- "Vlog"
+
+When user selects a niche, only thumbnails from that niche are shown in battles AND in the championship rankings.
+
+Design:
+- Pill-shaped buttons
+- Active button: gradient background (#a855f7 to #d946ef), white text
+- Inactive: transparent background, white border 1px, white text at 70% opacity
+- Smooth transition on click
+- On mobile, scrollable horizontally
+
+The current niche pill on each thumbnail card stays — clicking that pill should also filter to that niche.
+
+2. CTR DATA PER THUMBNAIL
+
+Add an optional CTR percentage field to the thumbnails table in the database (decimal, like 8.4 for 8.4%).
+
+When CTR is set:
+- Show a small badge on the thumbnail card: "📊 8.4% CTR" (use a small chart icon, not emoji)
+- Place it in the bottom-right corner of the card
+- Use a subtle dark background with light purple text
+
+When CTR is not set: no badge shown.
+
+In the championship rankings:
+- Add a new column: "Avg CTR" (when available)
+- Sort option: by ELO (current default), by CTR (new), by win rate (new)
+
+3. UPLOAD FLOW WITH CTR
+
+The "Upload your thumbnail" button currently opens a placeholder. Build out the actual flow:
+
+Modal opens with form:
+- Image upload (drag & drop + click to upload)
+- Title (text field)
+- Channel name (text field)  
+- Niche dropdown (Gaming / Tutorial / Finance / Music / Lifestyle / Tech / Vlog / Other)
+- CTR % (optional number field, "Add your CTR if you know it")
+- YouTube URL (optional, for verification)
+- "Submit thumbnail" button
+
+After submission:
+- Thumbnail goes into a "pending review" state in the database
+- Show success message: "Thanks! Your thumbnail will appear in battles after a quick review."
+- Don't auto-publish for now — admin can approve later
+
+For now, store all uploads in the database with status "pending". We'll add admin approval later.
+
+4. THUMBNAIL DETAIL VIEW
+
+When user clicks on a thumbnail card title (not the image — clicking image still votes), open a detail modal showing:
+- Larger thumbnail preview
+- Title, channel, niche
+- ELO rating, total wins, total losses, win rate
+- CTR (if available)
+- Total battles fought
+- "View on YouTube" link (if URL provided)
+- "Close" button
+
+5. RANKINGS PAGE IMPROVEMENTS
+
+The championship rankings should now respect the active niche filter from the top.
+
+Add sort tabs at the top of the rankings:
+- "By ELO" (default)
+- "By Win Rate"
+- "By CTR"
+- "By Battles"
+
+Make sure all of this is responsive on mobile.
+
+PRIORITY ORDER:
+1. Niche filtering (most visible)
+2. Upload flow (creator value)
+3. CTR display
+4. Detail view
+5. Sort tabs
+
+Apply everything in parallel. Test thoroughly.
