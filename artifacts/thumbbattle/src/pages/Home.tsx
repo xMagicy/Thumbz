@@ -159,7 +159,6 @@ export default function Home() {
           <div className="relative w-full flex flex-col md:flex-row justify-center items-stretch gap-10 md:gap-24">
             <FighterCard
               thumbnail={battlePair.left}
-              side="left"
               isVoting={votingFor !== null}
               voteResult={
                 votingFor === battlePair.left.id ? "winner" : votingFor !== null ? "loser" : null
@@ -171,7 +170,6 @@ export default function Home() {
 
             <FighterCard
               thumbnail={battlePair.right}
-              side="right"
               isVoting={votingFor !== null}
               voteResult={
                 votingFor === battlePair.right.id ? "winner" : votingFor !== null ? "loser" : null

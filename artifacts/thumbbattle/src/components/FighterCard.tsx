@@ -4,7 +4,6 @@ import type { Thumbnail } from "@workspace/api-client-react";
 
 interface FighterCardProps {
   thumbnail: Thumbnail;
-  side: "left" | "right";
   isVoting: boolean;
   voteResult: "winner" | "loser" | null;
   onVote: () => void;
@@ -12,11 +11,10 @@ interface FighterCardProps {
 
 const SWIPE_THRESHOLD = 100;
 
-export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: FighterCardProps) {
+export function FighterCard({ thumbnail, isVoting, voteResult, onVote }: FighterCardProps) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
   const voteOverlayOpacity = useTransform(x, [-200, -40, 0, 40, 200], [0.55, 0, 0, 0, 0.55]);
-  const dimOpacity = useTransform(x, [-200, -40, 0, 40, 200], [0, 0, 0, 0, 0]);
 
   // Reset card position when a new battle pair loads (thumbnail.id changes)
   useEffect(() => {
@@ -125,10 +123,6 @@ export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: F
           </div>
         </motion.div>
 
-        <motion.div
-          className="absolute inset-0 pointer-events-none bg-black"
-          style={{ opacity: dimOpacity }}
-        />
       </div>
 
       <div className="flex flex-col gap-1.5 px-1 text-left">
