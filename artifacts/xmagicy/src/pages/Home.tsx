@@ -31,45 +31,51 @@ import thumb6Png from "@/assets/thumb-6.png";
 const portfolioItems = [
   {
     id: 1,
-    title: "Cinematic Gaming Edit",
+    title: "Gaming montage edit",
     type: "Video edit",
     image: thumb1Png,
-    description: "A fast-paced, highly edited gaming montage with dynamic transitions, sound design, and color grading. (Placeholder artwork)",
+    description:
+      "Fast-paced gaming edits built for retention — punchy cuts, beat-matched transitions, sound design, and color grading that keep viewers locked in.",
   },
   {
     id: 2,
-    title: "Tech Review Hook",
+    title: "Tech review thumbnail",
     type: "Thumbnail",
     image: thumb2Png,
-    description: "High CTR thumbnail for a tech review channel. Bold colors, clear subject, and intriguing text. (Placeholder artwork)",
+    description:
+      "High-CTR packaging for tech reviewers. Clean subject framing, bold contrast, and a single intriguing hook — designed to stop the scroll in a crowded feed.",
   },
   {
     id: 3,
-    title: "Finance Channel Growth",
+    title: "Finance channel packaging",
     type: "Channel",
     image: thumb3Png,
-    description: "Helped a personal finance channel double their monthly views through strategic packaging and retention editing. (Placeholder artwork)",
+    description:
+      "End-to-end packaging for finance creators — title and thumbnail iterations tuned for click-through, with editing notes that protect the first 30 seconds of retention.",
   },
   {
     id: 4,
-    title: "Vlog Storytelling",
+    title: "Vlog storytelling edit",
     type: "Video edit",
     image: thumb4Png,
-    description: "Narrative-driven edit for a travel vlog. Focus on pacing, music selection, and emotional beats. (Placeholder artwork)",
+    description:
+      "Narrative-driven edits for travel and lifestyle vlogs. Pacing, music selection, and emotional beats that turn a day's footage into a story worth finishing.",
   },
   {
     id: 5,
-    title: "Podcast Highlights",
+    title: "Podcast clip thumbnail",
     type: "Thumbnail",
     image: thumb5Png,
-    description: "Eye-catching thumbnail for a podcast clip designed to stand out on mobile feeds. (Placeholder artwork)",
+    description:
+      "Mobile-first thumbnails for podcast clips. Big readable type, expressive crops, and high-contrast color so the click is obvious at a glance.",
   },
   {
     id: 6,
-    title: "Brand Identity Refresh",
+    title: "Channel brand refresh",
     type: "Channel",
     image: thumb6Png,
-    description: "Complete visual overhaul for a creator including banner, profile picture, and thumbnail templates. (Placeholder artwork)",
+    description:
+      "Full visual identity for creators — banner, profile, thumbnail templates, and a typography system so every upload looks like it belongs to the same channel.",
   },
 ];
 
@@ -257,9 +263,6 @@ export default function Home() {
               <motion.div variants={fadeInUp} className="w-48 h-48 md:w-64 md:h-64 shrink-0 rounded-full overflow-hidden border border-white/10 relative group">
                 <div className="absolute inset-0 bg-gradient opacity-0 group-hover:opacity-20 transition-opacity duration-500 z-10 mix-blend-overlay"></div>
                 <img src={avatarPng} alt="Maarten (xMagicy)" className="w-full h-full object-cover" />
-                <div className="absolute bottom-2 left-0 right-0 text-center z-20">
-                  <span className="text-[10px] text-white/40 bg-black/40 px-2 py-1 rounded backdrop-blur-sm">Placeholder</span>
-                </div>
               </motion.div>
               <motion.div variants={fadeInUp} className="space-y-6 text-lg md:text-xl text-muted-foreground leading-relaxed">
                 <p>
@@ -301,9 +304,6 @@ export default function Home() {
                 >
                   <div className="aspect-video w-full overflow-hidden rounded-lg bg-card border border-white/5 transition-all duration-500 group-hover:scale-[1.02] group-hover:border-primary/30 hover-glow">
                     <img src={item.image} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100" />
-                    <div className="absolute top-2 right-2">
-                      <span className="text-[10px] text-white/50 bg-black/60 px-2 py-1 rounded backdrop-blur-sm">Placeholder</span>
-                    </div>
                   </div>
                   <div className="mt-4 flex items-center justify-between">
                     <h3 className="text-lg font-bold text-white/90 group-hover:text-white transition-colors">{item.title}</h3>
@@ -529,9 +529,6 @@ export default function Home() {
                   alt={selectedProject.title} 
                   className="w-full h-full object-contain" 
                 />
-                <div className="absolute bottom-4 right-4">
-                  <span className="text-xs text-white/50 bg-black/80 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10">Placeholder Artwork</span>
-                </div>
               </div>
               
               <div className="p-8 overflow-y-auto">
