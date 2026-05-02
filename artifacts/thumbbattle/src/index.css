@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -43,6 +43,7 @@
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
+  --font-display: var(--app-font-display);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -50,7 +51,6 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Force dark mode palette on :root */
 :root {
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
@@ -61,7 +61,7 @@
   --elevate-2: rgba(255,255,255, .09);
 
   /* Very dark violet/blue black */
-  --background: 240 10% 4%;
+  --background: 240 15% 4%;
   --foreground: 0 0% 98%;
 
   --border: 240 10% 12%;
@@ -75,7 +75,7 @@
   --popover-border: 240 10% 12%;
 
   /* Hot pink / rich purple */
-  --primary: 280 80% 60%;
+  --primary: 280 90% 60%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 240 10% 15%;
@@ -84,7 +84,7 @@
   --muted: 240 10% 15%;
   --muted-foreground: 240 5% 65%;
 
-  --accent: 320 80% 60%;
+  --accent: 320 90% 55%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 80% 60%;
@@ -94,6 +94,7 @@
   --ring: 280 80% 60%;
 
   --app-font-sans: 'Outfit', sans-serif;
+  --app-font-display: 'Bebas Neue', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: 0.75rem;
@@ -114,17 +115,64 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased bg-background text-foreground overflow-x-hidden;
   }
 }
 
+/* Utilities */
+.font-display {
+  font-family: var(--app-font-display);
+}
+
 .bg-electric-gradient {
-  background: linear-gradient(135deg, hsl(280 90% 55%), hsl(320 90% 55%));
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
 }
 
 .text-electric-gradient {
-  background: linear-gradient(135deg, hsl(280 90% 65%), hsl(320 90% 65%));
+  background: linear-gradient(135deg, hsl(280 100% 65%), hsl(320 100% 65%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.bg-arena-gradient {
+  background: linear-gradient(135deg, hsl(240 20% 5%), hsl(280 40% 10%), hsl(240 20% 5%));
+  background-size: 200% 200%;
+  animation: arena-pan 20s ease infinite;
+}
+
+@keyframes arena-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.vignette-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 30%, rgba(0, 0, 0, 0.7) 100%);
+  z-index: 10;
+}
+
+.pulse-glow {
+  animation: pulse-glow 3s infinite alternate;
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 10px rgba(192, 38, 211, 0.2), inset 0 0 10px rgba(192, 38, 211, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 30px rgba(192, 38, 211, 0.6), inset 0 0 30px rgba(192, 38, 211, 0.6);
+  }
+}
+
+.live-dot {
+  animation: live-pulse 1.5s infinite alternate;
+}
+
+@keyframes live-pulse {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  100% { transform: scale(1.05); opacity: 1; box-shadow: 0 0 10px rgba(220, 38, 38, 0.8); }
 }

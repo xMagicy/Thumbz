@@ -1,0 +1,31 @@
+The site is working great, but the design needs to feel more like a fun head-to-head battle game (Tinder meets gaming arena), less like a YouTube clone. Please make these changes:
+
+LAYOUT:
+- Make the two thumbnails BIGGER and more dominant on screen — they should feel like fighters in an arena, not video previews
+- Add more dramatic spacing/breathing room around them
+- The VS badge in the middle should be bigger, more dramatic — like a championship belt circle, with a subtle pulsing glow animation
+- When you hover over a thumbnail, it should slightly scale up and get a stronger purple/pink glow border, signaling "click me to vote"
+- After clicking a thumbnail, animate it briefly (winner slides forward and grows, loser fades), THEN load the next pair
+
+LOGO:
+- Make the logo more iconic — instead of just an X, make it something that says "battle" or "versus"
+- Try: a stylized fist + lightning bolt, OR two crossed swords, OR a championship belt buckle, OR keep an "X" but make it look like clashing blades
+- Use the purple-to-pink gradient on the logo
+- Make it feel like a gaming/sports brand logo
+
+VIBE & ATMOSPHERE:
+- Add a subtle animated gradient background (very slow moving purple/pink/dark navy waves)
+- Add small floating particle effects in the background (like stars or sparkles, very subtle)
+- The "WHICH THUMBNAIL MAKES YOU CLICK?" text should be bigger, bolder, more dramatic — like an arena announcer
+- Add a small "🔥 LIVE" pulsing indicator near the battle counter
+- Add a subtle vignette effect (darker around the edges) so the focus stays on the thumbnails
+
+TYPOGRAPHY:
+- Use a more striking font for the headers (something like Inter Black, Bebas Neue, or similar bold display font)
+- The thumbnail titles should feel like fighter names — slightly larger, more weight
+- Channel names below should look like fighter origins/teams
+
+OVERALL FEEL:
+Think: UFC fight card meets Tinder swipe meets premium SaaS. Dark, cinematic, energetic but not cheap. Like a Spotify Wrapped meets Twitch dashboard meets gaming tournament.
+
+Keep the leaderboard at the bottom but also make it feel more premium — like a championship rankings table.
