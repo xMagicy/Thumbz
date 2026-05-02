@@ -1,13 +1,10 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
+// Replit injects PORT in production (artifact.toml). In dev workflows or when
+// running via plain `pnpm dev` no PORT is set, so fall back to the localPort
+// the service is configured for (8080).
+const rawPort = process.env["PORT"] ?? "8080";
 
 const port = Number(rawPort);
 
