@@ -1,35 +1,90 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, AlertCircle, Mail, Upload } from "lucide-react";
-import { useJoinWaitlist } from "@workspace/api-client-react";
+import {
+  X,
+  Check,
+  AlertCircle,
+  Image as ImageIcon,
+  Upload as UploadIcon,
+} from "lucide-react";
+import {
+  useRequestUploadUrl,
+  useUploadThumbnail,
+  getListThumbnailsQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const inter = "'Inter', system-ui, sans-serif";
+
+const NICHE_OPTIONS = [
+  "Gaming",
+  "Tutorial",
+  "Finance",
+  "Music",
+  "Lifestyle",
+  "Tech",
+  "Vlog",
+  "Other",
+] as const;
+
+type NicheOption = (typeof NICHE_OPTIONS)[number];
+
+const MAX_BYTES = 10 * 1024 * 1024;
 
 interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export function UploadDialog({ open, onClose }: UploadDialogProps) {
-  const [email, setEmail] = useState("");
+  const queryClient = useQueryClient();
+
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [channelName, setChannelName] = useState("");
+  const [niche, setNiche] = useState<NicheOption>("Gaming");
+  const [ctr, setCtr] = useState("");
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { mutate, isPending, isError, reset } = useJoinWaitlist({
-    mutation: {
-      onSuccess: () => setSubmitted(true),
-    },
-  });
+  const { mutateAsync: requestUploadUrl } = useRequestUploadUrl();
+  const { mutateAsync: uploadThumbnail } = useUploadThumbnail();
 
+  // Reset state when the dialog opens
   useEffect(() => {
-    if (open) {
-      setSubmitted(false);
-      setEmail("");
-      reset();
-    }
-  }, [open, reset]);
+    if (!open) return;
+    setFile(null);
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setTitle("");
+    setChannelName("");
+    setNiche("Gaming");
+    setCtr("");
+    setYoutubeUrl("");
+    setIsDragging(false);
+    setSubmitted(false);
+    setSubmitError(null);
+    setIsUploading(false);
+  }, [open]);
 
+  // Revoke any preview URL on unmount
+  useEffect(() => {
+    return () => {
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, []);
+
+  // ESC closes
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -39,21 +94,112 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const trimmed = email.trim();
-  const valid = EMAIL_RE.test(trimmed) && trimmed.length <= 254;
-  const canSubmit = valid && !isPending;
+  const handleFile = (f: File) => {
+    if (!f.type.startsWith("image/")) {
+      setSubmitError("Please select an image file (JPG, PNG, WebP).");
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      setSubmitError("Image must be smaller than 10 MB.");
+      return;
+    }
+    setSubmitError(null);
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(f);
+    });
+    setFile(f);
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) handleFile(f);
+    e.target.value = "";
+  };
+
+  const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    mutate({ data: { email: trimmed } });
+    setIsDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) handleFile(f);
+  };
+
+  const trimmedTitle = title.trim();
+  const trimmedChannel = channelName.trim();
+  const trimmedYoutube = youtubeUrl.trim();
+  const trimmedCtr = ctr.trim();
+  const ctrNumber = trimmedCtr ? Number(trimmedCtr) : null;
+  const ctrInvalid =
+    trimmedCtr !== "" &&
+    (ctrNumber === null ||
+      Number.isNaN(ctrNumber) ||
+      ctrNumber < 0 ||
+      ctrNumber > 100);
+
+  const canSubmit =
+    !!file &&
+    trimmedTitle.length > 0 &&
+    trimmedTitle.length <= 200 &&
+    trimmedChannel.length > 0 &&
+    trimmedChannel.length <= 120 &&
+    !ctrInvalid &&
+    trimmedYoutube.length <= 500 &&
+    !isUploading;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit || !file) return;
+    setIsUploading(true);
+    setSubmitError(null);
+
+    try {
+      const presigned = await requestUploadUrl({
+        data: {
+          name: file.name.slice(0, 500),
+          size: file.size,
+          contentType: file.type,
+        },
+      });
+
+      const putRes = await fetch(presigned.uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putRes.ok) {
+        throw new Error(`Upload failed (${putRes.status})`);
+      }
+
+      await uploadThumbnail({
+        data: {
+          title: trimmedTitle,
+          channelName: trimmedChannel,
+          niche,
+          imageUrl: presigned.objectPath,
+          ctr: ctrNumber !== null && !Number.isNaN(ctrNumber) ? ctrNumber : null,
+          youtubeUrl: trimmedYoutube ? trimmedYoutube : null,
+        },
+      });
+
+      // Refresh leaderboard once admin approves it shows up; refetch anyway.
+      queryClient.invalidateQueries({ queryKey: getListThumbnailsQueryKey() });
+
+      setSubmitted(true);
+    } catch (err) {
+      console.error("[upload] failed:", err);
+      setSubmitError(
+        err instanceof Error ? err.message : "Upload failed — please try again.",
+      );
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -74,28 +220,28 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 260, damping: 24 }}
-            className="relative w-full max-w-md rounded-2xl p-6"
+            className="relative w-full max-w-lg rounded-2xl p-6 max-h-[92vh] overflow-y-auto"
             style={{
               fontFamily: inter,
-              background: "rgba(12,12,22,0.92)",
-              border: "1px solid rgba(168,85,247,0.28)",
+              background: "rgba(12,12,22,0.95)",
+              border: "1px solid rgba(168,85,247,0.32)",
               boxShadow:
-                "0 30px 60px -10px rgba(0,0,0,0.7), 0 0 40px rgba(168,85,247,0.18)",
+                "0 30px 60px -10px rgba(0,0,0,0.7), 0 0 50px rgba(168,85,247,0.22)",
             }}
           >
             <button
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="absolute top-3.5 right-3.5 w-7 h-7 flex items-center justify-center rounded-full text-white/55 hover:text-white/90 hover:bg-white/5 transition-colors"
+              className="absolute top-3.5 right-3.5 w-7 h-7 flex items-center justify-center rounded-full text-white/55 hover:text-white/90 hover:bg-white/5 transition-colors z-10"
             >
               <X className="w-4 h-4" />
             </button>
 
             {submitted ? (
-              <div className="flex flex-col items-center text-center py-3 gap-3">
+              <div className="flex flex-col items-center text-center py-4 gap-3">
                 <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center"
+                  className="w-12 h-12 rounded-full flex items-center justify-center"
                   style={{
                     background: "rgba(16,185,129,0.15)",
                     border: "1px solid rgba(16,185,129,0.4)",
@@ -106,19 +252,24 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                 <h2
                   id="upload-title"
                   className="text-white"
-                  style={{ fontWeight: 700, fontSize: "1.125rem", letterSpacing: "-0.01em" }}
+                  style={{
+                    fontWeight: 800,
+                    fontSize: "1.2rem",
+                    letterSpacing: "-0.01em",
+                  }}
                 >
-                  You're on the list
+                  Thumbnail submitted
                 </h2>
                 <p
                   style={{
                     color: "rgba(255,255,255,0.6)",
-                    fontSize: "0.875rem",
-                    lineHeight: 1.5,
-                    maxWidth: 320,
+                    fontSize: "0.9rem",
+                    lineHeight: 1.55,
+                    maxWidth: 360,
                   }}
                 >
-                  We'll email you the moment thumbnail uploads go live. No spam, just the launch.
+                  We'll review it shortly. Once it's approved, it'll start
+                  showing up in the arena.
                 </p>
                 <button
                   type="button"
@@ -137,89 +288,174 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5 pr-7">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="uppercase"
-                      style={{
-                        fontWeight: 600,
-                        fontSize: "10px",
-                        color: "#c084fc",
-                        background: "rgba(168, 85, 247, 0.15)",
-                        border: "1px solid rgba(168, 85, 247, 0.4)",
-                        padding: "3px 8px",
-                        borderRadius: "9999px",
-                        lineHeight: 1,
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      Coming soon
-                    </span>
-                    <h2
-                      id="upload-title"
-                      className="text-white"
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "1.125rem",
-                        letterSpacing: "-0.01em",
-                      }}
-                    >
-                      Upload your thumbnail
-                    </h2>
-                  </div>
+                  <h2
+                    id="upload-title"
+                    className="text-white"
+                    style={{
+                      fontWeight: 800,
+                      fontSize: "1.2rem",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    Upload a thumbnail
+                  </h2>
                   <p
                     style={{
                       color: "rgba(255,255,255,0.55)",
-                      fontSize: "0.8125rem",
+                      fontSize: "0.825rem",
                       lineHeight: 1.5,
                     }}
                   >
-                    Uploads aren't live yet. Drop your email and we'll let you know the moment
-                    you can put your own thumbnails into the arena.
+                    Drop in the thumbnail image and a few details. Submissions
+                    are reviewed before they appear in battles.
                   </p>
                 </div>
 
-                <label className="flex flex-col gap-1.5">
-                  <span
-                    className="uppercase"
-                    style={{
-                      fontWeight: 600,
-                      fontSize: "0.65rem",
-                      letterSpacing: "0.12em",
-                      color: "rgba(255,255,255,0.5)",
-                    }}
-                  >
-                    Email
-                  </span>
-                  <div className="relative">
-                    <Mail
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                      style={{ color: "rgba(255,255,255,0.4)" }}
-                    />
-                    <input
-                      autoFocus
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="w-full rounded-lg pl-9 pr-3 py-2.5 text-white placeholder:text-white/30 focus:outline-none transition-colors"
-                      style={{
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.10)",
-                        fontFamily: inter,
-                        fontSize: "0.9rem",
-                      }}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(168,85,247,0.5)";
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-                      }}
-                    />
-                  </div>
-                </label>
+                {/* Dropzone / preview */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={onDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                  className="relative aspect-video rounded-xl overflow-hidden flex items-center justify-center cursor-pointer transition-all"
+                  style={{
+                    background: previewUrl
+                      ? "rgba(0,0,0,0.4)"
+                      : isDragging
+                      ? "rgba(168,85,247,0.12)"
+                      : "rgba(255,255,255,0.03)",
+                    border: previewUrl
+                      ? "1px solid rgba(255,255,255,0.12)"
+                      : isDragging
+                      ? "1.5px dashed rgba(217,70,239,0.6)"
+                      : "1.5px dashed rgba(255,255,255,0.16)",
+                  }}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={onFileInputChange}
+                  />
+                  {previewUrl ? (
+                    <>
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute bottom-2 right-2 px-2.5 py-1 rounded-full flex items-center gap-1.5 backdrop-blur-md"
+                        style={{
+                          fontWeight: 500,
+                          fontSize: "0.72rem",
+                          color: "rgba(255,255,255,0.9)",
+                          background: "rgba(0,0,0,0.55)",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                        }}
+                      >
+                        Click or drop to replace
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 px-6 text-center">
+                      <ImageIcon className="w-7 h-7 text-white/40" />
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontSize: "0.9rem",
+                          color: "rgba(255,255,255,0.85)",
+                        }}
+                      >
+                        Drop a thumbnail here
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.78rem",
+                          color: "rgba(255,255,255,0.45)",
+                        }}
+                      >
+                        or click to browse · PNG, JPG, WebP up to 10 MB
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-                {isError && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Title" required>
+                    <input
+                      type="text"
+                      maxLength={200}
+                      required
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Video title"
+                      className="upload-input"
+                    />
+                  </Field>
+                  <Field label="Channel" required>
+                    <input
+                      type="text"
+                      maxLength={120}
+                      required
+                      value={channelName}
+                      onChange={(e) => setChannelName(e.target.value)}
+                      placeholder="Channel name"
+                      className="upload-input"
+                    />
+                  </Field>
+                  <Field label="Niche" required>
+                    <select
+                      required
+                      value={niche}
+                      onChange={(e) => setNiche(e.target.value as NicheOption)}
+                      className="upload-input"
+                    >
+                      {NICHE_OPTIONS.map((n) => (
+                        <option key={n} value={n} style={{ background: "#0c0c16" }}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="CTR (optional)">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      inputMode="decimal"
+                      value={ctr}
+                      onChange={(e) => setCtr(e.target.value)}
+                      placeholder="e.g. 8.4"
+                      className="upload-input"
+                    />
+                  </Field>
+                </div>
+
+                <Field label="YouTube URL (optional)">
+                  <input
+                    type="url"
+                    maxLength={500}
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    placeholder="https://youtube.com/watch?v=…"
+                    className="upload-input"
+                  />
+                </Field>
+
+                {ctrInvalid && (
                   <div
                     className="flex items-center gap-2 rounded-lg px-3 py-2"
                     style={{
@@ -230,7 +466,22 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                     }}
                   >
                     <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>Couldn't sign you up. Please try again.</span>
+                    <span>CTR must be a number between 0 and 100.</span>
+                  </div>
+                )}
+
+                {submitError && (
+                  <div
+                    className="flex items-center gap-2 rounded-lg px-3 py-2"
+                    style={{
+                      background: "rgba(239,68,68,0.08)",
+                      border: "1px solid rgba(239,68,68,0.3)",
+                      color: "#fecaca",
+                      fontSize: "0.8125rem",
+                    }}
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{submitError}</span>
                   </div>
                 )}
 
@@ -261,18 +512,18 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                         : "none",
                     }}
                   >
-                    {isPending ? (
+                    {isUploading ? (
                       <>
                         <span
                           className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin"
                           aria-hidden
                         />
-                        Sending…
+                        Submitting…
                       </>
                     ) : (
                       <>
-                        <Upload className="w-3.5 h-3.5" />
-                        Notify me
+                        <UploadIcon className="w-3.5 h-3.5" />
+                        Submit thumbnail
                       </>
                     )}
                   </button>
@@ -280,8 +531,55 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
               </form>
             )}
           </motion.div>
+
+          <style>{`
+            .upload-input {
+              width: 100%;
+              border-radius: 0.5rem;
+              padding: 0.55rem 0.7rem;
+              background: rgba(255,255,255,0.04);
+              border: 1px solid rgba(255,255,255,0.10);
+              color: #fff;
+              font-family: ${inter};
+              font-size: 0.875rem;
+              outline: none;
+              transition: border-color 0.15s ease, background 0.15s ease;
+            }
+            .upload-input::placeholder { color: rgba(255,255,255,0.32); }
+            .upload-input:focus { border-color: rgba(168,85,247,0.55); background: rgba(255,255,255,0.05); }
+          `}</style>
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span
+        className="uppercase"
+        style={{
+          fontWeight: 600,
+          fontSize: "0.62rem",
+          letterSpacing: "0.12em",
+          color: "rgba(255,255,255,0.55)",
+        }}
+      >
+        {label}
+        {required && (
+          <span style={{ color: "#d946ef", marginLeft: 4 }}>*</span>
+        )}
+      </span>
+      {children}
+    </label>
   );
 }

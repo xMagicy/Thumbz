@@ -1,16 +1,27 @@
-import React, { useState } from "react";
+import React from "react";
 import { Trophy, Medal, Star } from "lucide-react";
 import type { Thumbnail } from "@workspace/api-client-react";
+import { ListThumbnailsSort } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
+
+type Sort = (typeof ListThumbnailsSort)[keyof typeof ListThumbnailsSort];
 
 interface LeaderboardProps {
   thumbnails: Thumbnail[] | undefined;
   isLoading: boolean;
+  sort: Sort;
+  onSortChange: (s: Sort) => void;
+  onSelect: (t: Thumbnail) => void;
 }
 
 const inter = "'Inter', system-ui, sans-serif";
 
-type Filter = "all" | "week" | "today";
+const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: "elo", label: "Rating" },
+  { value: "winRate", label: "Win rate" },
+  { value: "ctr", label: "CTR" },
+  { value: "battles", label: "Most battled" },
+];
 
 const TIER_BREAKS: { index: number; label: string; subtitle: string }[] = [
   { index: 0, label: "Champions", subtitle: "The reigning thumbnails" },
@@ -88,15 +99,13 @@ function RankBadge({ index }: { index: number }) {
   );
 }
 
-export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
-  const [filter, setFilter] = useState<Filter>("all");
-
-  const filterOptions: { value: Filter; label: string }[] = [
-    { value: "all", label: "All time" },
-    { value: "week", label: "This week" },
-    { value: "today", label: "Today" },
-  ];
-
+export function Leaderboard({
+  thumbnails,
+  isLoading,
+  sort,
+  onSortChange,
+  onSelect,
+}: LeaderboardProps) {
   return (
     <section className="w-full max-w-5xl mx-auto px-6 mt-12 z-20 relative">
       <div className="flex flex-col items-center gap-2 mb-6">
@@ -127,34 +136,34 @@ export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
         />
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 mb-6 justify-center">
-        {filterOptions.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => setFilter(opt.value)}
-            className="px-4 py-1.5 rounded-full transition-all"
-            style={{
-              fontFamily: inter,
-              fontWeight: 500,
-              fontSize: "0.8125rem",
-              letterSpacing: "0.01em",
-              background:
-                filter === opt.value
+      {/* Sort tabs */}
+      <div className="flex flex-wrap gap-2 mb-6 justify-center">
+        {SORT_OPTIONS.map((opt) => {
+          const active = sort === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => onSortChange(opt.value)}
+              className="px-4 py-1.5 rounded-full transition-all"
+              style={{
+                fontFamily: inter,
+                fontWeight: active ? 600 : 500,
+                fontSize: "0.8125rem",
+                letterSpacing: "0.01em",
+                background: active
                   ? "linear-gradient(135deg, #8b5cf6, #d946ef)"
                   : "rgba(255,255,255,0.05)",
-              color: filter === opt.value ? "#fff" : "rgba(255,255,255,0.6)",
-              border:
-                filter === opt.value
+                color: active ? "#fff" : "rgba(255,255,255,0.6)",
+                border: active
                   ? "1px solid rgba(255,255,255,0.18)"
                   : "1px solid rgba(255,255,255,0.08)",
-              boxShadow:
-                filter === opt.value ? "0 6px 18px rgba(217,70,239,0.35)" : "none",
-            }}
-          >
-            {opt.label}
-          </button>
-        ))}
+                boxShadow: active ? "0 6px 18px rgba(217,70,239,0.35)" : "none",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
@@ -175,21 +184,20 @@ export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
           <div className="flex flex-col">
             {thumbnails.map((thumb, index) => (
               <React.Fragment key={thumb.id}>
-                {TIER_BREAKS.find((t) => t.index === index) && (
+                {sort === "elo" && TIER_BREAKS.find((t) => t.index === index) && (
                   <TierHeader
                     label={TIER_BREAKS.find((t) => t.index === index)!.label}
                     subtitle={TIER_BREAKS.find((t) => t.index === index)!.subtitle}
                   />
                 )}
-                <motion.div
+                <motion.button
+                  type="button"
+                  onClick={() => onSelect(thumb)}
                   initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(index * 0.04, 0.4) }}
                   whileHover={{ y: -2 }}
-                  className="group flex flex-col md:flex-row md:items-center gap-4 p-4 md:p-6 transition-colors relative overflow-hidden border-t border-white/[0.04] hover:bg-white/[0.04]"
-                  style={{
-                    boxShadow: "none",
-                  }}
+                  className="group flex flex-col md:flex-row md:items-center gap-4 p-4 md:p-6 transition-colors relative overflow-hidden border-t border-white/[0.04] hover:bg-white/[0.04] text-left w-full cursor-pointer"
                 >
                   {/* Hover purple glow strip on left */}
                   <div className="absolute left-0 top-0 bottom-0 w-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-b from-purple-500 to-fuchsia-500" />
@@ -210,6 +218,43 @@ export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
 
                   {/* Details */}
                   <div className="flex-1 min-w-0 pr-4 flex flex-col gap-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="uppercase"
+                        style={{
+                          fontFamily: inter,
+                          fontWeight: 600,
+                          fontSize: "0.6rem",
+                          letterSpacing: "0.1em",
+                          color: "#c084fc",
+                          background: "rgba(168, 85, 247, 0.15)",
+                          border: "1px solid rgba(168, 85, 247, 0.4)",
+                          padding: "2px 7px",
+                          borderRadius: "9999px",
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {thumb.niche}
+                      </span>
+                      {thumb.ctr !== null && thumb.ctr !== undefined && (
+                        <span
+                          style={{
+                            fontFamily: inter,
+                            fontWeight: 600,
+                            fontSize: "0.62rem",
+                            color: "#86efac",
+                            background: "rgba(34,197,94,0.12)",
+                            border: "1px solid rgba(34,197,94,0.35)",
+                            padding: "2px 7px",
+                            borderRadius: "9999px",
+                            lineHeight: 1.2,
+                            letterSpacing: "0.02em",
+                          }}
+                        >
+                          {thumb.ctr.toFixed(1)}% CTR
+                        </span>
+                      )}
+                    </div>
                     <h4
                       className="truncate text-white"
                       style={{
@@ -310,7 +355,7 @@ export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
                       </span>
                     </div>
                   </div>
-                </motion.div>
+                </motion.button>
               </React.Fragment>
             ))}
           </div>

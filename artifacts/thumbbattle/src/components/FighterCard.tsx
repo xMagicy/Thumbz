@@ -267,19 +267,37 @@ export function FighterCard({
           >
             {thumbnail.channelName}
           </span>
-          <div
-            className="px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-sm"
-            style={{
-              fontFamily: "'Inter', system-ui, sans-serif",
-              fontWeight: 500,
-              fontSize: "0.75rem",
-              color: "rgba(255,255,255,0.85)",
-              letterSpacing: "0.02em",
-            }}
-          >
-            {thumbnail.winRate !== null && thumbnail.winRate !== undefined
-              ? `${Math.round(thumbnail.winRate)}% win rate`
-              : "New contender"}
+          <div className="flex items-center gap-1.5">
+            {thumbnail.ctr !== null && thumbnail.ctr !== undefined && (
+              <div
+                className="px-2.5 py-1 rounded-full backdrop-blur-sm"
+                style={{
+                  fontFamily: "'Inter', system-ui, sans-serif",
+                  fontWeight: 600,
+                  fontSize: "0.72rem",
+                  color: "#86efac",
+                  background: "rgba(34,197,94,0.12)",
+                  border: "1px solid rgba(34,197,94,0.35)",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {thumbnail.ctr.toFixed(1)}% CTR
+              </div>
+            )}
+            <div
+              className="px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-sm"
+              style={{
+                fontFamily: "'Inter', system-ui, sans-serif",
+                fontWeight: 500,
+                fontSize: "0.75rem",
+                color: "rgba(255,255,255,0.85)",
+                letterSpacing: "0.02em",
+              }}
+            >
+              {thumbnail.winRate !== null && thumbnail.winRate !== undefined
+                ? `${Math.round(thumbnail.winRate)}% win rate`
+                : "New contender"}
+            </div>
           </div>
         </div>
       </div>
