@@ -8,8 +8,6 @@
 
 export * from "./battlePair";
 export * from "./battleStats";
-export * from "./contactBody";
-export * from "./contactResult";
 export * from "./errorResponse";
 export * from "./feedbackBody";
 export * from "./feedbackResult";

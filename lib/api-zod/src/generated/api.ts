@@ -295,36 +295,6 @@ export const SubmitFeedbackBody = zod.object({
 });
 
 /**
- * Records a contact submission from a xMagicy portfolio visitor
- * @summary Submit a contact form entry
- */
-export const submitContactBodyNameMax = 200;
-
-export const submitContactBodyEmailMin = 3;
-export const submitContactBodyEmailMax = 254;
-
-export const submitContactBodyMessageMax = 4000;
-
-export const SubmitContactBody = zod.object({
-  name: zod
-    .string()
-    .min(1)
-    .max(submitContactBodyNameMax)
-    .describe("Sender's full name"),
-  email: zod
-    .string()
-    .email()
-    .min(submitContactBodyEmailMin)
-    .max(submitContactBodyEmailMax)
-    .describe("Sender's email address"),
-  message: zod
-    .string()
-    .min(1)
-    .max(submitContactBodyMessageMax)
-    .describe("The contact message"),
-});
-
-/**
  * Records an email so we can notify the user when thumbnail uploads ship
  * @summary Join the upload-feature waitlist
  */

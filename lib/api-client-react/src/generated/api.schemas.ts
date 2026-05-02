@@ -180,32 +180,6 @@ export interface UploadUrlInfo {
   metadata: UploadUrlInfoMetadata;
 }
 
-export interface ContactBody {
-  /**
-   * Sender's full name
-   * @minLength 1
-   * @maxLength 200
-   */
-  name: string;
-  /**
-   * Sender's email address
-   * @minLength 3
-   * @maxLength 254
-   */
-  email: string;
-  /**
-   * The contact message
-   * @minLength 1
-   * @maxLength 4000
-   */
-  message: string;
-}
-
-export interface ContactResult {
-  id: number;
-  createdAt: string;
-}
-
 export interface ErrorResponse {
   error: string;
 }
