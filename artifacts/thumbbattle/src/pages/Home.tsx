@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetBattlePair,
@@ -112,21 +112,40 @@ export default function Home() {
   const queryClient = useQueryClient();
   const [votingFor, setVotingFor] = useState<number | null>(null);
 
-  // Gamification state
+  // Gamification state — refs mirror the count for race-free synchronous reads
   const [streak, setStreak] = useState(0);
   const [localVoteCount, setLocalVoteCount] = useState(0);
   const [dailyCount, setDailyCount] = useState(0);
   const [celebration, setCelebration] = useState<number | null>(null);
+  const localVoteCountRef = useRef(0);
+  const dailyCountRef = useRef(0);
+  const celebrationTimeoutRef = useRef<number | null>(null);
+  const voteTimeoutRef = useRef<number | null>(null);
 
-  // Init daily count from localStorage
+  // Init daily count from localStorage on mount
   useEffect(() => {
     try {
       const today = new Date().toDateString();
       const stored = JSON.parse(localStorage.getItem("thumbz-daily") || "{}");
-      setDailyCount(stored.date === today ? stored.count || 0 : 0);
+      const initial = stored.date === today ? Number(stored.count) || 0 : 0;
+      dailyCountRef.current = initial;
+      setDailyCount(initial);
     } catch {
+      dailyCountRef.current = 0;
       setDailyCount(0);
     }
+  }, []);
+
+  // Cancel pending timeouts on unmount so we never call setState / mutate after unmount
+  useEffect(() => {
+    return () => {
+      if (celebrationTimeoutRef.current !== null) {
+        window.clearTimeout(celebrationTimeoutRef.current);
+      }
+      if (voteTimeoutRef.current !== null) {
+        window.clearTimeout(voteTimeoutRef.current);
+      }
+    };
   }, []);
 
   const {
@@ -170,34 +189,45 @@ export default function Home() {
     if (votingFor !== null) return;
     setVotingFor(winnerId);
 
-    // Update gamification stats immediately
+    // Increment via refs (race-free sync writes), then mirror to state for rendering.
+    // Side effects use the ref value, never derived from a stale closure read.
     setStreak((s) => s + 1);
 
-    setLocalVoteCount((c) => {
-      const next = c + 1;
-      if (next > 0 && next % 10 === 0) {
-        setCelebration(next);
-        setTimeout(() => setCelebration(null), 2800);
+    const nextLocalCount = localVoteCountRef.current + 1;
+    localVoteCountRef.current = nextLocalCount;
+    setLocalVoteCount(nextLocalCount);
+    if (nextLocalCount > 0 && nextLocalCount % 10 === 0) {
+      // Clear any in-flight celebration timer before scheduling a new one
+      if (celebrationTimeoutRef.current !== null) {
+        window.clearTimeout(celebrationTimeoutRef.current);
       }
-      return next;
-    });
+      setCelebration(nextLocalCount);
+      celebrationTimeoutRef.current = window.setTimeout(() => {
+        setCelebration(null);
+        celebrationTimeoutRef.current = null;
+      }, 2800);
+    }
 
-    setDailyCount((d) => {
-      const next = d + 1;
-      try {
-        const today = new Date().toDateString();
-        localStorage.setItem("thumbz-daily", JSON.stringify({ date: today, count: next }));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    const nextDailyCount = dailyCountRef.current + 1;
+    dailyCountRef.current = nextDailyCount;
+    setDailyCount(nextDailyCount);
+    try {
+      const today = new Date().toDateString();
+      localStorage.setItem(
+        "thumbz-daily",
+        JSON.stringify({ date: today, count: nextDailyCount }),
+      );
+    } catch {
+      /* ignore quota / disabled storage */
+    }
 
     // Allow cinematic vote animation to play before mutating + reloading pair
-    setTimeout(() => {
-      castVote.mutate({
-        data: { winnerId, loserId },
-      });
+    if (voteTimeoutRef.current !== null) {
+      window.clearTimeout(voteTimeoutRef.current);
+    }
+    voteTimeoutRef.current = window.setTimeout(() => {
+      castVote.mutate({ data: { winnerId, loserId } });
+      voteTimeoutRef.current = null;
     }, 850);
   };
 

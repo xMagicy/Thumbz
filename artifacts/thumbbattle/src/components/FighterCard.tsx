@@ -81,7 +81,9 @@ export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: F
     opacity: [1, 0.3, 0.2],
     y: [0, 0, 900],
   };
-  const restState = { scale: 1, x: 0, y: 0, rotate: 0, opacity: 1 };
+  // Rest state: x and rotate are owned by the motion value + useTransform (drag-driven),
+  // so we deliberately do NOT include them here to avoid animate-vs-transform contention.
+  const restState = { scale: 1, y: 0, opacity: 1 };
 
   // If this card was swiped, let imperative animate handle x — skip cinematic state on this card
   const animateState = swipeFlying
