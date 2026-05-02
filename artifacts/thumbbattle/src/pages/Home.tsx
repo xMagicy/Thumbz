@@ -248,9 +248,29 @@ export default function Home() {
       {/* Header */}
       <header className="w-full max-w-7xl mx-auto px-8 py-6 flex flex-row items-center justify-between gap-6 z-20 relative">
         {/* Logo: thumbz wordmark — DO NOT CHANGE */}
-        <div className="flex items-baseline">
-          <span className="thumbz-word">thumb</span>
-          <span className="thumbz-z">z</span>
+        <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline">
+            <span className="thumbz-word">thumb</span>
+            <span className="thumbz-z">z</span>
+          </div>
+          <span
+            className="uppercase"
+            style={{
+              fontFamily: "'Inter', system-ui, sans-serif",
+              fontWeight: 600,
+              fontSize: "11px",
+              color: "#c084fc",
+              background: "rgba(168, 85, 247, 0.15)",
+              border: "1px solid rgba(168, 85, 247, 0.4)",
+              padding: "4px 10px",
+              borderRadius: "9999px",
+              lineHeight: 1,
+              transform: "translateY(-18px)",
+              display: "inline-block",
+            }}
+          >
+            BETA
+          </span>
         </div>
 
         {/* Refined live indicator: green pulsing dot, LIVE small caps, N matches today secondary */}
