@@ -6,17 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RequestUploadUrlBody {
-  /**
-   * @minLength 1
-   * @maxLength 500
-   */
+export type UploadUrlInfoMetadata = {
   name: string;
-  /** @minimum 1 */
   size: number;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
   contentType: string;
-}
+};

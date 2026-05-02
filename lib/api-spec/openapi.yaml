@@ -74,7 +74,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UploadThumbnailBody"
+              $ref: "#/components/schemas/UploadThumbnailRequest"
       responses:
         "201":
           description: Thumbnail submitted
@@ -225,14 +225,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RequestUploadUrlBody"
+              $ref: "#/components/schemas/UploadUrlRequest"
       responses:
         "200":
           description: Presigned URL ready
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RequestUploadUrlResponse"
+                $ref: "#/components/schemas/UploadUrlInfo"
         "400":
           description: Invalid request
           content:
@@ -293,7 +293,7 @@ components:
         - losses
         - eloRating
 
-    UploadThumbnailBody:
+    UploadThumbnailRequest:
       type: object
       properties:
         title:
@@ -450,7 +450,7 @@ components:
         - id
         - signedUpAt
 
-    RequestUploadUrlBody:
+    UploadUrlRequest:
       type: object
       properties:
         name:
@@ -469,7 +469,7 @@ components:
         - size
         - contentType
 
-    RequestUploadUrlResponse:
+    UploadUrlInfo:
       type: object
       properties:
         uploadURL:

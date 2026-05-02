@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type UploadThumbnailBodyNiche =
-  (typeof UploadThumbnailBodyNiche)[keyof typeof UploadThumbnailBodyNiche];
+export type UploadThumbnailRequestNiche =
+  (typeof UploadThumbnailRequestNiche)[keyof typeof UploadThumbnailRequestNiche];
 
-export const UploadThumbnailBodyNiche = {
+export const UploadThumbnailRequestNiche = {
   Gaming: "Gaming",
   Tutorial: "Tutorial",
   Finance: "Finance",

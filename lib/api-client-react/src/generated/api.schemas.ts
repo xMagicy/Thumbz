@@ -38,10 +38,10 @@ export interface Thumbnail {
   winRate?: number | null;
 }
 
-export type UploadThumbnailBodyNiche =
-  (typeof UploadThumbnailBodyNiche)[keyof typeof UploadThumbnailBodyNiche];
+export type UploadThumbnailRequestNiche =
+  (typeof UploadThumbnailRequestNiche)[keyof typeof UploadThumbnailRequestNiche];
 
-export const UploadThumbnailBodyNiche = {
+export const UploadThumbnailRequestNiche = {
   Gaming: "Gaming",
   Tutorial: "Tutorial",
   Finance: "Finance",
@@ -52,7 +52,7 @@ export const UploadThumbnailBodyNiche = {
   Other: "Other",
 } as const;
 
-export interface UploadThumbnailBody {
+export interface UploadThumbnailRequest {
   /**
    * @minLength 1
    * @maxLength 200
@@ -63,7 +63,7 @@ export interface UploadThumbnailBody {
    * @maxLength 120
    */
   channelName: string;
-  niche: UploadThumbnailBodyNiche;
+  niche: UploadThumbnailRequestNiche;
   /**
    * Object path returned from /storage/uploads/request-url, or a remote https URL.
    * @minLength 1
@@ -153,7 +153,7 @@ export interface WaitlistResult {
   signedUpAt: string;
 }
 
-export interface RequestUploadUrlBody {
+export interface UploadUrlRequest {
   /**
    * @minLength 1
    * @maxLength 500
@@ -168,16 +168,16 @@ export interface RequestUploadUrlBody {
   contentType: string;
 }
 
-export type RequestUploadUrlResponseMetadata = {
+export type UploadUrlInfoMetadata = {
   name: string;
   size: number;
   contentType: string;
 };
 
-export interface RequestUploadUrlResponse {
+export interface UploadUrlInfo {
   uploadURL: string;
   objectPath: string;
-  metadata: RequestUploadUrlResponseMetadata;
+  metadata: UploadUrlInfoMetadata;
 }
 
 export interface ErrorResponse {

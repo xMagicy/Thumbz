@@ -5,10 +5,10 @@
  * ThumbBattle API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { RequestUploadUrlResponseMetadata } from "./requestUploadUrlResponseMetadata";
+import type { UploadUrlInfoMetadata } from "./uploadUrlInfoMetadata";
 
-export interface RequestUploadUrlResponse {
+export interface UploadUrlInfo {
   uploadURL: string;
   objectPath: string;
-  metadata: RequestUploadUrlResponseMetadata;
+  metadata: UploadUrlInfoMetadata;
 }

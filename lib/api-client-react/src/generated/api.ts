@@ -25,10 +25,10 @@ import type {
   GetBattlePairParams,
   HealthStatus,
   ListThumbnailsParams,
-  RequestUploadUrlBody,
-  RequestUploadUrlResponse,
   Thumbnail,
-  UploadThumbnailBody,
+  UploadThumbnailRequest,
+  UploadUrlInfo,
+  UploadUrlRequest,
   VoteBody,
   VoteResult,
   WaitlistBody,
@@ -224,14 +224,14 @@ export const getUploadThumbnailUrl = () => {
 };
 
 export const uploadThumbnail = async (
-  uploadThumbnailBody: UploadThumbnailBody,
+  uploadThumbnailRequest: UploadThumbnailRequest,
   options?: RequestInit,
 ): Promise<Thumbnail> => {
   return customFetch<Thumbnail>(getUploadThumbnailUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(uploadThumbnailBody),
+    body: JSON.stringify(uploadThumbnailRequest),
   });
 };
 
@@ -242,14 +242,14 @@ export const getUploadThumbnailMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof uploadThumbnail>>,
     TError,
-    { data: BodyType<UploadThumbnailBody> },
+    { data: BodyType<UploadThumbnailRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof uploadThumbnail>>,
   TError,
-  { data: BodyType<UploadThumbnailBody> },
+  { data: BodyType<UploadThumbnailRequest> },
   TContext
 > => {
   const mutationKey = ["uploadThumbnail"];
@@ -263,7 +263,7 @@ export const getUploadThumbnailMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof uploadThumbnail>>,
-    { data: BodyType<UploadThumbnailBody> }
+    { data: BodyType<UploadThumbnailRequest> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -276,7 +276,7 @@ export const getUploadThumbnailMutationOptions = <
 export type UploadThumbnailMutationResult = NonNullable<
   Awaited<ReturnType<typeof uploadThumbnail>>
 >;
-export type UploadThumbnailMutationBody = BodyType<UploadThumbnailBody>;
+export type UploadThumbnailMutationBody = BodyType<UploadThumbnailRequest>;
 export type UploadThumbnailMutationError = ErrorType<ErrorResponse>;
 
 /**
@@ -289,14 +289,14 @@ export const useUploadThumbnail = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof uploadThumbnail>>,
     TError,
-    { data: BodyType<UploadThumbnailBody> },
+    { data: BodyType<UploadThumbnailRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof uploadThumbnail>>,
   TError,
-  { data: BodyType<UploadThumbnailBody> },
+  { data: BodyType<UploadThumbnailRequest> },
   TContext
 > => {
   return useMutation(getUploadThumbnailMutationOptions(options));
@@ -743,14 +743,14 @@ export const getRequestUploadUrlUrl = () => {
 };
 
 export const requestUploadUrl = async (
-  requestUploadUrlBody: RequestUploadUrlBody,
+  uploadUrlRequest: UploadUrlRequest,
   options?: RequestInit,
-): Promise<RequestUploadUrlResponse> => {
-  return customFetch<RequestUploadUrlResponse>(getRequestUploadUrlUrl(), {
+): Promise<UploadUrlInfo> => {
+  return customFetch<UploadUrlInfo>(getRequestUploadUrlUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(requestUploadUrlBody),
+    body: JSON.stringify(uploadUrlRequest),
   });
 };
 
@@ -761,14 +761,14 @@ export const getRequestUploadUrlMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof requestUploadUrl>>,
     TError,
-    { data: BodyType<RequestUploadUrlBody> },
+    { data: BodyType<UploadUrlRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof requestUploadUrl>>,
   TError,
-  { data: BodyType<RequestUploadUrlBody> },
+  { data: BodyType<UploadUrlRequest> },
   TContext
 > => {
   const mutationKey = ["requestUploadUrl"];
@@ -782,7 +782,7 @@ export const getRequestUploadUrlMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof requestUploadUrl>>,
-    { data: BodyType<RequestUploadUrlBody> }
+    { data: BodyType<UploadUrlRequest> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -795,7 +795,7 @@ export const getRequestUploadUrlMutationOptions = <
 export type RequestUploadUrlMutationResult = NonNullable<
   Awaited<ReturnType<typeof requestUploadUrl>>
 >;
-export type RequestUploadUrlMutationBody = BodyType<RequestUploadUrlBody>;
+export type RequestUploadUrlMutationBody = BodyType<UploadUrlRequest>;
 export type RequestUploadUrlMutationError = ErrorType<ErrorResponse>;
 
 /**
@@ -808,14 +808,14 @@ export const useRequestUploadUrl = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof requestUploadUrl>>,
     TError,
-    { data: BodyType<RequestUploadUrlBody> },
+    { data: BodyType<UploadUrlRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof requestUploadUrl>>,
   TError,
-  { data: BodyType<RequestUploadUrlBody> },
+  { data: BodyType<UploadUrlRequest> },
   TContext
 > => {
   return useMutation(getRequestUploadUrlMutationOptions(options));

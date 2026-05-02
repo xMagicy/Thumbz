@@ -5,9 +5,9 @@
  * ThumbBattle API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { UploadThumbnailBodyNiche } from "./uploadThumbnailBodyNiche";
+import type { UploadThumbnailRequestNiche } from "./uploadThumbnailRequestNiche";
 
-export interface UploadThumbnailBody {
+export interface UploadThumbnailRequest {
   /**
    * @minLength 1
    * @maxLength 200
@@ -18,7 +18,7 @@ export interface UploadThumbnailBody {
    * @maxLength 120
    */
   channelName: string;
-  niche: UploadThumbnailBodyNiche;
+  niche: UploadThumbnailRequestNiche;
   /**
    * Object path returned from /storage/uploads/request-url, or a remote https URL.
    * @minLength 1
