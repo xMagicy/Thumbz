@@ -53,11 +53,13 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
       // z-20 so cards (z-10 at rest) sit BELOW the badge by default, but cards bump
       // their z-index to 30 while dragging or voting so they slide over the badge.
       className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center"
-      initial={false}
-      // 200ms fade-out when a vote starts; on the new pair the parent AnimatePresence
-      // container handles the fade-in (no inner re-animation needed).
+      // Mount with opacity 0 so the badge fades IN explicitly (400ms) when a fresh pair
+      // arrives — landing slightly after the cards settle (which fade in over 300ms via
+      // the parent AnimatePresence container), exactly matching the spec.
+      initial={{ opacity: 0 }}
+      // 200ms fade-out when a vote starts, 400ms fade-in when the badge re-enters.
       animate={{ opacity: isVoting ? 0 : 1 }}
-      transition={{ duration: 0.2, ease: EASE_STANDARD }}
+      transition={{ duration: isVoting ? 0.2 : 0.4, ease: EASE_STANDARD }}
     >
       <div
         className="relative flex items-center justify-center"

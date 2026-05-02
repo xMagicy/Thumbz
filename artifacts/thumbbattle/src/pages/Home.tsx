@@ -267,19 +267,32 @@ export default function Home() {
     // Fire the mutation right away so server work overlaps with the cinematic animation.
     castVote.mutate({ data: { winnerId, loserId } });
 
-    // Deterministic 800ms timer: bump round (unlocks voteState + forces AnimatePresence
-    // transition even on identical-pair refetch) and invalidate the pair query so the next
-    // pair starts loading. Runs regardless of mutation outcome — the UI never deadlocks.
+    // 800ms after the click, the cinematic exit (cards lifted -30 / opacity 0) is complete.
+    // We then start the next-pair refetch and ONLY commit the round-swap (which forces
+    // AnimatePresence to remount with the new pair) once the refetch has actually settled.
+    // This closes the architect-flagged race where remounting on stale cached data showed
+    // the old pair flashing back as interactive.
+    //
+    // A 2s safety fallback guarantees the UI never deadlocks even if the refetch hangs.
     if (pairRefreshTimeoutRef.current !== null) {
       window.clearTimeout(pairRefreshTimeoutRef.current);
     }
     pairRefreshTimeoutRef.current = window.setTimeout(() => {
-      // Clear stale voteState alongside bumping round — both signals point to "unlocked"
-      // and removing the stale value avoids confusion in future debugging.
-      setVoteState(null);
-      setRound((r) => r + 1);
-      queryClient.invalidateQueries({ queryKey: getGetBattlePairQueryKey() });
       pairRefreshTimeoutRef.current = null;
+      let committed = false;
+      const commit = () => {
+        if (committed) return;
+        committed = true;
+        if (safetyId !== null) window.clearTimeout(safetyId);
+        setVoteState(null);
+        setRound((r) => r + 1);
+      };
+      // Trigger refetch and commit when the invalidation's promise settles (success or fail).
+      queryClient
+        .invalidateQueries({ queryKey: getGetBattlePairQueryKey() })
+        .then(commit, commit);
+      // Safety net: never wait longer than 2s before unlocking the UI.
+      const safetyId = window.setTimeout(commit, 2000);
     }, VOTE_ANIM_DURATION_MS);
   };
 
