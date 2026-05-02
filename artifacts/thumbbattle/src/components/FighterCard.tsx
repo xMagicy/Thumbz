@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, useMotionValue, useTransform, animate, PanInfo } from "framer-motion";
 import { Youtube } from "lucide-react";
 import type { Thumbnail } from "@workspace/api-client-react";
@@ -9,7 +9,6 @@ interface FighterCardProps {
   isVoting: boolean;
   voteResult: "winner" | "loser" | null;
   onVote: () => void;
-  onSwipeStart?: () => void;
 }
 
 const SWIPE_THRESHOLD = 100;
@@ -40,11 +39,14 @@ export function FighterCard({
   isVoting,
   voteResult,
   onVote,
-  onSwipeStart,
 }: FighterCardProps) {
+  void side;
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
   const voteOverlayOpacity = useTransform(x, [-200, -40, 0, 40, 200], [0.55, 0, 0, 0, 0.55]);
+
+  // Tracks active drag — used to lift the card above the VS badge while it slides.
+  const [isDragging, setIsDragging] = useState(false);
 
   // Reset drag offset when a new battle pair loads
   useEffect(() => {
@@ -52,6 +54,7 @@ export function FighterCard({
   }, [thumbnail.id, x]);
 
   const handleDragEnd = (_e: unknown, info: PanInfo) => {
+    setIsDragging(false);
     if (isVoting) return;
     const offset = info.offset.x;
     const velocity = info.velocity.x;
@@ -67,10 +70,10 @@ export function FighterCard({
     }
   };
 
-  // Clean 4-stop timeline (matches the spec exactly):
+  // Clean 4-stop timeline (matches the Tinder-style spec):
   //   t = 0      (0%)        rest
-  //   t = 150ms  (18.75%)    instant feedback   — winner pops, loser dims & shrinks
-  //   t = 500ms  (62.5%)     winner moment      — loser drifts down to opacity 0.2 / +20
+  //   t = 150ms  (18.75%)    instant feedback   — winner pops, loser dims neutrally to 0.8
+  //   t = 500ms  (62.5%)     winner moment      — loser drifts to opacity 0.4 / +20
   //   t = 800ms  (100%)      exit               — both lift -30, fade to 0
   // Total: 800ms, single cubic-bezier(0.4, 0, 0.2, 1) easing across the whole curve.
   const winnerKeyframes = {
@@ -78,10 +81,12 @@ export function FighterCard({
     y: [0, 0, 0, -30],
     opacity: [1, 1, 1, 0],
   };
+  // Tinder model: the not-chosen card fades NEUTRALLY (no red, no negative tint).
+  // Only opacity drops; the card itself stays visually clean.
   const loserKeyframes = {
     scale: [1, 0.95, 0.95, 0.95],
     y: [0, 0, 20, -30],
-    opacity: [1, 0.5, 0.2, 0],
+    opacity: [1, 0.8, 0.4, 0],
   };
   const restState = { scale: 1, y: 0, opacity: 1 };
 
@@ -102,16 +107,21 @@ export function FighterCard({
   const category = deriveCategory(thumbnail.title, thumbnail.channelName);
   const youtubeUrl = extractYoutubeUrl(thumbnail.imageUrl);
 
+  // Z-index management: cards sit BELOW the VS badge at rest (so VS visually overlaps
+  // the card edges), and ABOVE the VS badge while being dragged or animated through a
+  // vote — so the card slides cleanly over the badge like a Tinder swipe.
+  const cardZ = isDragging || isVoting || voteResult !== null ? 30 : 10;
+
   return (
     <motion.div
       className={`group relative flex-1 max-w-[560px] w-full flex flex-col gap-5 ${
         isVoting ? "pointer-events-none" : "cursor-grab active:cursor-grabbing"
       }`}
-      style={{ x, rotate, touchAction: "pan-y", willChange: "transform, opacity" }}
+      style={{ x, rotate, touchAction: "pan-y", willChange: "transform, opacity", zIndex: cardZ }}
       drag={voteResult || isVoting ? false : "x"}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.7}
-      onDragStart={() => onSwipeStart?.()}
+      onDragStart={() => setIsDragging(true)}
       onDragEnd={handleDragEnd}
       whileHover={voteResult || isVoting ? undefined : { scale: 1.04, y: -8 }}
       animate={animateState}
@@ -160,15 +170,6 @@ export function FighterCard({
               "linear-gradient(135deg, rgba(139,92,246,0.18), rgba(217,70,239,0.22))",
             mixBlendMode: "screen",
           }}
-        />
-
-        {/* Loser red tint — fades in smoothly within the 150ms feedback window */}
-        <motion.div
-          className="absolute inset-0 pointer-events-none"
-          initial={false}
-          animate={{ opacity: voteResult === "loser" ? 1 : 0 }}
-          transition={{ duration: 0.15, ease: EASE_STANDARD }}
-          style={{ background: "rgba(220, 38, 38, 0.3)" }}
         />
 
         {/* Top-left: Category pill */}

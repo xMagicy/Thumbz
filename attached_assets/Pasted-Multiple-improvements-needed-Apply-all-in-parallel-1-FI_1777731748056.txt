@@ -1,0 +1,105 @@
+Multiple improvements needed. Apply all in parallel.
+
+1. FIX THE VS BADGE LAYERING DURING SWIPE
+
+Currently when you swipe a thumbnail, the VS badge stays visible ON TOP of the swiping card. That looks broken. Fix it:
+
+- The VS badge has a LOWER z-index than the thumbnail cards
+- When you swipe a card, the card slides OVER the VS badge naturally
+- The VS badge only sits "above" when both cards are static (default state)
+- During any swipe motion, cards are always visually in front
+
+This makes the swipe feel like you're physically moving the card over the badge, like Tinder.
+
+2. CHANGE THE SWIPE FEEDBACK TO TINDER STYLE
+
+Currently swiping shows green on one card and red on the other. That's not how Tinder works. In Tinder, swiping right means "yes, I want this" (green/like), and the OTHER option just stays neutral.
+
+Change to:
+- The card being swiped TOWARD (the chosen one) gets a green/purple glow border that intensifies as you swipe further
+- The card being swiped AWAY FROM (the not chosen one) stays NEUTRAL — no red, no negative color, just slightly fades to 80% opacity
+- Replace any red color feedback with neutral fade
+- The selected card should feel celebrated, not the other one punished
+
+This matches Tinder's "like vs neutral" model, not "like vs reject".
+
+3. CLEAN UP THE VS BADGE ANIMATION
+
+The current sword animation looks awkward — swords appear, then "VS" text disappears weirdly. Make it cleaner:
+
+DEFAULT STATE (most of the time):
+- Solid gradient circle (80px diameter, #8b5cf6 to #d946ef)
+- Just the "VS" text in white, Inter Black, 28px, perfectly centered
+- Subtle pulse animation (scale 1.0 to 1.05, 2 second cycle)
+- Soft purple/pink glow halo
+- NO swords visible by default
+
+HOVER STATE (only when mouse hovers over the badge):
+- Two crossed swords appear behind the "VS" text
+- Swords are white (#ffffff) with subtle dark purple outline
+- Smooth fade in (300ms)
+- VS text stays visible, layered ON TOP of the swords
+- When mouse leaves, swords fade out smoothly (300ms)
+
+DURING SWIPE/CLICK:
+- VS badge fades out completely (opacity 0) within 200ms
+- Stays hidden during the card transition
+- Fades back in (opacity 0 to 1, 400ms) once the new pair has loaded and settled
+
+The VS text should NEVER disappear before the swords if both are visible. They appear and disappear together cleanly.
+
+4. FIX THE CLICK/RELOAD ANIMATION SEQUENCE
+
+The current click and new-pair-load animations look buggy and unpolished. Replace with a clean smooth sequence:
+
+When a user clicks/swipes a thumbnail:
+
+PHASE 1 — INSTANT FEEDBACK (0ms - 150ms):
+- Selected thumbnail: scale to 1.05x with smooth ease-out
+- Selected thumbnail: green/purple glow border intensifies
+- Other thumbnail: scale to 0.95x, opacity to 0.8 (NOT red, just neutral fade)
+- VS badge: starts fading out
+
+PHASE 2 — WINNER MOMENT (150ms - 500ms):
+- Selected thumbnail stays scaled up, holds the glow
+- Other thumbnail continues fading neutrally
+- VS badge fully hidden
+
+PHASE 3 — EXIT (500ms - 800ms):
+- Both cards smoothly fade to opacity 0
+- Both cards translateY -30px (lift up slightly as they fade)
+- Use ease-in-out easing
+
+PHASE 4 — NEW PAIR ENTRY (800ms - 1100ms):
+- New thumbnails fade in from opacity 0 to 1
+- They enter from translateY +30px (rise up smoothly)
+- VS badge fades back in at the end
+- Use ease-out easing
+
+TECHNICAL REQUIREMENTS:
+- All transitions must be 60fps smooth, no jank
+- Use cubic-bezier(0.4, 0, 0.2, 1) for natural easing
+- No layout shifts during animation
+- Both cards animate in sync, not one after the other
+- If user clicks twice rapidly, ignore the second click until animation finishes
+- On mobile, animation should still feel snappy
+
+5. FIX THE NEW PAIR LOADING BUG
+
+Currently, after clicking, sometimes no new pair appears or there's a long empty pause.
+
+Fix:
+- After the winner/loser animation completes, immediately fetch the next random pair
+- Show new thumbnails within max 800ms after the click
+- If the API call fails, retry once and log the error
+- Add a subtle loading state (small spinner or skeleton) for the brief moment between old pair fading out and new pair fading in
+- Database update (vote registered) happens in PARALLEL with loading the new pair, not sequentially
+
+Test thoroughly: click 5 times in a row, every click should result in a new pair appearing within ~1 second.
+
+PRIORITY ORDER:
+- #5 (new pair bug) is most critical — must work perfectly
+- #1 (z-index) and #4 (smooth animations) are next
+- #2 (Tinder-style colors) and #3 (VS badge cleanup) are polish
+
+Apply all in parallel and rebuild.

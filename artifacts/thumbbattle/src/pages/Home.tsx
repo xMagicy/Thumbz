@@ -133,10 +133,6 @@ export default function Home() {
   const pairRefreshTimeoutRef = useRef<number | null>(null);
   const voteStartedAtRef = useRef(0);
 
-  // Counter bumped whenever a card swipe starts — VSBadge watches this to trigger sword anim
-  const [vsAnimTrigger, setVsAnimTrigger] = useState(0);
-  const triggerVsAnim = () => setVsAnimTrigger((v) => v + 1);
-
   // Beta feedback dialog
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
@@ -539,10 +535,9 @@ export default function Home() {
                     : null
                 }
                 onVote={() => handleVote(battlePair.left.id, battlePair.right.id)}
-                onSwipeStart={triggerVsAnim}
               />
 
-              <VSBadge externalTrigger={vsAnimTrigger} isVoting={isVoting} />
+              <VSBadge isVoting={isVoting} />
 
               <FighterCard
                 thumbnail={battlePair.right}
@@ -556,7 +551,6 @@ export default function Home() {
                     : null
                 }
                 onVote={() => handleVote(battlePair.right.id, battlePair.left.id)}
-                onSwipeStart={triggerVsAnim}
               />
               </motion.div>
             </AnimatePresence>

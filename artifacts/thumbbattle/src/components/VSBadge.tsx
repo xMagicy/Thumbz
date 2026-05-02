@@ -1,12 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 
 interface VSBadgeProps {
-  /** Bumped by parent to trigger the sword animation from a swipe-start. */
-  externalTrigger?: number;
-  /** True while a vote is in flight — VS badge fades out so it doesn't sit on top of the cinematic vote anim. */
+  /** True while a vote is in flight — VS badge fades out so it doesn't sit on top of the
+   * cinematic vote anim, then fades back in once the new pair has settled. */
   isVoting?: boolean;
 }
+
+const EASE_STANDARD = [0.4, 0, 0.2, 1] as const;
 
 function SwordSVG({ size = 78 }: { size?: number }) {
   // White swords with a subtle dark-purple outline (#6b21a8) for definition against
@@ -42,61 +43,29 @@ function SwordSVG({ size = 78 }: { size?: number }) {
   );
 }
 
-export function VSBadge({ externalTrigger = 0, isVoting = false }: VSBadgeProps) {
-  const [animating, setAnimating] = useState(false);
-  const animatingRef = useRef(false);
-  const timeoutRef = useRef<number | null>(null);
-  const lastExternalRef = useRef(externalTrigger);
-
-  const triggerAnim = useCallback(() => {
-    if (animatingRef.current) return;
-    animatingRef.current = true;
-    setAnimating(true);
-    if (timeoutRef.current !== null) {
-      window.clearTimeout(timeoutRef.current);
-    }
-    timeoutRef.current = window.setTimeout(() => {
-      animatingRef.current = false;
-      setAnimating(false);
-      timeoutRef.current = null;
-    }, 1000);
-  }, []);
-
-  // External (swipe-start) trigger
-  useEffect(() => {
-    if (externalTrigger !== lastExternalRef.current) {
-      lastExternalRef.current = externalTrigger;
-      if (externalTrigger > 0) triggerAnim();
-    }
-  }, [externalTrigger, triggerAnim]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
-    };
-  }, []);
+export function VSBadge({ isVoting = false }: VSBadgeProps) {
+  const [hovered, setHovered] = useState(false);
+  // Show swords ONLY while hovered and not in the middle of a vote transition.
+  const showSwords = hovered && !isVoting;
 
   return (
     <motion.div
-      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none flex items-center justify-center"
+      // z-20 so cards (z-10 at rest) sit BELOW the badge by default, but cards bump
+      // their z-index to 30 while dragging or voting so they slide over the badge.
+      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center"
       initial={false}
-      // Spec: VS stays still in the 0–150ms instant-feedback window, then fades out
-      // smoothly during the 150–500ms winner-moment window.
+      // 200ms fade-out when a vote starts; on the new pair the parent AnimatePresence
+      // container handles the fade-in (no inner re-animation needed).
       animate={{ opacity: isVoting ? 0 : 1 }}
-      transition={{
-        duration: 0.35,
-        delay: isVoting ? 0.15 : 0,
-        ease: [0.4, 0, 0.2, 1],
-      }}
+      transition={{ duration: 0.2, ease: EASE_STANDARD }}
     >
       <div
         className="relative flex items-center justify-center"
         style={{ width: 160, height: 160 }}
       >
-        {/* Soft outer purple/pink glow halo */}
+        {/* Soft outer purple/pink halo — always visible, soft pulse */}
         <div
-          className="absolute inset-0 rounded-full"
+          className="absolute inset-0 rounded-full pointer-events-none"
           style={{
             background:
               "radial-gradient(closest-side, rgba(217,70,239,0.55) 0%, rgba(139,92,246,0.3) 50%, rgba(0,0,0,0) 80%)",
@@ -104,77 +73,30 @@ export function VSBadge({ externalTrigger = 0, isVoting = false }: VSBadgeProps)
           }}
         />
 
-        {/* Sword 1 — swings in from top-left */}
+        {/* Crossed swords — only visible while hovered. Static rotations form an X
+            behind the gradient circle. Smooth 300ms fade in/out via opacity only. */}
         <motion.div
           className="absolute pointer-events-none"
-          style={{ originX: 0.5, originY: 0.5 }}
+          style={{ rotate: 45 }}
           initial={false}
-          animate={
-            animating
-              ? {
-                  x: [-95, 0, 0, 0],
-                  y: [-95, 0, 0, 0],
-                  rotate: [-110, 45, 45, 45],
-                  opacity: [0, 1, 1, 0],
-                }
-              : { opacity: 0 }
-          }
-          transition={
-            animating
-              ? { duration: 1, times: [0, 0.3, 0.85, 1], ease: "easeOut" }
-              : { duration: 0.2 }
-          }
+          animate={{ opacity: showSwords ? 1 : 0 }}
+          transition={{ duration: 0.3, ease: EASE_STANDARD }}
+        >
+          <SwordSVG />
+        </motion.div>
+        <motion.div
+          className="absolute pointer-events-none"
+          style={{ rotate: -45 }}
+          initial={false}
+          animate={{ opacity: showSwords ? 1 : 0 }}
+          transition={{ duration: 0.3, ease: EASE_STANDARD }}
         >
           <SwordSVG />
         </motion.div>
 
-        {/* Sword 2 — swings in from top-right */}
-        <motion.div
-          className="absolute pointer-events-none"
-          style={{ originX: 0.5, originY: 0.5 }}
-          initial={false}
-          animate={
-            animating
-              ? {
-                  x: [95, 0, 0, 0],
-                  y: [-95, 0, 0, 0],
-                  rotate: [110, -45, -45, -45],
-                  opacity: [0, 1, 1, 0],
-                }
-              : { opacity: 0 }
-          }
-          transition={
-            animating
-              ? { duration: 1, times: [0, 0.3, 0.85, 1], ease: "easeOut" }
-              : { duration: 0.2 }
-          }
-        >
-          <SwordSVG />
-        </motion.div>
-
-        {/* Clash flash burst — bright at the moment swords meet */}
-        <motion.div
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            width: 110,
-            height: 110,
-            background:
-              "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(217,70,239,0.55) 35%, rgba(139,92,246,0.3) 60%, transparent 75%)",
-          }}
-          initial={false}
-          animate={
-            animating
-              ? { opacity: [0, 0, 0.9, 0, 0], scale: [0.8, 0.9, 1.5, 1.7, 1.7] }
-              : { opacity: 0, scale: 1 }
-          }
-          transition={
-            animating
-              ? { duration: 1, times: [0, 0.25, 0.32, 0.55, 1], ease: "easeOut" }
-              : { duration: 0.2 }
-          }
-        />
-
-        {/* Solid gradient circle, 80px, with subtle pulse — visual only (no pointer events) */}
+        {/* Solid gradient circle, 80px, with subtle pulse — visual only (no pointer
+            events). VS text is layered ON TOP of the swords because the circle paints
+            after the sword motion.divs in DOM order. */}
         <motion.div
           className="absolute rounded-full flex items-center justify-center pointer-events-none"
           style={{
@@ -188,11 +110,8 @@ export function VSBadge({ externalTrigger = 0, isVoting = false }: VSBadgeProps)
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          {/* VS text — fades out while swords clash, fades back in when they're gone */}
-          <motion.span
-            initial={false}
-            animate={{ opacity: animating ? 0 : 1 }}
-            transition={{ duration: 0.2 }}
+          {/* VS text — always visible. Stays on top of the swords. */}
+          <span
             style={{
               fontFamily: "'Inter', system-ui, sans-serif",
               fontWeight: 900,
@@ -204,12 +123,11 @@ export function VSBadge({ externalTrigger = 0, isVoting = false }: VSBadgeProps)
             }}
           >
             VS
-          </motion.span>
+          </span>
         </motion.div>
 
         {/* Dedicated hover/click target — transparent button sits on top, slightly larger
-            than the visible circle for a forgiving hover area. Also lets touch users tap
-            to see the animation. */}
+            than the visible circle for a forgiving hover area. Drives the sword fade. */}
         <button
           type="button"
           aria-label="VS"
@@ -222,10 +140,12 @@ export function VSBadge({ externalTrigger = 0, isVoting = false }: VSBadgeProps)
             padding: 0,
             cursor: "pointer",
           }}
-          onMouseEnter={triggerAnim}
-          onPointerEnter={triggerAnim}
-          onFocus={triggerAnim}
-          onClick={triggerAnim}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={() => setHovered(true)}
+          onBlur={() => setHovered(false)}
         />
       </div>
     </motion.div>
