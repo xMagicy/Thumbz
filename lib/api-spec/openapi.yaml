@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ThumbBattle API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: thumbnails
+    description: Thumbnail operations
+  - name: battles
+    description: Battle/voting operations
 paths:
   /healthz:
     get:
@@ -24,6 +28,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /thumbnails:
+    get:
+      operationId: listThumbnails
+      tags: [thumbnails]
+      summary: List all thumbnails
+      description: Returns all thumbnails sorted by ELO rating descending
+      responses:
+        "200":
+          description: List of thumbnails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thumbnail"
+
+  /thumbnails/battle:
+    get:
+      operationId: getBattlePair
+      tags: [thumbnails]
+      summary: Get two random thumbnails for a battle
+      description: Returns two distinct random thumbnails to compare
+      responses:
+        "200":
+          description: Two thumbnails for battle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BattlePair"
+
+  /battles:
+    get:
+      operationId: listBattles
+      tags: [battles]
+      summary: Get battle stats
+      description: Returns total vote count and recent battle history
+      responses:
+        "200":
+          description: Battle stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BattleStats"
+
+  /battles/vote:
+    post:
+      operationId: castVote
+      tags: [battles]
+      summary: Cast a vote
+      description: Record a vote for a winner against a loser, updates win/loss counts and ELO ratings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoteBody"
+      responses:
+        "200":
+          description: Updated thumbnails after vote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoteResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Thumbnail not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +115,112 @@ components:
       required:
         - status
 
+    Thumbnail:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        imageUrl:
+          type: string
+        channelName:
+          type: string
+        wins:
+          type: integer
+        losses:
+          type: integer
+        eloRating:
+          type: integer
+        winRate:
+          type: number
+          description: Win rate as a percentage (0-100), null if no battles
+          nullable: true
+      required:
+        - id
+        - title
+        - imageUrl
+        - channelName
+        - wins
+        - losses
+        - eloRating
+
+    BattlePair:
+      type: object
+      properties:
+        left:
+          $ref: "#/components/schemas/Thumbnail"
+        right:
+          $ref: "#/components/schemas/Thumbnail"
+      required:
+        - left
+        - right
+
+    VoteBody:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+        loserId:
+          type: integer
+      required:
+        - winnerId
+        - loserId
+
+    VoteResult:
+      type: object
+      properties:
+        winner:
+          $ref: "#/components/schemas/Thumbnail"
+        loser:
+          $ref: "#/components/schemas/Thumbnail"
+        totalVotes:
+          type: integer
+      required:
+        - winner
+        - loser
+        - totalVotes
+
+    BattleStats:
+      type: object
+      properties:
+        totalVotes:
+          type: integer
+        recentBattles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecentBattle"
+      required:
+        - totalVotes
+        - recentBattles
+
+    RecentBattle:
+      type: object
+      properties:
+        id:
+          type: integer
+        winnerId:
+          type: integer
+        loserId:
+          type: integer
+        winnerTitle:
+          type: string
+        loserTitle:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - winnerId
+        - loserId
+        - winnerTitle
+        - loserTitle
+        - createdAt
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

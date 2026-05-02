@@ -5,7 +5,9 @@
  * ThumbBattle API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Thumbnail } from "./thumbnail";
 
-export interface HealthStatus {
-  status: string;
+export interface BattlePair {
+  left: Thumbnail;
+  right: Thumbnail;
 }
