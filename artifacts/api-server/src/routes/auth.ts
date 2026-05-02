@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { OAuth2Client } from "google-auth-library";
-import { z } from "zod/v4";
 import { db, usersTable } from "@workspace/db";
 import { setSession, clearSession, getUserIdFromSession } from "../lib/sessions";
 
@@ -16,20 +15,16 @@ if (!CLIENT_ID) {
 
 const googleClient = new OAuth2Client(CLIENT_ID);
 
-const GoogleAuthBody = z.object({
-  idToken: z.string().min(10),
-});
-
 // POST /api/auth/google — verify Google ID token, find-or-create user, set session
 router.post("/google", async (req, res) => {
-  const parsed = GoogleAuthBody.safeParse(req.body);
-  if (!parsed.success) {
+  const idToken = (req.body as { idToken?: unknown } | undefined)?.idToken;
+  if (typeof idToken !== "string" || idToken.length < 10) {
     return res.status(400).json({ error: "Invalid request body" });
   }
 
   try {
     const ticket = await googleClient.verifyIdToken({
-      idToken: parsed.data.idToken,
+      idToken,
       audience: CLIENT_ID,
     });
     const payload = ticket.getPayload();
