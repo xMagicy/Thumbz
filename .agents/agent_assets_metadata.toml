@@ -47,3 +47,9 @@ id = "_RVLQi7uXGNJdJE7fTkS-"
 uri = "file://artifacts/thumbbattle/public/thumbz-logo.png"
 type = "image"
 title = "thumbz logo (1024px, transparent PNG)"
+
+[[outputs]]
+id = "sYyyJCSDlfaVDHnivnmgK"
+uri = "file://attached_assets/exports/xmagicy-export.zip"
+type = "unspecified"
+title = "xmagicy-export.zip"
