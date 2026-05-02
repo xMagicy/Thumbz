@@ -9,6 +9,7 @@ interface FighterCardProps {
   isVoting: boolean;
   voteResult: "winner" | "loser" | null;
   onVote: () => void;
+  onSwipeStart?: () => void;
 }
 
 const SWIPE_THRESHOLD = 100;
@@ -31,7 +32,14 @@ function extractYoutubeUrl(imageUrl: string): string | null {
   return match ? `https://www.youtube.com/watch?v=${match[1]}` : null;
 }
 
-export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: FighterCardProps) {
+export function FighterCard({
+  thumbnail,
+  side,
+  isVoting,
+  voteResult,
+  onVote,
+  onSwipeStart,
+}: FighterCardProps) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
   const voteOverlayOpacity = useTransform(x, [-200, -40, 0, 40, 200], [0.55, 0, 0, 0, 0.55]);
@@ -64,22 +72,25 @@ export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: F
     }
   };
 
-  // Cinematic vote animations (click path) — winner grows + slides toward center, then up-and-out.
-  // Loser fades, tilts away, then slides down-and-out.
+  // Cinematic vote animations — two-stage:
+  //   Stage 1 (0 → 200ms): instant decision feedback (winner lifts/scales, loser tints/tilts/dims)
+  //   Stage 2 (200ms → 800ms): cinematic exit (winner slides toward center then up-and-out,
+  //                                              loser tilts further away then down-and-out)
   const winnerSlide = side === "left" ? 70 : -70;
+  const loserInitialTilt = side === "left" ? -2 : 2;
   const loserTilt = side === "left" ? -10 : 10;
 
   const winnerKeyframes = {
-    scale: [1, 1.1, 1.1],
-    x: [0, winnerSlide, winnerSlide],
-    y: [0, 0, -900],
-    opacity: [1, 1, 0.9],
+    scale: [1, 1.05, 1.1, 1.1],
+    x: [0, 0, winnerSlide, winnerSlide],
+    y: [0, -4, 0, -900],
+    opacity: [1, 1, 1, 0.9],
   };
   const loserKeyframes = {
-    scale: [1, 0.94, 0.92],
-    rotate: [0, loserTilt, loserTilt + (side === "left" ? -4 : 4)],
-    opacity: [1, 0.3, 0.2],
-    y: [0, 0, 900],
+    scale: [1, 0.96, 0.94, 0.92],
+    rotate: [0, loserInitialTilt, loserTilt, loserTilt + (side === "left" ? -4 : 4)],
+    opacity: [1, 0.7, 0.4, 0.2],
+    y: [0, 0, 0, 900],
   };
   // Rest state: x and rotate are owned by the motion value + useTransform (drag-driven),
   // so we deliberately do NOT include them here to avoid animate-vs-transform contention.
@@ -95,7 +106,7 @@ export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: F
     : restState;
 
   const cinematicTransition = voteResult
-    ? { duration: 0.8, times: [0, 0.4, 1], ease: "easeOut" as const }
+    ? { duration: 0.8, times: [0, 0.25, 0.5, 1], ease: "easeOut" as const }
     : { type: "spring" as const, stiffness: 280, damping: 22 };
 
   const winnerGlow =
@@ -115,6 +126,7 @@ export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: F
       drag={voteResult || isVoting ? false : "x"}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.7}
+      onDragStart={() => onSwipeStart?.()}
       onDragEnd={handleDragEnd}
       whileHover={voteResult || isVoting ? undefined : { scale: 1.04, y: -8 }}
       animate={animateState}
@@ -152,6 +164,15 @@ export function FighterCard({ thumbnail, side, isVoting, voteResult, onVote }: F
           style={{
             boxShadow: "inset 0 0 60px rgba(192, 38, 211, 0.4), inset 0 0 0 1px rgba(217,70,239,0.4)",
           }}
+        />
+
+        {/* Loser red tint overlay — fades in immediately when this card is the loser */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          initial={false}
+          animate={{ opacity: voteResult === "loser" ? 1 : 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          style={{ background: "rgba(220, 38, 38, 0.3)" }}
         />
 
         {/* Top-left: Category pill */}

@@ -122,6 +122,10 @@ export default function Home() {
   const celebrationTimeoutRef = useRef<number | null>(null);
   const voteTimeoutRef = useRef<number | null>(null);
 
+  // Counter bumped whenever a card swipe starts — VSBadge watches this to trigger sword anim
+  const [vsAnimTrigger, setVsAnimTrigger] = useState(0);
+  const triggerVsAnim = () => setVsAnimTrigger((v) => v + 1);
+
   // Init daily count from localStorage on mount
   useEffect(() => {
     try {
@@ -398,9 +402,10 @@ export default function Home() {
                   votingFor === battlePair.left.id ? "winner" : votingFor !== null ? "loser" : null
                 }
                 onVote={() => handleVote(battlePair.left.id, battlePair.right.id)}
+                onSwipeStart={triggerVsAnim}
               />
 
-              <VSBadge />
+              <VSBadge externalTrigger={vsAnimTrigger} />
 
               <FighterCard
                 thumbnail={battlePair.right}
@@ -410,6 +415,7 @@ export default function Home() {
                   votingFor === battlePair.right.id ? "winner" : votingFor !== null ? "loser" : null
                 }
                 onVote={() => handleVote(battlePair.right.id, battlePair.left.id)}
+                onSwipeStart={triggerVsAnim}
               />
             </motion.div>
           </AnimatePresence>
