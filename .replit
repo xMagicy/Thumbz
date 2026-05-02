@@ -1,4 +1,10 @@
-modules = ["nodejs-20"]
+modules = ["nodejs-24", "python-3.11", "postgresql-16"]
+
+[workflows]
+runButton = "Project"
+
+[nix]
+channel = "stable-25_05"
 
 [[ports]]
 localPort = 8080
@@ -22,3 +28,7 @@ externalPort = 3001
 
 [agent]
 expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
