@@ -26,7 +26,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
 
-## ThumbBattle Notes
+## Thumbz Notes
+
+> **Naming:** the public brand and product name is **Thumbz**. The frontend
+> package still lives under `artifacts/thumbbattle/` and is published as
+> `@workspace/thumbbattle` for legacy reasons. Treat `thumbbattle` as an
+> internal directory/package identifier only. All user-facing copy, docs,
+> and new references should say "Thumbz".
 
 - Site is in beta. The header BETA badge and a "Send feedback" link both
   open a feedback dialog (`FeedbackDialog`) that POSTs to `/api/feedback`.

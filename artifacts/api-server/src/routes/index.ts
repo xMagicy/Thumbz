@@ -5,10 +5,12 @@ import battlesRouter from "./battles";
 import feedbackRouter from "./feedback";
 import waitlistRouter from "./waitlist";
 import storageRouter from "./storage";
+import authRouter from "./auth";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use("/auth", authRouter);
 router.use("/thumbnails", thumbnailsRouter);
 router.use("/battles", battlesRouter);
 router.use("/feedback", feedbackRouter);

@@ -2,11 +2,15 @@
 
 ## Project Overview
 
-This is a pnpm TypeScript monorepo with an Express 5 API server, PostgreSQL database accessed through Drizzle ORM, generated OpenAPI/Zod request schemas, and Vite/React frontends for ThumbBattle and xMagicy. ThumbBattle lets public users view and vote on YouTube-style thumbnails, submit thumbnails for moderation, join a waitlist, and send beta feedback. xMagicy exposes a public contact form. There is currently no production authentication or admin authorization code in the API.
+This is a pnpm TypeScript monorepo with an Express 5 API server, PostgreSQL database accessed through Drizzle ORM, generated OpenAPI/Zod request schemas, and a Vite/React frontend for Thumbz. Thumbz lets public users view and vote on YouTube-style thumbnails, submit thumbnails for moderation, join a waitlist, and send beta feedback. There is currently no production authentication or admin authorization code in the API.
+
+> **Naming note:** "Thumbz" is the public product name. The frontend package directory is `artifacts/thumbbattle/` (legacy internal name) and is published as `@workspace/thumbbattle`. References to `thumbbattle` below are file/path identifiers, not the brand.
+
+> **Scope note:** xMagicy is a separate, unrelated project that previously lived in this repo. It has been removed (commits `e25ab00` and `51d9d54`). It is not in scope for this threat model. If you find a `routes/contact.ts`, `artifacts/xmagicy`, or other xMagicy reference in older docs or generated code, treat it as stale and exclude it from analysis.
 
 ## Assets
 
-- **Database records** -- thumbnail metadata, battle/vote history, ELO rankings, waitlist emails, feedback, and xMagicy contact submissions. These records are valuable for product integrity and contain personal data where emails/contact messages are collected.
+- **Database records** -- thumbnail metadata, battle/vote history, ELO rankings, waitlist emails, and feedback. These records are valuable for product integrity and contain personal data where emails are collected.
 - **Object storage contents and quotas** -- upload URLs permit clients to write objects into the configured private object directory, and object routes can serve stored files. Abuse can expose private files or consume storage/bandwidth.
 - **Application secrets** -- `DATABASE_URL`, object-storage credentials supplied through the Replit sidecar, and deployment environment variables. These must remain server-side and out of logs/client bundles.
 - **Public site integrity** -- leaderboard ordering, vote counts, pending thumbnail moderation state, and submitted URLs must not be trivially tampered with by untrusted clients.
@@ -17,14 +21,14 @@ This is a pnpm TypeScript monorepo with an Express 5 API server, PostgreSQL data
 - **API to PostgreSQL** -- route handlers use Drizzle queries against Postgres. SQL injection risk is reduced by ORM query construction, but unbounded public writes/updates can still damage data integrity and availability.
 - **API to Object Storage** -- the API asks the Replit object-storage sidecar for signed upload URLs and proxies object downloads from Google Cloud Storage. Object paths and signed URLs cross from server-controlled storage into untrusted clients.
 - **Public versus moderated content** -- active thumbnails are public; user-submitted thumbnails are intended to remain pending until admin approval. Routes that display or update thumbnails must preserve this boundary.
-- **Production versus dev-only artifacts** -- `artifacts/api-server`, `artifacts/thumbbattle`, `artifacts/xmagicy`, and shared `lib/*` packages are production-relevant. `artifacts/mockup-sandbox` is a development/experimental environment and is out of production scope unless explicitly deployed.
+- **Production versus dev-only artifacts** -- `artifacts/api-server`, `artifacts/thumbbattle`, and shared `lib/*` packages are production-relevant. `artifacts/mockup-sandbox` is a development/experimental environment and is out of production scope unless explicitly deployed.
 
 ## Scan Anchors
 
 - Production API entry points: `artifacts/api-server/src/index.ts`, `artifacts/api-server/src/app.ts`, and `artifacts/api-server/src/routes/`.
-- Highest-risk routes: `routes/storage.ts` and `lib/objectStorage.ts` for upload/download authorization; `routes/battles.ts` for vote/ranking integrity; `routes/contact.ts`, `routes/feedback.ts`, `routes/waitlist.ts`, and `routes/thumbnails.ts` for public database writes.
+- Highest-risk routes: `routes/storage.ts` and `lib/objectStorage.ts` for upload/download authorization; `routes/battles.ts` for vote/ranking integrity; `routes/feedback.ts`, `routes/waitlist.ts`, and `routes/thumbnails.ts` for public database writes.
 - Shared validation/schema code: `lib/api-zod/src/generated/api.ts`, `lib/api-spec/openapi.yaml`, and `lib/db/src/schema/*`.
-- Production frontends: `artifacts/thumbbattle/src` and `artifacts/xmagicy/src`. Dev-only frontend: `artifacts/mockup-sandbox`.
+- Production frontend: `artifacts/thumbbattle/src` (the Thumbz app). Dev-only frontend: `artifacts/mockup-sandbox`.
 - Deterministic scan note: a SAST dynamic-component finding in `artifacts/mockup-sandbox/src/App.tsx` is dev-only under this threat model and should not be reproposed unless production reachability is demonstrated.
 
 ## Threat Categories

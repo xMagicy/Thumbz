@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Mail } from "lucide-react";
+import { useGoogleSignInButton } from "@/hooks/useAuth";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -9,12 +10,27 @@ interface SignInDialogProps {
   onClose: () => void;
 }
 
-// Visual-only sign-in dialog. Auth wiring is intentionally deferred — the buttons
-// surface the upcoming flow without performing any network calls. A "Coming soon"
-// banner makes the state unambiguous to users (and judges).
+// Real sign-in dialog. Renders an official Google Identity Services button
+// that exchanges the resulting ID token with /api/auth/google for a session
+// cookie. Email/password is shown as "coming after beta" so the option is
+// visible without being misleading.
 export function SignInDialog({ open, onClose }: SignInDialogProps) {
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useGoogleSignInButton(googleButtonRef, {
+    onSuccess: () => {
+      setErrorMessage(null);
+      onClose();
+    },
+    onError: () => {
+      setErrorMessage("Sign-in failed. Please try again.");
+    },
+  });
+
   useEffect(() => {
     if (!open) return;
+    setErrorMessage(null);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -104,67 +120,34 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
               </p>
             </div>
 
-            {/* Coming-soon banner */}
-            <div
-              className="rounded-lg px-3 py-2.5 mb-4 flex items-center gap-2"
-              style={{
-                background: "rgba(168,85,247,0.10)",
-                border: "1px solid rgba(168,85,247,0.32)",
-                fontSize: "0.78rem",
-                color: "rgba(255,255,255,0.78)",
-                lineHeight: 1.4,
-              }}
-            >
-              <span
-                className="uppercase shrink-0"
-                style={{
-                  fontWeight: 700,
-                  fontSize: "9px",
-                  color: "#c084fc",
-                  background: "rgba(168, 85, 247, 0.18)",
-                  border: "1px solid rgba(168, 85, 247, 0.5)",
-                  padding: "3px 7px",
-                  borderRadius: "9999px",
-                  letterSpacing: "0.08em",
-                  lineHeight: 1,
-                }}
-              >
-                Soon
-              </span>
-              <span>Accounts launch right after the beta. Voting works without one.</span>
-            </div>
-
             <div className="flex flex-col gap-2.5">
-              <button
-                type="button"
-                disabled
-                className="w-full flex items-center justify-center gap-2.5 rounded-full px-4 py-2.5 transition-colors cursor-not-allowed"
-                style={{
-                  fontFamily: inter,
-                  fontWeight: 600,
-                  fontSize: "0.875rem",
-                  color: "rgba(255,255,255,0.85)",
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  opacity: 0.7,
-                }}
-              >
-                <GoogleIcon />
-                Continue with Google
-              </button>
+              {/* Official Google Identity Services button mounts here */}
+              <div ref={googleButtonRef} className="flex justify-center" />
+
+              {errorMessage && (
+                <p
+                  role="alert"
+                  className="text-center"
+                  style={{
+                    color: "#fca5a5",
+                    fontSize: "0.78rem",
+                    marginTop: "0.25rem",
+                  }}
+                >
+                  {errorMessage}
+                </p>
+              )}
 
               <div
                 className="flex items-center gap-3 my-1"
                 style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.7rem" }}
               >
                 <div className="flex-1 h-px bg-white/10" />
-                <span className="uppercase" style={{ letterSpacing: "0.1em" }}>
-                  or
-                </span>
+                <span style={{ letterSpacing: "0.04em" }}>Email coming soon</span>
                 <div className="flex-1 h-px bg-white/10" />
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 opacity-60">
                 <div className="relative">
                   <Mail
                     className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
@@ -197,22 +180,6 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
                     cursor: "not-allowed",
                   }}
                 />
-                <button
-                  type="button"
-                  disabled
-                  className="w-full rounded-full px-4 py-2.5 mt-1 transition-all cursor-not-allowed"
-                  style={{
-                    fontFamily: inter,
-                    fontWeight: 600,
-                    fontSize: "0.875rem",
-                    color: "#fff",
-                    background:
-                      "linear-gradient(135deg, hsl(280 90% 60%), hsl(320 90% 55%))",
-                    opacity: 0.55,
-                  }}
-                >
-                  Sign in
-                </button>
               </div>
             </div>
 
@@ -230,29 +197,5 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-function GoogleIcon() {
-  // Google G logo, official colors
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden>
-      <path
-        fill="#4285F4"
-        d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"
-      />
-      <path
-        fill="#34A853"
-        d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.71H.957v2.332A8.997 8.997 0 0 0 9 18z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M3.964 10.708A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.708V4.96H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.04l3.007-2.332z"
-      />
-      <path
-        fill="#EA4335"
-        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.96L3.964 7.29C4.672 5.165 6.656 3.58 9 3.58z"
-      />
-    </svg>
   );
 }
