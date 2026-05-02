@@ -8,7 +8,9 @@ import {
   useListBattles,
   getListBattlesQueryKey,
   useCastVote,
+  ListThumbnailsSort,
 } from "@workspace/api-client-react";
+import type { Thumbnail } from "@workspace/api-client-react";
 import { AlertCircle, RefreshCw, MessageSquarePlus, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, motion } from "framer-motion";
@@ -21,6 +23,10 @@ import { FeedbackDialog } from "../components/FeedbackDialog";
 import { UploadDialog } from "../components/UploadDialog";
 import { SignInDialog } from "../components/SignInDialog";
 import { UploadPromo } from "../components/UploadPromo";
+import { NicheFilterBar, type Niche } from "../components/NicheFilterBar";
+import { ThumbnailDetailModal } from "../components/ThumbnailDetailModal";
+
+type Sort = (typeof ListThumbnailsSort)[keyof typeof ListThumbnailsSort];
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -141,6 +147,18 @@ export default function Home() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
 
+  // Filter / sort / detail state
+  const [niche, setNiche] = useState<Niche>("All");
+  const [sort, setSort] = useState<Sort>("elo");
+  const [selectedThumb, setSelectedThumb] = useState<Thumbnail | null>(null);
+
+  const apiNiche = niche === "All" ? undefined : niche;
+  const battlePairParams = apiNiche ? { niche: apiNiche } : undefined;
+  const listThumbnailsParams = {
+    ...(apiNiche ? { niche: apiNiche } : {}),
+    sort,
+  };
+
   // Init daily count from localStorage on mount
   useEffect(() => {
     try {
@@ -173,26 +191,20 @@ export default function Home() {
     isFetching: isFetchingPair,
     isError: isErrorPair,
     refetch: refetchPair,
-  } = useGetBattlePair({
+  } = useGetBattlePair(battlePairParams, {
     query: {
-      queryKey: getGetBattlePairQueryKey(),
+      queryKey: getGetBattlePairQueryKey(battlePairParams),
       refetchOnWindowFocus: false,
       // One automatic retry on transient failure so the arena never gets stuck on a flake.
       retry: 1,
     },
   });
 
-  const { data: thumbnails, isLoading: isLoadingLeaderboard } = useListThumbnails({
-    query: {
-      queryKey: getListThumbnailsQueryKey(),
-    },
-  });
+  const { data: thumbnails, isLoading: isLoadingLeaderboard } = useListThumbnails(
+    listThumbnailsParams,
+  );
 
-  const { data: stats } = useListBattles({
-    query: {
-      queryKey: getListBattlesQueryKey(),
-    },
-  });
+  const { data: stats } = useListBattles();
 
   // Stable id for the currently rendered pair — used in the AnimatePresence key together
   // with `round` so identical-pair refetches still trigger a fresh transition.
@@ -319,6 +331,12 @@ export default function Home() {
 
       {/* Sign in dialog (visual placeholder until accounts ship) */}
       <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
+
+      {/* Detail modal — opened from leaderboard rows */}
+      <ThumbnailDetailModal
+        thumbnail={selectedThumb}
+        onClose={() => setSelectedThumb(null)}
+      />
 
       {/* Header */}
       <header className="w-full max-w-7xl mx-auto px-8 py-6 flex flex-row items-center justify-between gap-6 z-20 relative">
@@ -464,6 +482,11 @@ export default function Home() {
             Vote on real YouTube thumbnails. Watch the rankings change in
             real-time. Or upload your own to see how they perform.
           </p>
+        </div>
+
+        {/* Niche filter bar */}
+        <div className="w-full mb-6">
+          <NicheFilterBar value={niche} onChange={setNiche} />
         </div>
 
         {/* Streak indicator */}
@@ -631,7 +654,13 @@ export default function Home() {
         <div className="h-px w-full" style={{ background: "rgba(255,255,255,0.05)" }} />
       </div>
 
-      <Leaderboard thumbnails={thumbnails} isLoading={isLoadingLeaderboard} />
+      <Leaderboard
+        thumbnails={thumbnails}
+        isLoading={isLoadingLeaderboard}
+        sort={sort}
+        onSortChange={setSort}
+        onSelect={setSelectedThumb}
+      />
 
       <footer className="w-full max-w-7xl mx-auto px-8 mt-16 mb-8 z-20 relative flex justify-center">
         <p
