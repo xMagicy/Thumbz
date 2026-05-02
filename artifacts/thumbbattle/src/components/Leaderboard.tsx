@@ -8,14 +8,24 @@ interface LeaderboardProps {
   isLoading: boolean;
 }
 
+const inter = "'Inter', system-ui, sans-serif";
+
 export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
   return (
     <section className="w-full max-w-5xl mx-auto px-6 mt-12 z-20 relative">
       <div className="flex flex-col items-center gap-3 mb-10">
-        <h2 className="font-display text-4xl md:text-5xl tracking-wide uppercase text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50">
-          Championship Rankings
+        <h2
+          className="text-white"
+          style={{
+            fontFamily: inter,
+            fontWeight: 900,
+            fontSize: "clamp(1.5rem, 2.5vw, 2rem)",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          Championship rankings
         </h2>
-        <div className="h-1 w-24 bg-electric-gradient rounded-full" />
+        <div className="h-1 w-16 rounded-full" style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)" }} />
       </div>
 
       <div className="bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
@@ -26,13 +36,16 @@ export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
             ))}
           </div>
         ) : !thumbnails?.length ? (
-          <div className="p-16 text-center text-muted-foreground font-display text-2xl tracking-widest uppercase">
+          <div
+            className="p-16 text-center text-muted-foreground"
+            style={{ fontFamily: inter, fontWeight: 500, fontSize: "1rem" }}
+          >
             The arena is empty. Start judging.
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-white/5">
             {thumbnails.map((thumb, index) => (
-              <motion.div 
+              <motion.div
                 key={thumb.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -54,16 +67,19 @@ export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
                       <Star className="w-5 h-5" />
                     </div>
                   ) : (
-                    <div className="font-display text-3xl text-white/30 font-bold">
+                    <div
+                      className="text-white/30"
+                      style={{ fontFamily: inter, fontWeight: 700, fontSize: "1.5rem" }}
+                    >
                       {index + 1}
                     </div>
                   )}
                 </div>
 
                 {/* Thumbnail Image */}
-                <div className="w-full md:w-40 aspect-video rounded-lg overflow-hidden shrink-0 border-2 border-white/5 group-hover:border-white/20 transition-colors shadow-lg">
-                  <img 
-                    src={thumb.imageUrl} 
+                <div className="w-full md:w-40 aspect-video rounded-xl overflow-hidden shrink-0 border-2 border-white/5 group-hover:border-white/20 transition-colors shadow-lg">
+                  <img
+                    src={thumb.imageUrl}
                     alt={thumb.title}
                     className="w-full h-full object-cover"
                   />
@@ -71,28 +87,63 @@ export function Leaderboard({ thumbnails, isLoading }: LeaderboardProps) {
 
                 {/* Details */}
                 <div className="flex-1 min-w-0 pr-4 flex flex-col gap-1">
-                  <h4 className="font-display text-xl md:text-2xl tracking-wide uppercase truncate drop-shadow-sm">{thumb.title}</h4>
-                  <p className="text-sm text-muted-foreground font-semibold uppercase tracking-wider truncate">{thumb.channelName}</p>
+                  <h4
+                    className="truncate text-white"
+                    style={{ fontFamily: inter, fontWeight: 600, fontSize: "1rem", letterSpacing: "-0.01em" }}
+                  >
+                    {thumb.title}
+                  </h4>
+                  <p
+                    className="truncate"
+                    style={{ fontFamily: inter, fontWeight: 400, fontSize: "0.8125rem", color: "#888" }}
+                  >
+                    {thumb.channelName}
+                  </p>
                 </div>
 
                 {/* Stats */}
                 <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center shrink-0 gap-2 mt-4 md:mt-0 bg-white/5 md:bg-transparent p-3 md:p-0 rounded-lg">
                   <div className="flex flex-col items-start md:items-end">
-                    <span className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-1">Rating</span>
-                    <div className="font-display text-2xl md:text-3xl text-transparent bg-clip-text bg-electric-gradient leading-none">
-                      {Math.round(thumb.eloRating)} ELO
+                    <span
+                      className="text-muted-foreground uppercase mb-1"
+                      style={{ fontFamily: inter, fontWeight: 500, fontSize: "0.65rem", letterSpacing: "0.12em" }}
+                    >
+                      Rating
+                    </span>
+                    <div
+                      className="leading-none text-transparent bg-clip-text"
+                      style={{
+                        fontFamily: inter,
+                        fontWeight: 800,
+                        fontSize: "1.5rem",
+                        letterSpacing: "-0.02em",
+                        backgroundImage: "linear-gradient(135deg, #8b5cf6, #d946ef)",
+                        WebkitBackgroundClip: "text",
+                      }}
+                    >
+                      {Math.round(thumb.eloRating)}
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-col items-end md:items-end w-24">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Win Rate</span>
+                    <span
+                      className="text-muted-foreground uppercase mb-1"
+                      style={{ fontFamily: inter, fontWeight: 500, fontSize: "0.6rem", letterSpacing: "0.12em" }}
+                    >
+                      Win rate
+                    </span>
                     <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden border border-white/10">
-                      <div 
-                        className="h-full bg-primary" 
+                      <div
+                        className="h-full bg-primary"
                         style={{ width: `${thumb.winRate || 0}%` }}
                       />
                     </div>
-                    <span className="text-xs font-bold mt-1">{Math.round(thumb.winRate || 0)}%</span>
+                    <span
+                      className="mt-1"
+                      style={{ fontFamily: inter, fontWeight: 600, fontSize: "0.75rem", color: "#fff" }}
+                    >
+                      {Math.round(thumb.winRate || 0)}%
+                    </span>
                   </div>
                 </div>
               </motion.div>

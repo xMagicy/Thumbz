@@ -1,0 +1,41 @@
+Big design refinement. Three things to fix:
+
+1. SIMPLIFY THE LOGO (placeholder for now, we'll improve later)
+
+Remove the crossed swords icon and the "THUMBBATTLE" wordmark completely.
+
+Replace with just: the word "thumbz" in lowercase, white color, bold (Inter font, weight 700), letter-spacing -1px. Nothing else next to it. No icon, no tagline, no swords. Just the word.
+
+For the favicon, use a simple "Z" letter on a purple-to-magenta gradient (#8b5cf6 to #d946ef) rounded square background.
+
+2. CHANGE THE FONT EVERYWHERE
+
+Replace Bebas Neue with Inter (a modern, clean font used by Linear, Vercel, OpenAI). Apply Inter to ALL text on the site:
+- Main header "WHICH THUMBNAIL MAKES YOU CLICK?" → change to sentence case: "Which thumbnail makes you click?" — Inter Black (weight 900), 36px
+- Thumbnail titles → Inter SemiBold (weight 600), sentence case (not all caps)
+- Channel names → Inter Regular (weight 400), color #888
+- Buttons like "NEW CONTENDER" → Inter Medium (weight 500)
+- Section header "CHAMPIONSHIP RANKINGS" → change to "Championship rankings" — Inter Bold (weight 700)
+
+NO MORE BEBAS NEUE OR ALL CAPS anywhere on the site. Use sentence case throughout.
+
+3. FIX THE VS BADGE
+
+The VS circle between the thumbnails is currently floating awkwardly. Fix it:
+- Center it perfectly between the two thumbnails, both vertically and horizontally
+- Make it 80px diameter
+- Add a subtle outer glow halo (soft purple/pink)
+- Add a slow pulse animation (2 second cycle, scale from 1.0 to 1.05)
+- The "VS" text inside should be Inter Black, 28px, white, perfectly centered
+- Make sure it sits ON TOP of the thumbnails (z-index higher), not pushed to one side
+
+4. MAKE IT FEEL MORE TINDER/HINGE PREMIUM
+
+- Round thumbnail corners more (16px)
+- Add a subtle drop shadow under each thumbnail card so they appear to float
+- On hover, scale thumbnail to 1.03x and add a soft glowing purple border
+- More breathing room around the battle area — let the thumbnails dominate
+- Reduce the size of the main header so the thumbnails are the hero
+- Make the "LIVE | 0 MATCHES" indicator smaller and more subtle in the corner
+
+Keep the background gradient, particle effects, and championship rankings layout — those work well.

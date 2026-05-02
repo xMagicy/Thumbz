@@ -1,0 +1,48 @@
+Big design refinement. Three things to fix:
+
+1. REPLACE THE LOGO ENTIRELY
+
+Remove the crossed swords icon and the "THUMBBATTLE" wordmark completely.
+
+Replace with a clean wordmark logo: "thumbz" — all lowercase, single word.
+- The "thumb" letters: white color, bold weight (700), tight letter-spacing (-2px)
+- The "z" letter: rendered inside a small rounded rectangle that looks like a YouTube thumbnail. The rectangle has rounded corners (8px), filled with a purple-to-magenta gradient (#8b5cf6 to #d946ef). Inside the rectangle, the letter "z" is in dark color (#0a0a14), bold, centered.
+- The z-thumbnail rectangle should be slightly larger than the "thumb" letters so it pops as a logo element.
+
+For the favicon (browser tab icon), use ONLY the z-thumbnail rectangle as a standalone icon.
+
+2. CHANGE THE FONT EVERYWHERE
+
+Replace Bebas Neue with a modern, clean, premium font. Use Inter (with weight 700 for bold headings, 500 for medium, 400 for body). Inter is sharp, modern, used by Linear, Vercel, OpenAI — it gives that premium SaaS feel.
+
+Specifically:
+- Headers like "WHICH THUMBNAIL MAKES YOU CLICK?" → Inter Black (900), but use sentence case instead of all caps: "Which thumbnail makes you click?"
+- Thumbnail titles → Inter SemiBold (600)
+- Channel names → Inter Regular (400), color #888
+- Buttons → Inter Medium (500)
+
+NO MORE BEBAS NEUE anywhere on the site.
+
+3. FIX THE VS BADGE
+
+The VS circle between the thumbnails is currently floating awkwardly. Make these changes:
+- Center it perfectly between the two thumbnails (vertically and horizontally)
+- Make it bigger: 80px diameter
+- Add a subtle outer glow ring (a faint purple/pink halo around it)
+- Add a slow pulse animation (2 seconds, very subtle scale from 1.0 to 1.05)
+- Make sure it sits ON TOP of the thumbnails, not pushed to one side
+- The "VS" text inside should be Inter Black, 28px, white color, perfectly centered
+
+4. MAKE THE OVERALL VIBE MORE TINDER-LIKE
+
+To make it feel iconic and modern (like Tinder, Hinge, or premium gamification apps):
+- Add a subtle drop shadow under each thumbnail card so they "float"
+- When hovering a thumbnail, scale it up slightly (1.03x) and add a glowing purple border
+- Round the corners of thumbnails more (16px instead of current)
+- Add more breathing room around the battle area — let the thumbnails dominate the screen
+- Reduce the size of the "WHICH THUMBNAIL MAKES YOU CLICK?" header so it doesn't compete with the thumbnails for attention
+- Make the "LIVE | 0 MATCHES" indicator smaller and more subtle in the corner
+
+Keep everything else (background gradient, particle effects, championship rankings) — those work great.
+
+Apply these changes and rebuild.

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -93,8 +93,8 @@
   --input: 240 10% 15%;
   --ring: 280 80% 60%;
 
-  --app-font-sans: 'Outfit', sans-serif;
-  --app-font-display: 'Bebas Neue', sans-serif;
+  --app-font-sans: 'Inter', system-ui, sans-serif;
+  --app-font-display: 'Inter', system-ui, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: 0.75rem;
@@ -122,6 +122,59 @@
 /* Utilities */
 .font-display {
   font-family: var(--app-font-display);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+/* Thumbz wordmark logo */
+.thumbz-word {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -2px;
+  color: #ffffff;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.thumbz-z {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #8b5cf6, #d946ef);
+  border-radius: 8px;
+  color: #0a0a14;
+  font-weight: 900;
+  font-family: 'Inter', system-ui, sans-serif;
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.85rem;
+  line-height: 1;
+  margin-left: 2px;
+  box-shadow: 0 4px 14px rgba(217, 70, 239, 0.35);
+  letter-spacing: 0;
+}
+
+/* VS Badge */
+.vs-badge-pulse {
+  animation: vs-pulse 2s ease-in-out infinite;
+}
+@keyframes vs-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.vs-badge-halo {
+  box-shadow:
+    0 0 0 6px rgba(139, 92, 246, 0.18),
+    0 0 28px 6px rgba(217, 70, 239, 0.35),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Tinder-style card */
+.thumb-card-shadow {
+  box-shadow:
+    0 24px 50px -16px rgba(0, 0, 0, 0.7),
+    0 8px 24px -8px rgba(0, 0, 0, 0.5);
 }
 
 .bg-electric-gradient {
