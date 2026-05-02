@@ -14,11 +14,75 @@ export interface Thumbnail {
   title: string;
   imageUrl: string;
   channelName: string;
+  /** One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other */
+  niche: string;
+  /**
+   * Click-through rate as a percentage (0-100), null if not provided
+   * @nullable
+   */
+  ctr?: number | null;
+  /**
+   * Optional public YouTube link to verify the thumbnail
+   * @nullable
+   */
+  youtubeUrl?: string | null;
+  /** active or pending */
+  status: string;
   wins: number;
   losses: number;
   eloRating: number;
-  /** Win rate as a percentage (0-100), null if no battles */
+  /**
+   * Win rate as a percentage (0-100), null if no battles
+   * @nullable
+   */
   winRate?: number | null;
+}
+
+export type UploadThumbnailBodyNiche =
+  (typeof UploadThumbnailBodyNiche)[keyof typeof UploadThumbnailBodyNiche];
+
+export const UploadThumbnailBodyNiche = {
+  Gaming: "Gaming",
+  Tutorial: "Tutorial",
+  Finance: "Finance",
+  Music: "Music",
+  Lifestyle: "Lifestyle",
+  Tech: "Tech",
+  Vlog: "Vlog",
+  Other: "Other",
+} as const;
+
+export interface UploadThumbnailBody {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  channelName: string;
+  niche: UploadThumbnailBodyNiche;
+  /**
+   * Object path returned from /storage/uploads/request-url, or a remote https URL.
+   * @minLength 1
+   * @maxLength 1000
+   */
+  imageUrl: string;
+  /**
+   * Optional CTR percentage (0-100)
+   * @minimum 0
+   * @maximum 100
+   * @nullable
+   */
+  ctr?: number | null;
+  /**
+   * Optional public YouTube URL for verification
+   * @maxLength 500
+   * @nullable
+   */
+  youtubeUrl?: string | null;
 }
 
 export interface BattlePair {
@@ -89,6 +153,61 @@ export interface WaitlistResult {
   signedUpAt: string;
 }
 
+export interface RequestUploadUrlBody {
+  /**
+   * @minLength 1
+   * @maxLength 500
+   */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  contentType: string;
+}
+
+export type RequestUploadUrlResponseMetadata = {
+  name: string;
+  size: number;
+  contentType: string;
+};
+
+export interface RequestUploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata: RequestUploadUrlResponseMetadata;
+}
+
 export interface ErrorResponse {
   error: string;
 }
+
+export type ListThumbnailsParams = {
+  /**
+   * Filter to a specific niche (case-insensitive). Omit or "all" returns all niches.
+   */
+  niche?: string;
+  /**
+   * Sort order for the rankings. Defaults to elo.
+   */
+  sort?: ListThumbnailsSort;
+};
+
+export type ListThumbnailsSort =
+  (typeof ListThumbnailsSort)[keyof typeof ListThumbnailsSort];
+
+export const ListThumbnailsSort = {
+  elo: "elo",
+  winRate: "winRate",
+  ctr: "ctr",
+  battles: "battles",
+} as const;
+
+export type GetBattlePairParams = {
+  /**
+   * Restrict the battle pair to a specific niche.
+   */
+  niche?: string;
+};

@@ -22,8 +22,13 @@ import type {
   ErrorResponse,
   FeedbackBody,
   FeedbackResult,
+  GetBattlePairParams,
   HealthStatus,
+  ListThumbnailsParams,
+  RequestUploadUrlBody,
+  RequestUploadUrlResponse,
   Thumbnail,
+  UploadThumbnailBody,
   VoteBody,
   VoteResult,
   WaitlistBody,
@@ -116,44 +121,60 @@ export function useHealthCheck<
 }
 
 /**
- * Returns all thumbnails sorted by ELO rating descending
- * @summary List all thumbnails
+ * Returns thumbnails with status="active", optionally filtered by niche and sorted.
+ * @summary List active thumbnails
  */
-export const getListThumbnailsUrl = () => {
-  return `/api/thumbnails`;
+export const getListThumbnailsUrl = (params?: ListThumbnailsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/thumbnails?${stringifiedParams}`
+    : `/api/thumbnails`;
 };
 
 export const listThumbnails = async (
+  params?: ListThumbnailsParams,
   options?: RequestInit,
 ): Promise<Thumbnail[]> => {
-  return customFetch<Thumbnail[]>(getListThumbnailsUrl(), {
+  return customFetch<Thumbnail[]>(getListThumbnailsUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getListThumbnailsQueryKey = () => {
-  return [`/api/thumbnails`] as const;
+export const getListThumbnailsQueryKey = (params?: ListThumbnailsParams) => {
+  return [`/api/thumbnails`, ...(params ? [params] : [])] as const;
 };
 
 export const getListThumbnailsQueryOptions = <
   TData = Awaited<ReturnType<typeof listThumbnails>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listThumbnails>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: ListThumbnailsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listThumbnails>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListThumbnailsQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListThumbnailsQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listThumbnails>>> = ({
     signal,
-  }) => listThumbnails({ signal, ...requestOptions });
+  }) => listThumbnails(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listThumbnails>>,
@@ -168,21 +189,24 @@ export type ListThumbnailsQueryResult = NonNullable<
 export type ListThumbnailsQueryError = ErrorType<unknown>;
 
 /**
- * @summary List all thumbnails
+ * @summary List active thumbnails
  */
 
 export function useListThumbnails<
   TData = Awaited<ReturnType<typeof listThumbnails>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listThumbnails>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListThumbnailsQueryOptions(options);
+>(
+  params?: ListThumbnailsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listThumbnails>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListThumbnailsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -192,44 +216,147 @@ export function useListThumbnails<
 }
 
 /**
- * Returns two distinct random thumbnails to compare
+ * Records a thumbnail with status="pending" — admin approval required before it appears in battles.
+ * @summary Submit a user-uploaded thumbnail for review
+ */
+export const getUploadThumbnailUrl = () => {
+  return `/api/thumbnails`;
+};
+
+export const uploadThumbnail = async (
+  uploadThumbnailBody: UploadThumbnailBody,
+  options?: RequestInit,
+): Promise<Thumbnail> => {
+  return customFetch<Thumbnail>(getUploadThumbnailUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(uploadThumbnailBody),
+  });
+};
+
+export const getUploadThumbnailMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadThumbnail>>,
+    TError,
+    { data: BodyType<UploadThumbnailBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadThumbnail>>,
+  TError,
+  { data: BodyType<UploadThumbnailBody> },
+  TContext
+> => {
+  const mutationKey = ["uploadThumbnail"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadThumbnail>>,
+    { data: BodyType<UploadThumbnailBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadThumbnail(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadThumbnailMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadThumbnail>>
+>;
+export type UploadThumbnailMutationBody = BodyType<UploadThumbnailBody>;
+export type UploadThumbnailMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Submit a user-uploaded thumbnail for review
+ */
+export const useUploadThumbnail = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadThumbnail>>,
+    TError,
+    { data: BodyType<UploadThumbnailBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadThumbnail>>,
+  TError,
+  { data: BodyType<UploadThumbnailBody> },
+  TContext
+> => {
+  return useMutation(getUploadThumbnailMutationOptions(options));
+};
+
+/**
+ * Returns two distinct random active thumbnails to compare, optionally filtered by niche.
  * @summary Get two random thumbnails for a battle
  */
-export const getGetBattlePairUrl = () => {
-  return `/api/thumbnails/battle`;
+export const getGetBattlePairUrl = (params?: GetBattlePairParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/thumbnails/battle?${stringifiedParams}`
+    : `/api/thumbnails/battle`;
 };
 
 export const getBattlePair = async (
+  params?: GetBattlePairParams,
   options?: RequestInit,
 ): Promise<BattlePair> => {
-  return customFetch<BattlePair>(getGetBattlePairUrl(), {
+  return customFetch<BattlePair>(getGetBattlePairUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetBattlePairQueryKey = () => {
-  return [`/api/thumbnails/battle`] as const;
+export const getGetBattlePairQueryKey = (params?: GetBattlePairParams) => {
+  return [`/api/thumbnails/battle`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetBattlePairQueryOptions = <
   TData = Awaited<ReturnType<typeof getBattlePair>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getBattlePair>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetBattlePairParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBattlePair>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetBattlePairQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetBattlePairQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getBattlePair>>> = ({
     signal,
-  }) => getBattlePair({ signal, ...requestOptions });
+  }) => getBattlePair(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getBattlePair>>,
@@ -241,7 +368,7 @@ export const getGetBattlePairQueryOptions = <
 export type GetBattlePairQueryResult = NonNullable<
   Awaited<ReturnType<typeof getBattlePair>>
 >;
-export type GetBattlePairQueryError = ErrorType<unknown>;
+export type GetBattlePairQueryError = ErrorType<ErrorResponse>;
 
 /**
  * @summary Get two random thumbnails for a battle
@@ -249,16 +376,19 @@ export type GetBattlePairQueryError = ErrorType<unknown>;
 
 export function useGetBattlePair<
   TData = Awaited<ReturnType<typeof getBattlePair>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getBattlePair>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetBattlePairQueryOptions(options);
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetBattlePairParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBattlePair>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBattlePairQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -602,4 +732,91 @@ export const useJoinWaitlist = <
   TContext
 > => {
   return useMutation(getJoinWaitlistMutationOptions(options));
+};
+
+/**
+ * Returns a presigned PUT URL the client uploads the file to directly, plus the object path to store in your DB.
+ * @summary Request a presigned upload URL
+ */
+export const getRequestUploadUrlUrl = () => {
+  return `/api/storage/uploads/request-url`;
+};
+
+export const requestUploadUrl = async (
+  requestUploadUrlBody: RequestUploadUrlBody,
+  options?: RequestInit,
+): Promise<RequestUploadUrlResponse> => {
+  return customFetch<RequestUploadUrlResponse>(getRequestUploadUrlUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(requestUploadUrlBody),
+  });
+};
+
+export const getRequestUploadUrlMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    TError,
+    { data: BodyType<RequestUploadUrlBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestUploadUrl>>,
+  TError,
+  { data: BodyType<RequestUploadUrlBody> },
+  TContext
+> => {
+  const mutationKey = ["requestUploadUrl"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    { data: BodyType<RequestUploadUrlBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestUploadUrl(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestUploadUrlMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestUploadUrl>>
+>;
+export type RequestUploadUrlMutationBody = BodyType<RequestUploadUrlBody>;
+export type RequestUploadUrlMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Request a presigned upload URL
+ */
+export const useRequestUploadUrl = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    TError,
+    { data: BodyType<RequestUploadUrlBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestUploadUrl>>,
+  TError,
+  { data: BodyType<RequestUploadUrlBody> },
+  TContext
+> => {
+  return useMutation(getRequestUploadUrlMutationOptions(options));
 };

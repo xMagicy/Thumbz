@@ -11,9 +11,26 @@ export interface Thumbnail {
   title: string;
   imageUrl: string;
   channelName: string;
+  /** One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other */
+  niche: string;
+  /**
+   * Click-through rate as a percentage (0-100), null if not provided
+   * @nullable
+   */
+  ctr?: number | null;
+  /**
+   * Optional public YouTube link to verify the thumbnail
+   * @nullable
+   */
+  youtubeUrl?: string | null;
+  /** active or pending */
+  status: string;
   wins: number;
   losses: number;
   eloRating: number;
-  /** Win rate as a percentage (0-100), null if no battles */
+  /**
+   * Win rate as a percentage (0-100), null if no battles
+   * @nullable
+   */
   winRate?: number | null;
 }

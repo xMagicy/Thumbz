@@ -16,14 +16,43 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Returns all thumbnails sorted by ELO rating descending
- * @summary List all thumbnails
+ * Returns thumbnails with status="active", optionally filtered by niche and sorted.
+ * @summary List active thumbnails
  */
+export const ListThumbnailsQueryParams = zod.object({
+  niche: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      'Filter to a specific niche (case-insensitive). Omit or \"all\" returns all niches.',
+    ),
+  sort: zod
+    .enum(["elo", "winRate", "ctr", "battles"])
+    .optional()
+    .describe("Sort order for the rankings. Defaults to elo."),
+});
+
 export const ListThumbnailsResponseItem = zod.object({
   id: zod.number(),
   title: zod.string(),
   imageUrl: zod.string(),
   channelName: zod.string(),
+  niche: zod
+    .string()
+    .describe(
+      "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
+    ),
+  ctr: zod
+    .number()
+    .nullish()
+    .describe(
+      "Click-through rate as a percentage (0-100), null if not provided",
+    ),
+  youtubeUrl: zod
+    .string()
+    .nullish()
+    .describe("Optional public YouTube link to verify the thumbnail"),
+  status: zod.string().describe("active or pending"),
   wins: zod.number(),
   losses: zod.number(),
   eloRating: zod.number(),
@@ -35,15 +64,86 @@ export const ListThumbnailsResponseItem = zod.object({
 export const ListThumbnailsResponse = zod.array(ListThumbnailsResponseItem);
 
 /**
- * Returns two distinct random thumbnails to compare
+ * Records a thumbnail with status="pending" — admin approval required before it appears in battles.
+ * @summary Submit a user-uploaded thumbnail for review
+ */
+export const uploadThumbnailBodyTitleMax = 200;
+
+export const uploadThumbnailBodyChannelNameMax = 120;
+
+export const uploadThumbnailBodyImageUrlMax = 1000;
+
+export const uploadThumbnailBodyCtrMin = 0;
+export const uploadThumbnailBodyCtrMax = 100;
+
+export const uploadThumbnailBodyYoutubeUrlMax = 500;
+
+export const UploadThumbnailBody = zod.object({
+  title: zod.string().min(1).max(uploadThumbnailBodyTitleMax),
+  channelName: zod.string().min(1).max(uploadThumbnailBodyChannelNameMax),
+  niche: zod.enum([
+    "Gaming",
+    "Tutorial",
+    "Finance",
+    "Music",
+    "Lifestyle",
+    "Tech",
+    "Vlog",
+    "Other",
+  ]),
+  imageUrl: zod
+    .string()
+    .min(1)
+    .max(uploadThumbnailBodyImageUrlMax)
+    .describe(
+      "Object path returned from \/storage\/uploads\/request-url, or a remote https URL.",
+    ),
+  ctr: zod
+    .number()
+    .min(uploadThumbnailBodyCtrMin)
+    .max(uploadThumbnailBodyCtrMax)
+    .nullish()
+    .describe("Optional CTR percentage (0-100)"),
+  youtubeUrl: zod
+    .string()
+    .max(uploadThumbnailBodyYoutubeUrlMax)
+    .nullish()
+    .describe("Optional public YouTube URL for verification"),
+});
+
+/**
+ * Returns two distinct random active thumbnails to compare, optionally filtered by niche.
  * @summary Get two random thumbnails for a battle
  */
+export const GetBattlePairQueryParams = zod.object({
+  niche: zod.coerce
+    .string()
+    .optional()
+    .describe("Restrict the battle pair to a specific niche."),
+});
+
 export const GetBattlePairResponse = zod.object({
   left: zod.object({
     id: zod.number(),
     title: zod.string(),
     imageUrl: zod.string(),
     channelName: zod.string(),
+    niche: zod
+      .string()
+      .describe(
+        "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
+      ),
+    ctr: zod
+      .number()
+      .nullish()
+      .describe(
+        "Click-through rate as a percentage (0-100), null if not provided",
+      ),
+    youtubeUrl: zod
+      .string()
+      .nullish()
+      .describe("Optional public YouTube link to verify the thumbnail"),
+    status: zod.string().describe("active or pending"),
     wins: zod.number(),
     losses: zod.number(),
     eloRating: zod.number(),
@@ -57,6 +157,22 @@ export const GetBattlePairResponse = zod.object({
     title: zod.string(),
     imageUrl: zod.string(),
     channelName: zod.string(),
+    niche: zod
+      .string()
+      .describe(
+        "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
+      ),
+    ctr: zod
+      .number()
+      .nullish()
+      .describe(
+        "Click-through rate as a percentage (0-100), null if not provided",
+      ),
+    youtubeUrl: zod
+      .string()
+      .nullish()
+      .describe("Optional public YouTube link to verify the thumbnail"),
+    status: zod.string().describe("active or pending"),
     wins: zod.number(),
     losses: zod.number(),
     eloRating: zod.number(),
@@ -100,6 +216,22 @@ export const CastVoteResponse = zod.object({
     title: zod.string(),
     imageUrl: zod.string(),
     channelName: zod.string(),
+    niche: zod
+      .string()
+      .describe(
+        "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
+      ),
+    ctr: zod
+      .number()
+      .nullish()
+      .describe(
+        "Click-through rate as a percentage (0-100), null if not provided",
+      ),
+    youtubeUrl: zod
+      .string()
+      .nullish()
+      .describe("Optional public YouTube link to verify the thumbnail"),
+    status: zod.string().describe("active or pending"),
     wins: zod.number(),
     losses: zod.number(),
     eloRating: zod.number(),
@@ -113,6 +245,22 @@ export const CastVoteResponse = zod.object({
     title: zod.string(),
     imageUrl: zod.string(),
     channelName: zod.string(),
+    niche: zod
+      .string()
+      .describe(
+        "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
+      ),
+    ctr: zod
+      .number()
+      .nullish()
+      .describe(
+        "Click-through rate as a percentage (0-100), null if not provided",
+      ),
+    youtubeUrl: zod
+      .string()
+      .nullish()
+      .describe("Optional public YouTube link to verify the thumbnail"),
+    status: zod.string().describe("active or pending"),
     wins: zod.number(),
     losses: zod.number(),
     eloRating: zod.number(),
@@ -160,4 +308,28 @@ export const JoinWaitlistBody = zod.object({
     .min(joinWaitlistBodyEmailMin)
     .max(joinWaitlistBodyEmailMax)
     .describe("Email address to notify when uploads launch"),
+});
+
+/**
+ * Returns a presigned PUT URL the client uploads the file to directly, plus the object path to store in your DB.
+ * @summary Request a presigned upload URL
+ */
+export const requestUploadUrlBodyNameMax = 500;
+
+export const requestUploadUrlBodyContentTypeMax = 200;
+
+export const RequestUploadUrlBody = zod.object({
+  name: zod.string().min(1).max(requestUploadUrlBodyNameMax),
+  size: zod.number().min(1),
+  contentType: zod.string().min(1).max(requestUploadUrlBodyContentTypeMax),
+});
+
+export const RequestUploadUrlResponse = zod.object({
+  uploadURL: zod.string(),
+  objectPath: zod.string(),
+  metadata: zod.object({
+    name: zod.string(),
+    size: zod.number(),
+    contentType: zod.string(),
+  }),
 });
