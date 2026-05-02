@@ -20,6 +20,8 @@ tags:
     description: Upload-feature waitlist signups
   - name: storage
     description: Object storage operations
+  - name: contact
+    description: xMagicy portfolio contact submissions
 paths:
   /healthz:
     get:
@@ -181,6 +183,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeedbackResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /contact:
+    post:
+      operationId: submitContact
+      tags: [contact]
+      summary: Submit a contact form entry
+      description: Records a contact submission from a xMagicy portfolio visitor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactBody"
+      responses:
+        "201":
+          description: Contact submission recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactResult"
         "400":
           description: Invalid request
           content:
@@ -493,6 +521,41 @@ components:
         - uploadURL
         - objectPath
         - metadata
+
+    ContactBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Sender's full name
+        email:
+          type: string
+          format: email
+          minLength: 3
+          maxLength: 254
+          description: Sender's email address
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: The contact message
+      required:
+        - name
+        - email
+        - message
+
+    ContactResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - createdAt
 
     ErrorResponse:
       type: object

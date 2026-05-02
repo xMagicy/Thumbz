@@ -1,5 +1,46 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "I6y-hAI8pMn9IREDK-TWU"
+uri = "file://artifacts/xmagicy/src/assets/avatar.png"
+type = "image"
+title = "Abstract Avatar Placeholder"
+
+[[generated]]
+id = "S7CzcEDUjhRXEdIcW4Fuj"
+uri = "file://artifacts/xmagicy/src/assets/thumb-1.png"
+type = "image"
+title = "Thumbnail Placeholder 1"
+
+[[generated]]
+id = "L4mOKtxpAIXjwfdJ0NG8K"
+uri = "file://artifacts/xmagicy/src/assets/thumb-2.png"
+type = "image"
+title = "Thumbnail Placeholder 2"
+
+[[generated]]
+id = "jhQ16S5VKoI5TWZ0i1doA"
+uri = "file://artifacts/xmagicy/src/assets/thumb-3.png"
+type = "image"
+title = "Thumbnail Placeholder 3"
+
+[[generated]]
+id = "PcqkseGxmwXPGtgra5T0t"
+uri = "file://artifacts/xmagicy/src/assets/thumb-4.png"
+type = "image"
+title = "Thumbnail Placeholder 4"
+
+[[generated]]
+id = "muzqiyyAcTZfOcJnN3BiK"
+uri = "file://artifacts/xmagicy/src/assets/thumb-5.png"
+type = "image"
+title = "Thumbnail Placeholder 5"
+
+[[generated]]
+id = "fSCsPXWqzEwPKvqFiOo5j"
+uri = "file://artifacts/xmagicy/src/assets/thumb-6.png"
+type = "image"
+title = "Thumbnail Placeholder 6"
 
 [[outputs]]
 id = "_RVLQi7uXGNJdJE7fTkS-"
