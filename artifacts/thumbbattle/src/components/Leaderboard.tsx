@@ -1,8 +1,10 @@
-import React from "react";
-import { Trophy, Medal, Star } from "lucide-react";
+import React, { useMemo } from "react";
+import { Trophy, Medal, Star, Search, TrendingUp } from "lucide-react";
 import type { Thumbnail } from "@workspace/api-client-react";
 import { ListThumbnailsSort } from "@workspace/api-client-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+
+import type { Niche } from "./NicheFilterBar";
 
 type Sort = (typeof ListThumbnailsSort)[keyof typeof ListThumbnailsSort];
 
@@ -12,6 +14,7 @@ interface LeaderboardProps {
   sort: Sort;
   onSortChange: (s: Sort) => void;
   onSelect: (t: Thumbnail) => void;
+  niche?: Niche;
 }
 
 const inter = "'Inter', system-ui, sans-serif";
@@ -28,6 +31,67 @@ const TIER_BREAKS: { index: number; label: string; subtitle: string }[] = [
   { index: 3, label: "Top contenders", subtitle: "Climbing fast" },
   { index: 10, label: "Rising", subtitle: "Up and coming" },
 ];
+
+// Cubic-bezier easing tuple shared across leaderboard transitions
+const EASE_STANDARD = [0.4, 0, 0.2, 1] as const;
+
+// Mini sparkline showing a deterministic placeholder ELO trend per thumbnail.
+// Pure visual filler — never reads from the DB. The trend always lands on the
+// thumbnail's current ELO so it visually matches the row's rating display.
+function EloSparkline({ seed, currentElo }: { seed: number; currentElo: number }) {
+  const points = useMemo(() => {
+    const pts: number[] = [];
+    let v = currentElo - 28;
+    let s = (seed * 9301 + 49297) % 233280;
+    for (let i = 0; i < 9; i++) {
+      s = (s * 9301 + 49297) % 233280;
+      const r = s / 233280 - 0.5;
+      v += r * 18;
+      pts.push(v);
+    }
+    pts.push(currentElo);
+    return pts;
+  }, [seed, currentElo]);
+
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const W = 64;
+  const H = 22;
+  const path = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * W;
+      const y = H - ((p - min) / range) * (H - 2) - 1;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const trendUp = points[points.length - 1] >= points[0];
+  const stroke = trendUp ? "#86efac" : "#fca5a5";
+  const fill = trendUp ? "rgba(34,197,94,0.18)" : "rgba(239,68,68,0.18)";
+  const areaPath = `${path} L${W},${H} L0,${H} Z`;
+
+  return (
+    <svg
+      width={W}
+      height={H}
+      viewBox={`0 0 ${W} ${H}`}
+      className="shrink-0"
+      role="img"
+      aria-label={`ELO trend: ${trendUp ? "up" : "down"}`}
+    >
+      <path d={areaPath} fill={fill} />
+      <path
+        d={path}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function TierHeader({ label, subtitle }: { label: string; subtitle: string }) {
   return (
@@ -99,12 +163,63 @@ function RankBadge({ index }: { index: number }) {
   );
 }
 
+function EmptyState({ niche }: { niche?: Niche }) {
+  const isFiltered = niche && niche !== "All";
+  return (
+    <div className="p-16 flex flex-col items-center text-center gap-4">
+      <div
+        className="w-16 h-16 rounded-full flex items-center justify-center"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(217,70,239,0.18) 0%, rgba(139,92,246,0.08) 60%, transparent 100%)",
+          border: "1px solid rgba(217,70,239,0.35)",
+          boxShadow: "0 0 24px rgba(168,85,247,0.25)",
+        }}
+      >
+        {isFiltered ? (
+          <Search className="w-7 h-7" style={{ color: "#e9d5ff" }} />
+        ) : (
+          <Trophy className="w-7 h-7" style={{ color: "#e9d5ff" }} />
+        )}
+      </div>
+      <h3
+        className="text-white"
+        style={{
+          fontFamily: inter,
+          fontWeight: 700,
+          fontSize: "1.05rem",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        {isFiltered
+          ? `No battles in ${niche} yet`
+          : "The arena is empty"}
+      </h3>
+      <p
+        style={{
+          fontFamily: inter,
+          fontWeight: 400,
+          fontSize: "0.875rem",
+          color: "rgba(255,255,255,0.55)",
+          maxWidth: 360,
+          lineHeight: 1.5,
+        }}
+      >
+        {isFiltered
+          ? "Be the first to upload a thumbnail in this niche and start the leaderboard."
+          : "Start judging to populate the rankings."}
+      </p>
+    </div>
+  );
+}
+
 export function Leaderboard({
   thumbnails,
   isLoading,
   sort,
   onSortChange,
   onSelect,
+  niche,
 }: LeaderboardProps) {
   return (
     <section className="w-full max-w-5xl mx-auto px-6 mt-12 z-20 relative">
@@ -141,10 +256,13 @@ export function Leaderboard({
         {SORT_OPTIONS.map((opt) => {
           const active = sort === opt.value;
           return (
-            <button
+            <motion.button
               key={opt.value}
+              type="button"
               onClick={() => onSortChange(opt.value)}
-              className="px-4 py-1.5 rounded-full transition-all"
+              whileTap={{ scale: 0.94 }}
+              transition={{ type: "spring", stiffness: 500, damping: 28 }}
+              className="px-4 py-1.5 rounded-full"
               style={{
                 fontFamily: inter,
                 fontWeight: active ? 600 : 500,
@@ -158,208 +276,252 @@ export function Leaderboard({
                   ? "1px solid rgba(255,255,255,0.18)"
                   : "1px solid rgba(255,255,255,0.08)",
                 boxShadow: active ? "0 6px 18px rgba(217,70,239,0.35)" : "none",
+                transition: "background 0.2s var(--ease-standard), color 0.2s var(--ease-standard), border-color 0.2s var(--ease-standard), box-shadow 0.25s var(--ease-standard)",
               }}
             >
               {opt.label}
-            </button>
+            </motion.button>
           );
         })}
       </div>
 
       <div className="bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
-        {isLoading ? (
-          <div className="p-6 space-y-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="w-full h-24 bg-white/5 rounded-xl animate-pulse" />
-            ))}
-          </div>
-        ) : !thumbnails?.length ? (
-          <div
-            className="p-16 text-center text-muted-foreground"
-            style={{ fontFamily: inter, fontWeight: 500, fontSize: "1rem" }}
-          >
-            The arena is empty. Start judging.
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {thumbnails.map((thumb, index) => (
-              <React.Fragment key={thumb.id}>
-                {sort === "elo" && TIER_BREAKS.find((t) => t.index === index) && (
-                  <TierHeader
-                    label={TIER_BREAKS.find((t) => t.index === index)!.label}
-                    subtitle={TIER_BREAKS.find((t) => t.index === index)!.subtitle}
-                  />
-                )}
-                <motion.button
-                  type="button"
-                  onClick={() => onSelect(thumb)}
-                  initial={{ opacity: 0, y: 18 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(index * 0.04, 0.4) }}
-                  whileHover={{ y: -2 }}
-                  className="group flex flex-col md:flex-row md:items-center gap-4 p-4 md:p-6 transition-colors relative overflow-hidden border-t border-white/[0.04] hover:bg-white/[0.04] text-left w-full cursor-pointer"
-                >
-                  {/* Hover purple glow strip on left */}
-                  <div className="absolute left-0 top-0 bottom-0 w-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-b from-purple-500 to-fuchsia-500" />
-
-                  {/* Rank Badge */}
-                  <div className="w-12 shrink-0 flex justify-center">
-                    <RankBadge index={index} />
-                  </div>
-
-                  {/* Thumbnail Image */}
-                  <div className="w-full md:w-44 aspect-video rounded-xl overflow-hidden shrink-0 border-2 border-white/5 group-hover:border-purple-400/40 transition-colors shadow-lg">
-                    <img
-                      src={thumb.imageUrl}
-                      alt={thumb.title}
-                      className="w-full h-full object-cover"
+        <AnimatePresence mode="wait">
+          {isLoading ? (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: EASE_STANDARD }}
+              className="p-6 space-y-4"
+            >
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="thumbz-skeleton w-full h-24 rounded-xl"
+                />
+              ))}
+            </motion.div>
+          ) : !thumbnails?.length ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3, ease: EASE_STANDARD }}
+            >
+              <EmptyState niche={niche} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="list"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3, ease: EASE_STANDARD }}
+              className="flex flex-col"
+            >
+              {thumbnails.map((thumb, index) => (
+                <React.Fragment key={thumb.id}>
+                  {sort === "elo" && TIER_BREAKS.find((t) => t.index === index) && (
+                    <TierHeader
+                      label={TIER_BREAKS.find((t) => t.index === index)!.label}
+                      subtitle={TIER_BREAKS.find((t) => t.index === index)!.subtitle}
                     />
-                  </div>
+                  )}
+                  <motion.button
+                    type="button"
+                    onClick={() => onSelect(thumb)}
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      delay: Math.min(index * 0.04, 0.4),
+                      duration: 0.45,
+                      ease: EASE_STANDARD,
+                    }}
+                    whileHover={{
+                      y: -2,
+                      boxShadow:
+                        "0 10px 30px -10px rgba(168,85,247,0.45), inset 0 0 0 1px rgba(217,70,239,0.22)",
+                    }}
+                    whileTap={{ scale: 0.995 }}
+                    className="group flex flex-col md:flex-row md:items-center gap-4 p-4 md:p-6 relative overflow-hidden border-t border-white/[0.04] hover:bg-white/[0.04] text-left w-full cursor-pointer"
+                    style={{
+                      transition:
+                        "background-color 0.2s var(--ease-standard), border-color 0.2s var(--ease-standard)",
+                    }}
+                  >
+                    {/* Hover purple glow strip on left */}
+                    <div className="absolute left-0 top-0 bottom-0 w-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-b from-purple-500 to-fuchsia-500" />
 
-                  {/* Details */}
-                  <div className="flex-1 min-w-0 pr-4 flex flex-col gap-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className="uppercase"
-                        style={{
-                          fontFamily: inter,
-                          fontWeight: 600,
-                          fontSize: "0.6rem",
-                          letterSpacing: "0.1em",
-                          color: "#c084fc",
-                          background: "rgba(168, 85, 247, 0.15)",
-                          border: "1px solid rgba(168, 85, 247, 0.4)",
-                          padding: "2px 7px",
-                          borderRadius: "9999px",
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {thumb.niche}
-                      </span>
-                      {thumb.ctr !== null && thumb.ctr !== undefined && (
+                    {/* Rank Badge */}
+                    <div className="w-12 shrink-0 flex justify-center">
+                      <RankBadge index={index} />
+                    </div>
+
+                    {/* Thumbnail Image */}
+                    <div className="w-full md:w-44 aspect-video rounded-xl overflow-hidden shrink-0 border-2 border-white/5 group-hover:border-purple-400/40 transition-colors shadow-lg">
+                      <img
+                        src={thumb.imageUrl}
+                        alt={thumb.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    {/* Details */}
+                    <div className="flex-1 min-w-0 pr-4 flex flex-col gap-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span
+                          className="uppercase"
                           style={{
                             fontFamily: inter,
                             fontWeight: 600,
-                            fontSize: "0.62rem",
-                            color: "#86efac",
-                            background: "rgba(34,197,94,0.12)",
-                            border: "1px solid rgba(34,197,94,0.35)",
+                            fontSize: "0.6rem",
+                            letterSpacing: "0.1em",
+                            color: "#c084fc",
+                            background: "rgba(168, 85, 247, 0.15)",
+                            border: "1px solid rgba(168, 85, 247, 0.4)",
                             padding: "2px 7px",
                             borderRadius: "9999px",
                             lineHeight: 1.2,
-                            letterSpacing: "0.02em",
                           }}
                         >
-                          {thumb.ctr.toFixed(1)}% CTR
+                          {thumb.niche}
                         </span>
-                      )}
-                    </div>
-                    <h4
-                      className="truncate text-white"
-                      style={{
-                        fontFamily: inter,
-                        fontWeight: 600,
-                        fontSize: "1.05rem",
-                        letterSpacing: "-0.01em",
-                      }}
-                    >
-                      {thumb.title}
-                    </h4>
-                    <p
-                      className="truncate"
-                      style={{
-                        fontFamily: inter,
-                        fontWeight: 400,
-                        fontSize: "0.8125rem",
-                        color: "#888",
-                      }}
-                    >
-                      {thumb.channelName}
-                    </p>
-                    <p
-                      style={{
-                        fontFamily: inter,
-                        fontWeight: 500,
-                        fontSize: "0.7rem",
-                        color: "#666",
-                        marginTop: 2,
-                      }}
-                    >
-                      {thumb.wins + thumb.losses} battles
-                    </p>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center shrink-0 gap-2 mt-4 md:mt-0 bg-white/5 md:bg-transparent p-3 md:p-0 rounded-lg">
-                    <div className="flex flex-col items-start md:items-end">
-                      <span
-                        className="uppercase mb-1"
-                        style={{
-                          fontFamily: inter,
-                          fontWeight: 500,
-                          fontSize: "0.65rem",
-                          letterSpacing: "0.12em",
-                          color: "#666",
-                        }}
-                      >
-                        Rating
-                      </span>
-                      <div
-                        className="leading-none text-transparent bg-clip-text"
-                        style={{
-                          fontFamily: inter,
-                          fontWeight: 800,
-                          fontSize: "1.6rem",
-                          letterSpacing: "-0.02em",
-                          backgroundImage: "linear-gradient(135deg, #8b5cf6, #d946ef)",
-                          WebkitBackgroundClip: "text",
-                        }}
-                      >
-                        {Math.round(thumb.eloRating)}
+                        {thumb.ctr !== null && thumb.ctr !== undefined && (
+                          <span
+                            style={{
+                              fontFamily: inter,
+                              fontWeight: 600,
+                              fontSize: "0.62rem",
+                              color: "#86efac",
+                              background: "rgba(34,197,94,0.12)",
+                              border: "1px solid rgba(34,197,94,0.35)",
+                              padding: "2px 7px",
+                              borderRadius: "9999px",
+                              lineHeight: 1.2,
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            {thumb.ctr.toFixed(1)}% CTR
+                          </span>
+                        )}
                       </div>
-                    </div>
-
-                    <div className="flex flex-col items-end md:items-end w-28">
-                      <span
-                        className="uppercase mb-1"
-                        style={{
-                          fontFamily: inter,
-                          fontWeight: 500,
-                          fontSize: "0.6rem",
-                          letterSpacing: "0.12em",
-                          color: "#666",
-                        }}
-                      >
-                        Win rate
-                      </span>
-                      <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden border border-white/10">
-                        <div
-                          className="h-full"
-                          style={{
-                            width: `${thumb.winRate || 0}%`,
-                            background: "linear-gradient(90deg, #8b5cf6, #d946ef)",
-                          }}
-                        />
-                      </div>
-                      <span
-                        className="mt-1"
+                      <h4
+                        className="truncate text-white"
                         style={{
                           fontFamily: inter,
                           fontWeight: 600,
-                          fontSize: "0.78rem",
-                          color: "#fff",
+                          fontSize: "1.05rem",
+                          letterSpacing: "-0.01em",
                         }}
                       >
-                        {Math.round(thumb.winRate || 0)}%
-                      </span>
+                        {thumb.title}
+                      </h4>
+                      <p
+                        className="truncate"
+                        style={{
+                          fontFamily: inter,
+                          fontWeight: 400,
+                          fontSize: "0.8125rem",
+                          color: "#888",
+                        }}
+                      >
+                        {thumb.channelName}
+                      </p>
+                      <p
+                        style={{
+                          fontFamily: inter,
+                          fontWeight: 500,
+                          fontSize: "0.7rem",
+                          color: "#666",
+                          marginTop: 2,
+                        }}
+                      >
+                        {thumb.wins + thumb.losses} battles
+                      </p>
                     </div>
-                  </div>
-                </motion.button>
-              </React.Fragment>
-            ))}
-          </div>
-        )}
+
+                    {/* Stats */}
+                    <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center shrink-0 gap-2 mt-4 md:mt-0 bg-white/5 md:bg-transparent p-3 md:p-0 rounded-lg">
+                      <div className="flex flex-col items-start md:items-end">
+                        <span
+                          className="uppercase mb-1 flex items-center gap-1"
+                          style={{
+                            fontFamily: inter,
+                            fontWeight: 500,
+                            fontSize: "0.65rem",
+                            letterSpacing: "0.12em",
+                            color: "#666",
+                          }}
+                        >
+                          <TrendingUp className="w-3 h-3 opacity-70" />
+                          Rating
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <EloSparkline
+                            seed={thumb.id}
+                            currentElo={Math.round(thumb.eloRating)}
+                          />
+                          <div
+                            className="leading-none text-transparent bg-clip-text"
+                            style={{
+                              fontFamily: inter,
+                              fontWeight: 800,
+                              fontSize: "1.6rem",
+                              letterSpacing: "-0.02em",
+                              backgroundImage:
+                                "linear-gradient(135deg, #8b5cf6, #d946ef)",
+                              WebkitBackgroundClip: "text",
+                            }}
+                          >
+                            {Math.round(thumb.eloRating)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end md:items-end w-28">
+                        <span
+                          className="uppercase mb-1"
+                          style={{
+                            fontFamily: inter,
+                            fontWeight: 500,
+                            fontSize: "0.6rem",
+                            letterSpacing: "0.12em",
+                            color: "#666",
+                          }}
+                        >
+                          Win rate
+                        </span>
+                        <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden border border-white/10">
+                          <div
+                            className="h-full"
+                            style={{
+                              width: `${thumb.winRate || 0}%`,
+                              background: "linear-gradient(90deg, #8b5cf6, #d946ef)",
+                            }}
+                          />
+                        </div>
+                        <span
+                          className="mt-1"
+                          style={{
+                            fontFamily: inter,
+                            fontWeight: 600,
+                            fontSize: "0.78rem",
+                            color: "#fff",
+                          }}
+                        >
+                          {Math.round(thumb.winRate || 0)}%
+                        </span>
+                      </div>
+                    </div>
+                  </motion.button>
+                </React.Fragment>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );

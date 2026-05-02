@@ -2,6 +2,11 @@ import React, { useEffect, useState } from "react";
 import { motion, useMotionValue, useTransform, animate, PanInfo } from "framer-motion";
 import { Youtube } from "lucide-react";
 import type { Thumbnail } from "@workspace/api-client-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 
 interface FighterCardProps {
   thumbnail: Thumbnail;
@@ -224,24 +229,33 @@ export function FighterCard({
           </div>
         </div>
 
-        {/* Top-right: YouTube link icon */}
+        {/* Top-right: YouTube link icon (with polished tooltip) */}
         {youtubeUrl && (
-          <a
-            href={youtubeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="absolute top-3 right-3 z-10 flex items-center justify-center rounded-full text-white/85 opacity-90 hover:opacity-100 hover:scale-110 transition-transform duration-150"
-            style={{
-              width: 28,
-              height: 28,
-              background: "rgba(0,0,0,0.6)",
-            }}
-            aria-label="Watch on YouTube"
-            title="Watch on YouTube"
-          >
-            <Youtube style={{ width: 14, height: 14 }} />
-          </a>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href={youtubeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute top-3 right-3 z-10 flex items-center justify-center rounded-full text-white/85 opacity-90 hover:opacity-100 hover:scale-110 active:scale-95 transition-transform"
+                style={{
+                  width: 28,
+                  height: 28,
+                  background: "rgba(0,0,0,0.6)",
+                  transitionDuration: "150ms",
+                  transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+                aria-label="Watch on YouTube"
+              >
+                <Youtube style={{ width: 14, height: 14 }} />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6}>
+              Watch on YouTube
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
 

@@ -13,7 +13,7 @@ import {
 import type { Thumbnail } from "@workspace/api-client-react";
 import { AlertCircle, RefreshCw, MessageSquarePlus, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 
 import { ParticleField } from "../components/ParticleField";
 import { FighterCard } from "../components/FighterCard";
@@ -313,8 +313,41 @@ export default function Home() {
     }, VOTE_ANIM_DURATION_MS);
   };
 
+  // Subtle parallax for the layered background — translates a soft purple/magenta
+  // halo plane slower than the page scrolls. Pure visual; never blocks pointer events.
+  // Disabled entirely under prefers-reduced-motion to avoid continuous transforms.
+  const prefersReducedMotion = useReducedMotion();
+  const { scrollY } = useScroll();
+  const parallaxYRaw = useTransform(scrollY, [0, 1200], [0, -180]);
+  const parallaxYSlowRaw = useTransform(scrollY, [0, 1200], [0, -90]);
+  const parallaxY = prefersReducedMotion ? 0 : parallaxYRaw;
+  const parallaxYSlow = prefersReducedMotion ? 0 : parallaxYSlowRaw;
+
   return (
     <div className="min-h-screen bg-arena-gradient text-foreground flex flex-col items-center pb-24 selection:bg-primary/30 relative">
+      {/* Parallax background halos — subtle depth on scroll. Behind everything. */}
+      <motion.div
+        aria-hidden
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          y: parallaxY,
+          zIndex: 0,
+          background:
+            "radial-gradient(circle at 22% 18%, rgba(139,92,246,0.18), transparent 45%), radial-gradient(circle at 78% 82%, rgba(217,70,239,0.16), transparent 50%)",
+          willChange: "transform",
+        }}
+      />
+      <motion.div
+        aria-hidden
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          y: parallaxYSlow,
+          zIndex: 0,
+          background:
+            "radial-gradient(circle at 50% 60%, rgba(168,85,247,0.10), transparent 55%)",
+          willChange: "transform",
+        }}
+      />
       <ParticleField />
       <div className="vignette-overlay" />
 
@@ -517,11 +550,28 @@ export default function Home() {
         </div>
 
         {isLoadingPair ? (
-          <div className="w-full flex flex-col md:flex-row justify-center items-center gap-10 md:gap-20 relative min-h-[400px]">
-            <div className="flex-1 w-full max-w-[560px] aspect-video bg-white/5 rounded-2xl border border-white/10 animate-pulse" />
-            <div className="flex-1 w-full max-w-[560px] aspect-video bg-white/5 rounded-2xl border border-white/10 animate-pulse" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-black/50 border border-white/10 animate-pulse z-10 backdrop-blur-md" />
-          </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+            className="w-full flex flex-col md:flex-row justify-center items-center gap-10 md:gap-28 relative min-h-[400px]"
+          >
+            <div className="flex-1 w-full max-w-[560px] flex flex-col gap-5">
+              <div className="thumbz-skeleton aspect-video rounded-2xl" />
+              <div className="flex flex-col gap-2 px-3">
+                <div className="thumbz-skeleton h-4 w-3/4 rounded-md" />
+                <div className="thumbz-skeleton h-3 w-1/2 rounded-md" />
+              </div>
+            </div>
+            <div className="flex-1 w-full max-w-[560px] flex flex-col gap-5">
+              <div className="thumbz-skeleton aspect-video rounded-2xl" />
+              <div className="flex flex-col gap-2 px-3">
+                <div className="thumbz-skeleton h-4 w-3/4 rounded-md" />
+                <div className="thumbz-skeleton h-3 w-1/2 rounded-md" />
+              </div>
+            </div>
+            <div className="hidden md:block absolute top-[28%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full thumbz-skeleton z-10" />
+          </motion.div>
         ) : isErrorPair || !battlePair ? (
           <div className="w-full max-w-2xl flex flex-col items-center justify-center p-16 bg-black/40 backdrop-blur-md rounded-3xl border border-white/10 text-center gap-6 shadow-2xl">
             <AlertCircle className="w-14 h-14 text-destructive opacity-80" />
@@ -660,6 +710,7 @@ export default function Home() {
         sort={sort}
         onSortChange={setSort}
         onSelect={setSelectedThumb}
+        niche={niche}
       />
 
       <footer className="w-full max-w-7xl mx-auto px-8 mt-16 mb-8 z-20 relative flex justify-center">

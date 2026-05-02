@@ -114,8 +114,80 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground overflow-x-hidden;
+  }
+}
+
+/* Polished cubic-bezier easing curves used across the app */
+:root {
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Skeleton shimmer — themed to match dark + purple-magenta gradient */
+.thumbz-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.thumbz-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(139, 92, 246, 0.08) 45%,
+    rgba(217, 70, 239, 0.12) 50%,
+    rgba(139, 92, 246, 0.08) 55%,
+    transparent 70%
+  );
+  animation: thumbz-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes thumbz-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Soft fade-in used after data arrives */
+.fade-in-soft {
+  animation: thumbz-fade-in 0.5s var(--ease-standard) both;
+}
+@keyframes thumbz-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Honor users who prefer reduced motion: disable shimmer, slow background pans,
+   pulsing glows, and the soft fade-in. Functional state changes still occur,
+   but without continuous looping motion that can cause discomfort. */
+@media (prefers-reduced-motion: reduce) {
+  .thumbz-skeleton::after,
+  .fade-in-soft,
+  .bg-arena-gradient,
+  .pulse-glow,
+  .live-dot {
+    animation: none !important;
   }
 }
 
