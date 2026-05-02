@@ -18,6 +18,8 @@ tags:
     description: User feedback operations
   - name: waitlist
     description: Upload-feature waitlist signups
+  - name: storage
+    description: Object storage operations
 paths:
   /healthz:
     get:
@@ -37,8 +39,22 @@ paths:
     get:
       operationId: listThumbnails
       tags: [thumbnails]
-      summary: List all thumbnails
-      description: Returns all thumbnails sorted by ELO rating descending
+      summary: List active thumbnails
+      description: Returns thumbnails with status="active", optionally filtered by niche and sorted.
+      parameters:
+        - name: niche
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter to a specific niche (case-insensitive). Omit or "all" returns all niches.
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [elo, winRate, ctr, battles]
+          description: Sort order for the rankings. Defaults to elo.
       responses:
         "200":
           description: List of thumbnails
@@ -48,13 +64,44 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Thumbnail"
+    post:
+      operationId: uploadThumbnail
+      tags: [thumbnails]
+      summary: Submit a user-uploaded thumbnail for review
+      description: Records a thumbnail with status="pending" — admin approval required before it appears in battles.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadThumbnailBody"
+      responses:
+        "201":
+          description: Thumbnail submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thumbnail"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /thumbnails/battle:
     get:
       operationId: getBattlePair
       tags: [thumbnails]
       summary: Get two random thumbnails for a battle
-      description: Returns two distinct random thumbnails to compare
+      description: Returns two distinct random active thumbnails to compare, optionally filtered by niche.
+      parameters:
+        - name: niche
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Restrict the battle pair to a specific niche.
       responses:
         "200":
           description: Two thumbnails for battle
@@ -62,6 +109,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BattlePair"
+        "400":
+          description: Not enough thumbnails for a battle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /battles:
     get:
@@ -161,6 +214,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned upload URL
+      description: Returns a presigned PUT URL the client uploads the file to directly, plus the object path to store in your DB.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned URL ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -182,6 +261,18 @@ components:
           type: string
         channelName:
           type: string
+        niche:
+          type: string
+          description: One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other
+        ctr:
+          type: ["number", "null"]
+          description: Click-through rate as a percentage (0-100), null if not provided
+        youtubeUrl:
+          type: ["string", "null"]
+          description: Optional public YouTube link to verify the thumbnail
+        status:
+          type: string
+          description: active or pending
         wins:
           type: integer
         losses:
@@ -189,17 +280,52 @@ components:
         eloRating:
           type: integer
         winRate:
-          type: number
+          type: ["number", "null"]
           description: Win rate as a percentage (0-100), null if no battles
-          nullable: true
       required:
         - id
         - title
         - imageUrl
         - channelName
+        - niche
+        - status
         - wins
         - losses
         - eloRating
+
+    UploadThumbnailBody:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        channelName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        niche:
+          type: string
+          enum: [Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other]
+        imageUrl:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Object path returned from /storage/uploads/request-url, or a remote https URL.
+        ctr:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 100
+          description: Optional CTR percentage (0-100)
+        youtubeUrl:
+          type: ["string", "null"]
+          maxLength: 500
+          description: Optional public YouTube URL for verification
+      required:
+        - title
+        - channelName
+        - niche
+        - imageUrl
 
     BattlePair:
       type: object
@@ -323,6 +449,50 @@ components:
       required:
         - id
         - signedUpAt
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 500
+        size:
+          type: integer
+          minimum: 1
+        contentType:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+        - name
+        - size
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+            size:
+              type: integer
+            contentType:
+              type: string
+          required:
+            - name
+            - size
+            - contentType
+      required:
+        - uploadURL
+        - objectPath
+        - metadata
 
     ErrorResponse:
       type: object

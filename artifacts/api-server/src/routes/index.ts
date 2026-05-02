@@ -4,6 +4,7 @@ import thumbnailsRouter from "./thumbnails";
 import battlesRouter from "./battles";
 import feedbackRouter from "./feedback";
 import waitlistRouter from "./waitlist";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use("/thumbnails", thumbnailsRouter);
 router.use("/battles", battlesRouter);
 router.use("/feedback", feedbackRouter);
 router.use("/waitlist", waitlistRouter);
+router.use(storageRouter);
 
 export default router;
