@@ -181,6 +181,21 @@ export default function Home() {
       </main>
 
       <Leaderboard thumbnails={thumbnails} isLoading={isLoadingLeaderboard} />
+
+      <footer className="w-full max-w-7xl mx-auto px-8 mt-16 z-20 relative flex justify-center">
+        <span
+          className="text-white/40 hover:text-white/70 transition-colors"
+          style={{
+            fontFamily: "'Inter', system-ui, sans-serif",
+            fontWeight: 400,
+            fontSize: "0.8125rem",
+            letterSpacing: "0.01em",
+          }}
+        >
+          Built by{" "}
+          <span style={{ fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>xMagicy</span>
+        </span>
+      </footer>
     </div>
   );
 }
