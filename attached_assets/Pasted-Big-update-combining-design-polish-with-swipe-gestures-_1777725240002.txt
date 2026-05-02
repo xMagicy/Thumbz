@@ -1,0 +1,51 @@
+Big update — combining design polish with swipe gestures and a sword-themed VS badge.
+
+1. KEEP THE CURRENT LOGO
+The "thumbz" wordmark with the gradient Z-thumbnail looks clean. Keep it as is. Don't change the logo.
+
+2. ADD SWIPE GESTURES (Tinder-style)
+On mobile/touchscreens, users should be able to:
+- Swipe LEFT on a thumbnail to vote for the RIGHT thumbnail
+- Swipe RIGHT on a thumbnail to vote for the LEFT thumbnail  
+- Or swipe each card directly to vote for it
+
+When swiping:
+- The card follows the finger smoothly with a slight rotation (max 15 degrees)
+- A colored overlay appears: green tint when swiping toward "vote for this", red tint when swiping away
+- After swipe completes (>100px), card animates off-screen and the vote registers
+- New battle pair loads with a smooth fade-in
+
+On desktop, clicking still works the same way as now. Both interactions should coexist.
+
+Use a touch gesture library like Framer Motion or react-swipeable for clean implementation. Make sure animations are buttery smooth (60fps).
+
+3. NEW VS BADGE — SWORDS DESIGN
+Replace the current "VS" circle with a sword-themed design:
+- Two crossed swords forming an X shape, with a small circle/medallion at the center where the swords meet
+- Inside the medallion: the letters "VS" in white, Inter Black (weight 900), small font
+- Swords are styled in the brand gradient (#8b5cf6 to #d946ef)
+- The crossed-swords icon is about 100px tall
+- Add a subtle pulse animation (2 second cycle, scale 1.0 to 1.05)
+- Add a soft purple glow halo around the entire crossed-swords element
+- Position it perfectly centered between the two thumbnails (vertically and horizontally)
+- It must sit ON TOP of the thumbnails (z-index higher), not pushed to one side
+
+4. POLISH THE TINDER-LIKE FEEL
+- Round thumbnail corners more (16px radius)
+- Add a subtle drop shadow under each thumbnail card so they "float"
+- On hover (desktop), scale thumbnail to 1.03x and add a soft glowing purple border
+- More breathing room around the battle area — the thumbnails should dominate the screen
+- The "Which thumbnail makes you click?" header is good, keep it sentence case, Inter Black
+- Make the "LIVE | 0 matches" indicator slightly smaller and more tucked into the corner
+
+5. FONT — INTER EVERYWHERE
+Make sure ALL text uses the Inter font. No Bebas Neue anywhere. No ALL CAPS — use sentence case throughout (e.g., "Championship rankings", "New contender", "I survived 100 days in hardcore Minecraft").
+
+6. KEEP THESE THINGS
+Don't change:
+- Background gradient with particles (looks great)
+- Championship rankings layout (works well)
+- The thumbz logo (looking clean)
+- Color scheme (purple/magenta gradient)
+
+Apply all of these changes in parallel. After completion, show me the result.
