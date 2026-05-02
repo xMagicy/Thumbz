@@ -1,0 +1,42 @@
+Multiple fixes needed for thumbz. Apply all in parallel.
+
+1. RESTORE THE SWORD HOVER EFFECT ON VS BADGE
+
+When mouse hovers over the VS circle, two crossed swords should fade in BEHIND the "VS" text:
+- Swords appear from behind the VS letters (z-index lower than VS text)
+- Swords are white (#ffffff) with subtle dark purple outline
+- Smooth fade in (300ms)
+- VS text stays clearly visible on top
+- When mouse leaves, swords fade out smoothly (300ms)
+- The badge itself doesn't change size or position during hover
+
+2. TINDER-STYLE GREEN/RED SWIPE FEEDBACK
+
+When swiping a thumbnail:
+- Swiping RIGHT toward a card (selecting it) → that card gets a strong GREEN glow border that intensifies as you swipe further. Add a subtle green tint overlay (rgba(34, 197, 94, 0.15))
+- Swiping LEFT away from a card (rejecting the OTHER one) → the other card gets a RED glow border. Add a subtle red tint overlay (rgba(239, 68, 68, 0.2))
+- The further you swipe, the stronger the colors get
+- On click (desktop), the same green appears instantly on the clicked card, and red appears on the other
+- Make this feel polished and responsive — like Tinder
+
+3. FIX THE CHAMPIONSHIP RANKINGS FILTER BUTTONS
+
+The "All time", "This week", "Today" buttons currently don't change anything when clicked. Fix this:
+- Each button should filter the leaderboard data based on time period
+- "All time" shows all-time ELO ratings (default, what's currently shown)
+- "This week" shows ratings based on votes from the last 7 days only
+- "Today" shows ratings based on votes from the last 24 hours only
+- Active button should be visually highlighted (gradient background)
+- Inactive buttons should be more subtle (transparent with border)
+- If there's not enough data for a time period, show "Not enough battles yet for this period"
+
+4. FIX THE VS BADGE BUG
+
+The VS badge still has visual issues during transitions. Make sure:
+- It stays perfectly centered between cards at all times
+- It fades out cleanly when cards swipe (no jumping or jittering)
+- It fades back in cleanly when new cards appear
+- It never overlaps with cards in a broken way
+- Z-index: lower than cards during swipe, higher than cards when static
+
+Apply all four fixes. Test thoroughly: click swipe, hover the VS, click each filter button, swipe multiple times in a row. Everything should feel smooth and professional.
