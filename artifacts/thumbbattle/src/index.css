@@ -230,6 +230,12 @@
   100% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 10px rgba(16, 185, 129, 0.85); }
 }
 
+/* Loader pulse — subtle dot shown briefly while the next battle pair is being fetched */
+@keyframes thumbz-loader-pulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.65; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
 /* BETA badge as feedback trigger — keeps premium aesthetic, gains hover affordance */
 .beta-badge-trigger {
   font-family: inherit;

@@ -112,10 +112,15 @@ function CelebrationOverlay({ count }: { count: number }) {
 export default function Home() {
   const queryClient = useQueryClient();
 
-  // Pair-locked vote state. Pinning the active vote to the pair it was cast on means it
-  // auto-clears the moment a new pair is loaded — no manual onSettled reset needed, and no
-  // risk of cards flashing back to rest state mid-exit while the OLD pair is still visible.
-  const [voteState, setVoteState] = useState<{ winnerId: number; pairKey: string } | null>(null);
+  // Monotonic round counter. Bumped on every pair swap (vote success, error, or timeout).
+  // Drives the AnimatePresence key so even an identical-pair refetch is treated as a fresh
+  // round — no risk of UI deadlock if the random pair selector returns the same pair twice.
+  const [round, setRound] = useState(0);
+
+  // Round-locked vote state. The active vote is valid only when its round matches the
+  // current round — bumping round atomically unlocks the UI, guaranteeing no deadlock
+  // even if the mutation fails or the new pair query stalls.
+  const [voteState, setVoteState] = useState<{ winnerId: number; round: number } | null>(null);
 
   // Gamification state — refs mirror the count for race-free synchronous reads
   const [streak, setStreak] = useState(0);
@@ -164,12 +169,15 @@ export default function Home() {
   const {
     data: battlePair,
     isLoading: isLoadingPair,
+    isFetching: isFetchingPair,
     isError: isErrorPair,
     refetch: refetchPair,
   } = useGetBattlePair({
     query: {
       queryKey: getGetBattlePairQueryKey(),
       refetchOnWindowFocus: false,
+      // One automatic retry on transient failure so the arena never gets stuck on a flake.
+      retry: 1,
     },
   });
 
@@ -185,47 +193,50 @@ export default function Home() {
     },
   });
 
-  // Single source of truth for "what pair are we currently rendering?". The active vote is
-  // valid only when its pairKey matches — if a refetch swaps the pair, the vote auto-deactivates.
+  // Stable id for the currently rendered pair — used in the AnimatePresence key together
+  // with `round` so identical-pair refetches still trigger a fresh transition.
   const currentPairKey = battlePair
     ? `${battlePair.left.id}-${battlePair.right.id}`
     : null;
+
+  // Single source of truth for "is a vote currently displayed?". A vote is "active" only
+  // while its captured round matches the current round; bumping round (the UI unlock signal)
+  // atomically deactivates the vote AND forces AnimatePresence to swap to the new pair.
   const activeVote =
-    voteState && voteState.pairKey === currentPairKey ? voteState : null;
+    voteState && voteState.round === round ? voteState : null;
   const isVoting = activeVote !== null;
   const winningId = activeVote?.winnerId ?? null;
 
   // Vote anim end-to-end:  click → 800ms cinematic → swap to next pair.
   // We fire the mutation IMMEDIATELY (so the server round-trip overlaps with the animation),
-  // and schedule the battle-pair query invalidation to fire AT THE END of the 800ms window —
-  // never sooner — so AnimatePresence doesn't swap children mid-animation.
+  // and the round bump + pair invalidation fires on a DETERMINISTIC 800ms timer — not coupled
+  // to mutation success. This guarantees the UI unlocks at exactly 800ms regardless of whether
+  // the vote API succeeded, failed, or stalled, and regardless of whether the random pair
+  // selector returns the same pair twice in a row.
   const VOTE_ANIM_DURATION_MS = 800;
 
   const castVote = useCastVote({
     mutation: {
+      // One automatic retry on transient failure (matches the user-requested behavior).
+      retry: 1,
       onSuccess: () => {
         // Leaderboard + counters can refresh immediately; they're not in the cards container.
         queryClient.invalidateQueries({ queryKey: getListThumbnailsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListBattlesQueryKey() });
-
-        // Battle pair refresh is gated by the animation timeline.
-        const elapsed = Date.now() - voteStartedAtRef.current;
-        const wait = Math.max(0, VOTE_ANIM_DURATION_MS - elapsed);
-        if (pairRefreshTimeoutRef.current !== null) {
-          window.clearTimeout(pairRefreshTimeoutRef.current);
-        }
-        pairRefreshTimeoutRef.current = window.setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: getGetBattlePairQueryKey() });
-          pairRefreshTimeoutRef.current = null;
-        }, wait);
+      },
+      onError: (error) => {
+        // Log and let the deterministic timer handle UI unlock — no manual cleanup needed.
+        console.error("[thumbz] vote submission failed:", error);
       },
     },
   });
 
   const handleVote = (winnerId: number, loserId: number) => {
-    if (voteState !== null || !currentPairKey) return;
+    // Gate on activeVote (round-aware), NOT raw voteState — stale voteState from previous
+    // rounds is harmless and intentionally lingers until the next setVoteState overwrites it.
+    if (activeVote !== null || !currentPairKey) return;
     voteStartedAtRef.current = Date.now();
-    setVoteState({ winnerId, pairKey: currentPairKey });
+    setVoteState({ winnerId, round });
 
     // Increment via refs (race-free sync writes), then mirror to state for rendering.
     setStreak((s) => s + 1);
@@ -259,6 +270,21 @@ export default function Home() {
 
     // Fire the mutation right away so server work overlaps with the cinematic animation.
     castVote.mutate({ data: { winnerId, loserId } });
+
+    // Deterministic 800ms timer: bump round (unlocks voteState + forces AnimatePresence
+    // transition even on identical-pair refetch) and invalidate the pair query so the next
+    // pair starts loading. Runs regardless of mutation outcome — the UI never deadlocks.
+    if (pairRefreshTimeoutRef.current !== null) {
+      window.clearTimeout(pairRefreshTimeoutRef.current);
+    }
+    pairRefreshTimeoutRef.current = window.setTimeout(() => {
+      // Clear stale voteState alongside bumping round — both signals point to "unlocked"
+      // and removing the stale value avoids confusion in future debugging.
+      setVoteState(null);
+      setRound((r) => r + 1);
+      queryClient.invalidateQueries({ queryKey: getGetBattlePairQueryKey() });
+      pairRefreshTimeoutRef.current = null;
+    }, VOTE_ANIM_DURATION_MS);
   };
 
   return (
@@ -457,18 +483,50 @@ export default function Home() {
             </Button>
           </div>
         ) : (
-          <AnimatePresence mode="wait">
+          <div className="relative w-full">
+            {/* Subtle loading hint — only visible during the brief gap while the next pair is
+                being fetched. Sits behind the cards container so it never blocks pointer events. */}
             <motion.div
-              key={currentPairKey ?? "empty"}
-              // New pair entry (spec stage 4, 800–1100ms): rises up from y +30 with a soft fade.
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              // Cards already animated themselves to opacity 0 + y -30 by the time the key
-              // changes, so the parent's exit can be instant — no extra dead time.
-              exit={{ opacity: 0, transition: { duration: 0 } }}
-              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-              className="relative w-full flex flex-col md:flex-row justify-center items-stretch gap-10 md:gap-28"
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              initial={false}
+              animate={{ opacity: isFetchingPair && !isLoadingPair ? 1 : 0 }}
+              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              aria-hidden
             >
+              <div className="relative" style={{ width: 48, height: 48 }}>
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background:
+                      "radial-gradient(closest-side, rgba(217,70,239,0.5), rgba(139,92,246,0.2) 60%, transparent 80%)",
+                    filter: "blur(8px)",
+                    animation: "thumbz-loader-pulse 1.1s ease-in-out infinite",
+                  }}
+                />
+                <div
+                  className="absolute inset-2 rounded-full"
+                  style={{
+                    background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
+                    boxShadow:
+                      "inset 0 1px 3px rgba(255,255,255,0.3), 0 0 14px rgba(217,70,239,0.6)",
+                    animation: "thumbz-loader-pulse 1.1s ease-in-out infinite",
+                  }}
+                />
+              </div>
+            </motion.div>
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`r${round}-${currentPairKey ?? "empty"}`}
+                // New pair entry (spec stage 4, 800–1100ms): rises up from y +30 with a soft fade.
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                // Cards already animated themselves to opacity 0 + y -30 by the time the key
+                // changes, so the parent's exit can be instant — no extra dead time.
+                exit={{ opacity: 0, transition: { duration: 0 } }}
+                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                className="relative w-full flex flex-col md:flex-row justify-center items-stretch gap-10 md:gap-28"
+              >
               <FighterCard
                 thumbnail={battlePair.left}
                 side="left"
@@ -500,8 +558,9 @@ export default function Home() {
                 onVote={() => handleVote(battlePair.right.id, battlePair.left.id)}
                 onSwipeStart={triggerVsAnim}
               />
-            </motion.div>
-          </AnimatePresence>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         )}
 
         {/* Daily progress */}

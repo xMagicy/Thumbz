@@ -32,3 +32,23 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   open a feedback dialog (`FeedbackDialog`) that POSTs to `/api/feedback`.
 - Feedback is stored in the `feedback` table (`lib/db/src/schema/feedback.ts`)
   with optional email + page URL + user-agent for context.
+
+### Vote-flow architecture (`Home.tsx`)
+
+The vote → animation → next-pair pipeline is built around a **monotonic
+`round` counter** as the single UI-unlock signal:
+
+- `voteState = { winnerId, round }` is locked to the round it was cast on.
+- `activeVote` is valid only when `voteState.round === round`. Bumping `round`
+  atomically deactivates the vote, unlocks the click guard, and forces the
+  AnimatePresence container (keyed `r${round}-${pairKey}`) to transition —
+  even if the random pair selector returns the same pair twice in a row.
+- The round bump fires on a **deterministic 800ms `setTimeout` inside
+  `handleVote`**, NOT in `castVote.onSuccess`. This guarantees the UI never
+  deadlocks on a failed/slow mutation.
+- `castVote.mutate()` runs immediately on click so server work overlaps the
+  cinematic animation. `retry: 1` on both the mutation and `useGetBattlePair`
+  handles transient failures.
+- The early-return guard checks `activeVote !== null` (round-aware), not raw
+  `voteState`. Stale `voteState` from previous rounds is harmless — it's
+  cleared alongside the round bump for cleanliness.

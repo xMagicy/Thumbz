@@ -9,41 +9,35 @@ interface VSBadgeProps {
 }
 
 function SwordSVG({ size = 78 }: { size?: number }) {
+  // White swords with a subtle dark-purple outline (#6b21a8) for definition against
+  // the gradient circle. All elements share the same stroke for visual cohesion.
+  const fill = "#ffffff";
+  const stroke = "#6b21a8";
   return (
     <svg viewBox="0 0 100 100" width={size} height={size} fill="none" className="block">
-      <defs>
-        <linearGradient id="bladeGradVs" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#f3eaff" />
-          <stop offset="55%" stopColor="#c4b5fd" />
-          <stop offset="100%" stopColor="#7c3aed" />
-        </linearGradient>
-        <linearGradient id="hiltGradVs" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#3b0764" />
-          <stop offset="100%" stopColor="#1e1b4b" />
-        </linearGradient>
-      </defs>
       {/* Blade — slim & metallic */}
       <polygon
         points="50,4 53,56 50,62 47,56"
-        fill="url(#bladeGradVs)"
-        stroke="#5b21b6"
-        strokeWidth="0.5"
-      />
-      {/* Center highlight on blade */}
-      <line
-        x1="50"
-        y1="8"
-        x2="50"
-        y2="58"
-        stroke="rgba(255,255,255,0.7)"
-        strokeWidth="0.6"
+        fill={fill}
+        stroke={stroke}
+        strokeWidth="1"
+        strokeLinejoin="round"
       />
       {/* Crossguard */}
-      <rect x="38" y="60" width="24" height="4.5" rx="1" fill="url(#hiltGradVs)" />
+      <rect
+        x="38"
+        y="60"
+        width="24"
+        height="4.5"
+        rx="1"
+        fill={fill}
+        stroke={stroke}
+        strokeWidth="1"
+      />
       {/* Grip */}
-      <rect x="47" y="64.5" width="6" height="14" fill="#1e1b4b" />
+      <rect x="47" y="64.5" width="6" height="14" fill={fill} stroke={stroke} strokeWidth="1" />
       {/* Pommel */}
-      <circle cx="50" cy="80" r="3" fill="url(#bladeGradVs)" stroke="#5b21b6" strokeWidth="0.4" />
+      <circle cx="50" cy="80" r="3" fill={fill} stroke={stroke} strokeWidth="1" />
     </svg>
   );
 }
