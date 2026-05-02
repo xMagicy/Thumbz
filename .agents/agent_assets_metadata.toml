@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "_RVLQi7uXGNJdJE7fTkS-"
+uri = "file://artifacts/thumbbattle/public/thumbz-logo.png"
+type = "image"
+title = "thumbz logo (1024px, transparent PNG)"
