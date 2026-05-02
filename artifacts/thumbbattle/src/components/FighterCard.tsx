@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect } from "react";
 import { motion, useMotionValue, useTransform, animate, PanInfo } from "framer-motion";
 import { Youtube } from "lucide-react";
 import type { Thumbnail } from "@workspace/api-client-react";
@@ -13,6 +13,8 @@ interface FighterCardProps {
 }
 
 const SWIPE_THRESHOLD = 100;
+// Material Design standard easing — natural deceleration / acceleration
+const EASE_STANDARD = [0.4, 0, 0.2, 1] as const;
 
 function deriveCategory(title: string, channel: string): string {
   const t = `${title} ${channel}`.toLowerCase();
@@ -44,75 +46,58 @@ export function FighterCard({
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
   const voteOverlayOpacity = useTransform(x, [-200, -40, 0, 40, 200], [0.55, 0, 0, 0, 0.55]);
 
-  const [swipeFlying, setSwipeFlying] = useState(false);
-  const swipedRef = useRef(false);
-
-  // Reset card position when a new battle pair loads
+  // Reset drag offset when a new battle pair loads
   useEffect(() => {
     x.set(0);
-    setSwipeFlying(false);
-    swipedRef.current = false;
   }, [thumbnail.id, x]);
 
   const handleDragEnd = (_e: unknown, info: PanInfo) => {
     if (isVoting) return;
-
     const offset = info.offset.x;
     const velocity = info.velocity.x;
     const swiped = Math.abs(offset) > SWIPE_THRESHOLD || Math.abs(velocity) > 600;
 
     if (swiped) {
-      swipedRef.current = true;
-      setSwipeFlying(true);
-      const flyTo = offset > 0 ? 900 : -900;
-      animate(x, flyTo, { duration: 0.4, ease: "easeOut" });
+      // Snap back to center inside the same 150ms feedback window so the
+      // vote animation starts cleanly from rest — no jump, no fight with keyframes.
+      animate(x, 0, { duration: 0.15, ease: EASE_STANDARD });
       onVote();
     } else {
       animate(x, 0, { type: "spring", stiffness: 400, damping: 30 });
     }
   };
 
-  // Cinematic vote animations — two-stage:
-  //   Stage 1 (0 → 200ms): instant decision feedback (winner lifts/scales, loser tints/tilts/dims)
-  //   Stage 2 (200ms → 800ms): cinematic exit (winner slides toward center then up-and-out,
-  //                                              loser tilts further away then down-and-out)
-  const winnerSlide = side === "left" ? 70 : -70;
-  const loserInitialTilt = side === "left" ? -2 : 2;
-  const loserTilt = side === "left" ? -10 : 10;
-
+  // Clean 4-stop timeline (matches the spec exactly):
+  //   t = 0      (0%)        rest
+  //   t = 150ms  (18.75%)    instant feedback   — winner pops, loser dims & shrinks
+  //   t = 500ms  (62.5%)     winner moment      — loser drifts down to opacity 0.2 / +20
+  //   t = 800ms  (100%)      exit               — both lift -30, fade to 0
+  // Total: 800ms, single cubic-bezier(0.4, 0, 0.2, 1) easing across the whole curve.
   const winnerKeyframes = {
-    scale: [1, 1.05, 1.1, 1.1],
-    x: [0, 0, winnerSlide, winnerSlide],
-    y: [0, -4, 0, -900],
-    opacity: [1, 1, 1, 0.9],
+    scale: [1, 1.05, 1.05, 1.05],
+    y: [0, 0, 0, -30],
+    opacity: [1, 1, 1, 0],
   };
   const loserKeyframes = {
-    scale: [1, 0.96, 0.94, 0.92],
-    rotate: [0, loserInitialTilt, loserTilt, loserTilt + (side === "left" ? -4 : 4)],
-    opacity: [1, 0.7, 0.4, 0.2],
-    y: [0, 0, 0, 900],
+    scale: [1, 0.95, 0.95, 0.95],
+    y: [0, 0, 20, -30],
+    opacity: [1, 0.5, 0.2, 0],
   };
-  // Rest state: x and rotate are owned by the motion value + useTransform (drag-driven),
-  // so we deliberately do NOT include them here to avoid animate-vs-transform contention.
   const restState = { scale: 1, y: 0, opacity: 1 };
 
-  // If this card was swiped, let imperative animate handle x — skip cinematic state on this card
-  const animateState = swipeFlying
-    ? undefined
-    : voteResult === "winner"
-    ? winnerKeyframes
-    : voteResult === "loser"
-    ? loserKeyframes
-    : restState;
+  const animateState =
+    voteResult === "winner"
+      ? winnerKeyframes
+      : voteResult === "loser"
+      ? loserKeyframes
+      : restState;
 
-  const cinematicTransition = voteResult
-    ? { duration: 0.8, times: [0, 0.25, 0.5, 1], ease: "easeOut" as const }
+  const voteTransition = voteResult
+    ? { duration: 0.8, times: [0, 0.1875, 0.625, 1], ease: EASE_STANDARD }
     : { type: "spring" as const, stiffness: 280, damping: 22 };
 
   const winnerGlow =
     "0 0 80px rgba(217, 70, 239, 0.7), 0 0 32px rgba(139, 92, 246, 0.5), 0 24px 50px -16px rgba(0,0,0,0.7)";
-  const hoverGlow =
-    "0 16px 40px -12px rgba(139, 92, 246, 0.55), 0 0 24px rgba(217, 70, 239, 0.25), 0 24px 50px -16px rgba(0,0,0,0.6)";
 
   const category = deriveCategory(thumbnail.title, thumbnail.channelName);
   const youtubeUrl = extractYoutubeUrl(thumbnail.imageUrl);
@@ -120,9 +105,9 @@ export function FighterCard({
   return (
     <motion.div
       className={`group relative flex-1 max-w-[560px] w-full flex flex-col gap-5 ${
-        isVoting && !voteResult ? "pointer-events-none" : "cursor-grab active:cursor-grabbing"
+        isVoting ? "pointer-events-none" : "cursor-grab active:cursor-grabbing"
       }`}
-      style={{ x, rotate, touchAction: "pan-y" }}
+      style={{ x, rotate, touchAction: "pan-y", willChange: "transform, opacity" }}
       drag={voteResult || isVoting ? false : "x"}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.7}
@@ -130,22 +115,20 @@ export function FighterCard({
       onDragEnd={handleDragEnd}
       whileHover={voteResult || isVoting ? undefined : { scale: 1.04, y: -8 }}
       animate={animateState}
-      transition={cinematicTransition}
+      transition={voteTransition}
       onClick={() => {
         if (isVoting) return;
         if (Math.abs(x.get()) < 5) onVote();
       }}
     >
       <div
-        className="thumb-card-shadow relative aspect-video overflow-hidden border-2 border-white/10 group-hover:border-purple-400/70 transition-[border-color,box-shadow] duration-300"
+        className="thumb-card-shadow relative aspect-video overflow-hidden border-2 group-hover:border-purple-400/70 transition-[border-color,box-shadow] duration-150"
         style={{
           borderRadius: 18,
-          boxShadow:
-            voteResult === "winner"
-              ? winnerGlow
-              : !voteResult && !isVoting
-              ? undefined
-              : undefined,
+          borderColor:
+            voteResult === "winner" ? "rgba(217,70,239,0.7)" : "rgba(255,255,255,0.1)",
+          boxShadow: voteResult === "winner" ? winnerGlow : undefined,
+          transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
         <img
@@ -158,7 +141,7 @@ export function FighterCard({
         {/* Bottom dark gradient overlay for text readability */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent opacity-70 group-hover:opacity-50 transition-opacity pointer-events-none" />
 
-        {/* Hover purple glow inset */}
+        {/* Hover purple glow inset (idle hover only — disabled during voting via pointer-events) */}
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
           style={{
@@ -166,12 +149,25 @@ export function FighterCard({
           }}
         />
 
-        {/* Loser red tint overlay — fades in immediately when this card is the loser */}
+        {/* Winner inner purple/magenta tint — fades in within the 150ms feedback window */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          initial={false}
+          animate={{ opacity: voteResult === "winner" ? 1 : 0 }}
+          transition={{ duration: 0.15, ease: EASE_STANDARD }}
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(139,92,246,0.18), rgba(217,70,239,0.22))",
+            mixBlendMode: "screen",
+          }}
+        />
+
+        {/* Loser red tint — fades in smoothly within the 150ms feedback window */}
         <motion.div
           className="absolute inset-0 pointer-events-none"
           initial={false}
           animate={{ opacity: voteResult === "loser" ? 1 : 0 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
+          transition={{ duration: 0.15, ease: EASE_STANDARD }}
           style={{ background: "rgba(220, 38, 38, 0.3)" }}
         />
 

@@ -110,7 +110,11 @@ function CelebrationOverlay({ count }: { count: number }) {
 
 export default function Home() {
   const queryClient = useQueryClient();
-  const [votingFor, setVotingFor] = useState<number | null>(null);
+
+  // Pair-locked vote state. Pinning the active vote to the pair it was cast on means it
+  // auto-clears the moment a new pair is loaded — no manual onSettled reset needed, and no
+  // risk of cards flashing back to rest state mid-exit while the OLD pair is still visible.
+  const [voteState, setVoteState] = useState<{ winnerId: number; pairKey: string } | null>(null);
 
   // Gamification state — refs mirror the count for race-free synchronous reads
   const [streak, setStreak] = useState(0);
@@ -120,7 +124,8 @@ export default function Home() {
   const localVoteCountRef = useRef(0);
   const dailyCountRef = useRef(0);
   const celebrationTimeoutRef = useRef<number | null>(null);
-  const voteTimeoutRef = useRef<number | null>(null);
+  const pairRefreshTimeoutRef = useRef<number | null>(null);
+  const voteStartedAtRef = useRef(0);
 
   // Counter bumped whenever a card swipe starts — VSBadge watches this to trigger sword anim
   const [vsAnimTrigger, setVsAnimTrigger] = useState(0);
@@ -146,8 +151,8 @@ export default function Home() {
       if (celebrationTimeoutRef.current !== null) {
         window.clearTimeout(celebrationTimeoutRef.current);
       }
-      if (voteTimeoutRef.current !== null) {
-        window.clearTimeout(voteTimeoutRef.current);
+      if (pairRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(pairRefreshTimeoutRef.current);
       }
     };
   }, []);
@@ -176,32 +181,55 @@ export default function Home() {
     },
   });
 
+  // Single source of truth for "what pair are we currently rendering?". The active vote is
+  // valid only when its pairKey matches — if a refetch swaps the pair, the vote auto-deactivates.
+  const currentPairKey = battlePair
+    ? `${battlePair.left.id}-${battlePair.right.id}`
+    : null;
+  const activeVote =
+    voteState && voteState.pairKey === currentPairKey ? voteState : null;
+  const isVoting = activeVote !== null;
+  const winningId = activeVote?.winnerId ?? null;
+
+  // Vote anim end-to-end:  click → 800ms cinematic → swap to next pair.
+  // We fire the mutation IMMEDIATELY (so the server round-trip overlaps with the animation),
+  // and schedule the battle-pair query invalidation to fire AT THE END of the 800ms window —
+  // never sooner — so AnimatePresence doesn't swap children mid-animation.
+  const VOTE_ANIM_DURATION_MS = 800;
+
   const castVote = useCastVote({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetBattlePairQueryKey() });
+        // Leaderboard + counters can refresh immediately; they're not in the cards container.
         queryClient.invalidateQueries({ queryKey: getListThumbnailsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListBattlesQueryKey() });
-      },
-      onSettled: () => {
-        setVotingFor(null);
+
+        // Battle pair refresh is gated by the animation timeline.
+        const elapsed = Date.now() - voteStartedAtRef.current;
+        const wait = Math.max(0, VOTE_ANIM_DURATION_MS - elapsed);
+        if (pairRefreshTimeoutRef.current !== null) {
+          window.clearTimeout(pairRefreshTimeoutRef.current);
+        }
+        pairRefreshTimeoutRef.current = window.setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: getGetBattlePairQueryKey() });
+          pairRefreshTimeoutRef.current = null;
+        }, wait);
       },
     },
   });
 
   const handleVote = (winnerId: number, loserId: number) => {
-    if (votingFor !== null) return;
-    setVotingFor(winnerId);
+    if (voteState !== null || !currentPairKey) return;
+    voteStartedAtRef.current = Date.now();
+    setVoteState({ winnerId, pairKey: currentPairKey });
 
     // Increment via refs (race-free sync writes), then mirror to state for rendering.
-    // Side effects use the ref value, never derived from a stale closure read.
     setStreak((s) => s + 1);
 
     const nextLocalCount = localVoteCountRef.current + 1;
     localVoteCountRef.current = nextLocalCount;
     setLocalVoteCount(nextLocalCount);
     if (nextLocalCount > 0 && nextLocalCount % 10 === 0) {
-      // Clear any in-flight celebration timer before scheduling a new one
       if (celebrationTimeoutRef.current !== null) {
         window.clearTimeout(celebrationTimeoutRef.current);
       }
@@ -225,14 +253,8 @@ export default function Home() {
       /* ignore quota / disabled storage */
     }
 
-    // Allow cinematic vote animation to play before mutating + reloading pair
-    if (voteTimeoutRef.current !== null) {
-      window.clearTimeout(voteTimeoutRef.current);
-    }
-    voteTimeoutRef.current = window.setTimeout(() => {
-      castVote.mutate({ data: { winnerId, loserId } });
-      voteTimeoutRef.current = null;
-    }, 850);
+    // Fire the mutation right away so server work overlaps with the cinematic animation.
+    castVote.mutate({ data: { winnerId, loserId } });
   };
 
   return (
@@ -407,32 +429,43 @@ export default function Home() {
         ) : (
           <AnimatePresence mode="wait">
             <motion.div
-              key={`${battlePair.left.id}-${battlePair.right.id}`}
-              initial={{ opacity: 0, y: 60 }}
+              key={currentPairKey ?? "empty"}
+              // New pair entry (spec stage 4, 800–1100ms): rises up from y +30 with a soft fade.
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ type: "spring", stiffness: 180, damping: 18, bounce: 0.4 }}
+              // Cards already animated themselves to opacity 0 + y -30 by the time the key
+              // changes, so the parent's exit can be instant — no extra dead time.
+              exit={{ opacity: 0, transition: { duration: 0 } }}
+              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
               className="relative w-full flex flex-col md:flex-row justify-center items-stretch gap-10 md:gap-28"
             >
               <FighterCard
                 thumbnail={battlePair.left}
                 side="left"
-                isVoting={votingFor !== null}
+                isVoting={isVoting}
                 voteResult={
-                  votingFor === battlePair.left.id ? "winner" : votingFor !== null ? "loser" : null
+                  winningId === battlePair.left.id
+                    ? "winner"
+                    : winningId !== null
+                    ? "loser"
+                    : null
                 }
                 onVote={() => handleVote(battlePair.left.id, battlePair.right.id)}
                 onSwipeStart={triggerVsAnim}
               />
 
-              <VSBadge externalTrigger={vsAnimTrigger} />
+              <VSBadge externalTrigger={vsAnimTrigger} isVoting={isVoting} />
 
               <FighterCard
                 thumbnail={battlePair.right}
                 side="right"
-                isVoting={votingFor !== null}
+                isVoting={isVoting}
                 voteResult={
-                  votingFor === battlePair.right.id ? "winner" : votingFor !== null ? "loser" : null
+                  winningId === battlePair.right.id
+                    ? "winner"
+                    : winningId !== null
+                    ? "loser"
+                    : null
                 }
                 onVote={() => handleVote(battlePair.right.id, battlePair.left.id)}
                 onSwipeStart={triggerVsAnim}

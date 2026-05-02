@@ -1,0 +1,49 @@
+The thumbnail click and reload animations look buggy and unpolished. Let's clean them up.
+
+CURRENT PROBLEMS:
+- The vote animation (winner growing, loser fading) looks jittery and unprofessional
+- The transition to the next pair feels awkward and not smooth
+- Sometimes the cards seem to glitch or jump
+
+REPLACE WITH A CLEAN, SMOOTH ANIMATION SEQUENCE:
+
+When a user clicks/swipes a thumbnail, this should happen in EXACT order:
+
+1. INSTANT FEEDBACK (0ms - 150ms):
+   - Selected thumbnail: scale to 1.05x with smooth ease-out
+   - Selected thumbnail: glow border intensifies (purple shadow)
+   - Other thumbnail: scale to 0.95x, opacity to 0.5
+   - VS badge: stays still, no jump
+
+2. WINNER MOMENT (150ms - 500ms):
+   - Selected thumbnail stays scaled up, holds the glow
+   - Loser thumbnail fades to opacity 0.2 with slight downward movement (translateY +20px)
+   - VS badge fades out to opacity 0
+
+3. EXIT (500ms - 800ms):
+   - Both cards smoothly fade to opacity 0
+   - Both cards translateY -30px (lift up slightly as they fade)
+   - Use ease-in-out easing
+
+4. NEW PAIR ENTRY (800ms - 1100ms):
+   - New thumbnails fade in from opacity 0 to 1
+   - They enter from translateY +30px (rise up smoothly)
+   - VS badge fades back in at the end
+   - Use ease-out easing for a soft landing
+
+TECHNICAL REQUIREMENTS:
+- Use CSS transitions or Framer Motion (whichever is already in the project)
+- All transitions must be 60fps smooth, no jank
+- Use cubic-bezier(0.4, 0, 0.2, 1) for natural easing (Material Design standard)
+- Avoid any layout shifts during animation (cards should animate in their existing positions, not push other elements around)
+- Make sure both cards animate in sync, not one after the other
+- The VS badge should not jump or jitter during card transitions
+
+EDGE CASES TO FIX:
+- If user clicks twice rapidly, ignore the second click until animation finishes
+- During swipe gestures, the same smooth animation should play
+- On mobile, the animation should still feel snappy (don't make it slower)
+
+Keep the win/lose color tints (red for loser, green/purple for winner) but make sure they fade smoothly, not abruptly.
+
+After this update, the click-to-next-battle flow should feel like a premium app — like Tinder, Hinge, or any polished mobile game.

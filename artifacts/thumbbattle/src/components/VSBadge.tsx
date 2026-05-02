@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 interface VSBadgeProps {
   /** Bumped by parent to trigger the sword animation from a swipe-start. */
   externalTrigger?: number;
+  /** True while a vote is in flight — VS badge fades out so it doesn't sit on top of the cinematic vote anim. */
+  isVoting?: boolean;
 }
 
 function SwordSVG({ size = 78 }: { size?: number }) {
@@ -46,7 +48,7 @@ function SwordSVG({ size = 78 }: { size?: number }) {
   );
 }
 
-export function VSBadge({ externalTrigger = 0 }: VSBadgeProps) {
+export function VSBadge({ externalTrigger = 0, isVoting = false }: VSBadgeProps) {
   const [animating, setAnimating] = useState(false);
   const animatingRef = useRef(false);
   const timeoutRef = useRef<number | null>(null);
@@ -82,7 +84,18 @@ export function VSBadge({ externalTrigger = 0 }: VSBadgeProps) {
   }, []);
 
   return (
-    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none flex items-center justify-center">
+    <motion.div
+      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none flex items-center justify-center"
+      initial={false}
+      // Spec: VS stays still in the 0–150ms instant-feedback window, then fades out
+      // smoothly during the 150–500ms winner-moment window.
+      animate={{ opacity: isVoting ? 0 : 1 }}
+      transition={{
+        duration: 0.35,
+        delay: isVoting ? 0.15 : 0,
+        ease: [0.4, 0, 0.2, 1],
+      }}
+    >
       <div
         className="relative flex items-center justify-center"
         style={{ width: 160, height: 160 }}
@@ -221,6 +234,6 @@ export function VSBadge({ externalTrigger = 0 }: VSBadgeProps) {
           onClick={triggerAnim}
         />
       </div>
-    </div>
+    </motion.div>
   );
 }
