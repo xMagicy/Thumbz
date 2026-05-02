@@ -123,3 +123,25 @@ export const CastVoteResponse = zod.object({
   }),
   totalVotes: zod.number(),
 });
+
+/**
+ * Records a piece of feedback from a visitor while the site is in beta
+ * @summary Submit beta feedback
+ */
+export const submitFeedbackBodyMessageMax = 4000;
+
+export const SubmitFeedbackBody = zod.object({
+  message: zod
+    .string()
+    .min(1)
+    .max(submitFeedbackBodyMessageMax)
+    .describe("The visitor's feedback message"),
+  email: zod
+    .string()
+    .nullish()
+    .describe("Optional email address so the team can reply"),
+  pageUrl: zod
+    .string()
+    .nullish()
+    .describe("The URL the visitor was on when sending feedback"),
+});

@@ -20,6 +20,8 @@ import type {
   BattlePair,
   BattleStats,
   ErrorResponse,
+  FeedbackBody,
+  FeedbackResult,
   HealthStatus,
   Thumbnail,
   VoteBody,
@@ -424,4 +426,91 @@ export const useCastVote = <
   TContext
 > => {
   return useMutation(getCastVoteMutationOptions(options));
+};
+
+/**
+ * Records a piece of feedback from a visitor while the site is in beta
+ * @summary Submit beta feedback
+ */
+export const getSubmitFeedbackUrl = () => {
+  return `/api/feedback`;
+};
+
+export const submitFeedback = async (
+  feedbackBody: FeedbackBody,
+  options?: RequestInit,
+): Promise<FeedbackResult> => {
+  return customFetch<FeedbackResult>(getSubmitFeedbackUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(feedbackBody),
+  });
+};
+
+export const getSubmitFeedbackMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitFeedback>>,
+    TError,
+    { data: BodyType<FeedbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitFeedback>>,
+  TError,
+  { data: BodyType<FeedbackBody> },
+  TContext
+> => {
+  const mutationKey = ["submitFeedback"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitFeedback>>,
+    { data: BodyType<FeedbackBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return submitFeedback(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitFeedbackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitFeedback>>
+>;
+export type SubmitFeedbackMutationBody = BodyType<FeedbackBody>;
+export type SubmitFeedbackMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Submit beta feedback
+ */
+export const useSubmitFeedback = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitFeedback>>,
+    TError,
+    { data: BodyType<FeedbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitFeedback>>,
+  TError,
+  { data: BodyType<FeedbackBody> },
+  TContext
+> => {
+  return useMutation(getSubmitFeedbackMutationOptions(options));
 };

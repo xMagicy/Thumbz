@@ -25,3 +25,10 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## ThumbBattle Notes
+
+- Site is in beta. The header BETA badge and a "Send feedback" link both
+  open a feedback dialog (`FeedbackDialog`) that POSTs to `/api/feedback`.
+- Feedback is stored in the `feedback` table (`lib/db/src/schema/feedback.ts`)
+  with optional email + page URL + user-agent for context.

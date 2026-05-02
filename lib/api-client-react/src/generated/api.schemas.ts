@@ -51,6 +51,30 @@ export interface BattleStats {
   recentBattles: RecentBattle[];
 }
 
+export interface FeedbackBody {
+  /**
+   * The visitor's feedback message
+   * @minLength 1
+   * @maxLength 4000
+   */
+  message: string;
+  /**
+   * Optional email address so the team can reply
+   * @nullable
+   */
+  email?: string | null;
+  /**
+   * The URL the visitor was on when sending feedback
+   * @nullable
+   */
+  pageUrl?: string | null;
+}
+
+export interface FeedbackResult {
+  id: number;
+  createdAt: string;
+}
+
 export interface ErrorResponse {
   error: string;
 }

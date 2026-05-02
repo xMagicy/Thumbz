@@ -230,6 +230,31 @@
   100% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 10px rgba(16, 185, 129, 0.85); }
 }
 
+/* BETA badge as feedback trigger — keeps premium aesthetic, gains hover affordance */
+.beta-badge-trigger {
+  font-family: inherit;
+}
+.beta-badge-trigger:hover {
+  background: rgba(168, 85, 247, 0.22) !important;
+  border-color: rgba(217, 70, 239, 0.6) !important;
+  color: #f0abfc !important;
+}
+.beta-badge-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(217, 70, 239, 0.45);
+}
+
+/* Subtle "Send feedback" header link */
+.feedback-link:hover {
+  color: rgba(255, 255, 255, 0.95) !important;
+  background: rgba(255, 255, 255, 0.05);
+}
+.feedback-link:focus-visible {
+  outline: none;
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 1px rgba(217, 70, 239, 0.4);
+}
+
 /* xMagicy footer link — soft underline on hover */
 .xmagicy-link {
   position: relative;

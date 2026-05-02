@@ -14,6 +14,8 @@ tags:
     description: Thumbnail operations
   - name: battles
     description: Battle/voting operations
+  - name: feedback
+    description: User feedback operations
 paths:
   /healthz:
     get:
@@ -100,6 +102,32 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Thumbnail not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /feedback:
+    post:
+      operationId: submitFeedback
+      tags: [feedback]
+      summary: Submit beta feedback
+      description: Records a piece of feedback from a visitor while the site is in beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackBody"
+      responses:
+        "201":
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResult"
+        "400":
+          description: Invalid request
           content:
             application/json:
               schema:
@@ -215,6 +243,34 @@ components:
         - loserId
         - winnerTitle
         - loserTitle
+        - createdAt
+
+    FeedbackBody:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: The visitor's feedback message
+        email:
+          type: ["string", "null"]
+          description: Optional email address so the team can reply
+        pageUrl:
+          type: ["string", "null"]
+          description: The URL the visitor was on when sending feedback
+      required:
+        - message
+
+    FeedbackResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
         - createdAt
 
     ErrorResponse:

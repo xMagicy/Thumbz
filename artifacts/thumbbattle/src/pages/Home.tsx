@@ -9,7 +9,7 @@ import {
   getListBattlesQueryKey,
   useCastVote,
 } from "@workspace/api-client-react";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -17,6 +17,7 @@ import { ParticleField } from "../components/ParticleField";
 import { FighterCard } from "../components/FighterCard";
 import { VSBadge } from "../components/VSBadge";
 import { Leaderboard } from "../components/Leaderboard";
+import { FeedbackDialog } from "../components/FeedbackDialog";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -130,6 +131,9 @@ export default function Home() {
   // Counter bumped whenever a card swipe starts — VSBadge watches this to trigger sword anim
   const [vsAnimTrigger, setVsAnimTrigger] = useState(0);
   const triggerVsAnim = () => setVsAnimTrigger((v) => v + 1);
+
+  // Beta feedback dialog
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Init daily count from localStorage on mount
   useEffect(() => {
@@ -267,6 +271,9 @@ export default function Home() {
         {celebration !== null && <CelebrationOverlay key={celebration} count={celebration} />}
       </AnimatePresence>
 
+      {/* Beta feedback dialog */}
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+
       {/* Header */}
       <header className="w-full max-w-7xl mx-auto px-8 py-6 flex flex-row items-center justify-between gap-6 z-20 relative">
         {/* Logo: thumbz wordmark — DO NOT CHANGE */}
@@ -275,8 +282,11 @@ export default function Home() {
             <span className="thumbz-word">thumb</span>
             <span className="thumbz-z">z</span>
           </div>
-          <span
-            className="uppercase"
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            aria-label="Send feedback — site is in beta"
+            className="beta-badge-trigger uppercase"
             style={{
               fontFamily: "'Inter', system-ui, sans-serif",
               fontWeight: 600,
@@ -289,16 +299,35 @@ export default function Home() {
               lineHeight: 1,
               transform: "translateY(-18px)",
               display: "inline-block",
+              cursor: "pointer",
+              transition: "background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease",
             }}
           >
             BETA
-          </span>
+          </button>
         </div>
+
+        {/* Right-side header cluster: feedback link + live indicator */}
+        <div className="flex items-center gap-3" style={{ fontFamily: inter }}>
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            className="feedback-link hidden sm:flex items-center gap-1.5 rounded-full transition-colors"
+            style={{
+              fontWeight: 500,
+              fontSize: "0.78rem",
+              color: "rgba(255,255,255,0.55)",
+              padding: "6px 10px",
+              letterSpacing: "0.01em",
+            }}
+          >
+            <MessageSquarePlus className="w-3.5 h-3.5" />
+            Send feedback
+          </button>
 
         {/* Refined live indicator: green pulsing dot, LIVE small caps, N matches today secondary */}
         <div
           className="flex items-center gap-2.5 bg-black/30 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10"
-          style={{ fontFamily: inter }}
         >
           <div
             className="w-1.5 h-1.5 rounded-full live-dot"
@@ -317,6 +346,7 @@ export default function Home() {
             </span>{" "}
             matches today
           </span>
+        </div>
         </div>
       </header>
 
