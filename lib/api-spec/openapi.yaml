@@ -16,6 +16,8 @@ tags:
     description: Battle/voting operations
   - name: feedback
     description: User feedback operations
+  - name: waitlist
+    description: Upload-feature waitlist signups
 paths:
   /healthz:
     get:
@@ -126,6 +128,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeedbackResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /waitlist:
+    post:
+      operationId: joinWaitlist
+      tags: [waitlist]
+      summary: Join the upload-feature waitlist
+      description: Records an email so we can notify the user when thumbnail uploads ship
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaitlistBody"
+      responses:
+        "201":
+          description: Waitlist signup recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistResult"
         "400":
           description: Invalid request
           content:
@@ -272,6 +300,29 @@ components:
       required:
         - id
         - createdAt
+
+    WaitlistBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 3
+          maxLength: 254
+          description: Email address to notify when uploads launch
+      required:
+        - email
+
+    WaitlistResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        signedUpAt:
+          type: string
+      required:
+        - id
+        - signedUpAt
 
     ErrorResponse:
       type: object

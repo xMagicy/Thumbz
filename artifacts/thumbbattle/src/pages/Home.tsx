@@ -9,7 +9,7 @@ import {
   getListBattlesQueryKey,
   useCastVote,
 } from "@workspace/api-client-react";
-import { AlertCircle, RefreshCw, MessageSquarePlus } from "lucide-react";
+import { AlertCircle, RefreshCw, MessageSquarePlus, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -18,6 +18,9 @@ import { FighterCard } from "../components/FighterCard";
 import { VSBadge } from "../components/VSBadge";
 import { Leaderboard } from "../components/Leaderboard";
 import { FeedbackDialog } from "../components/FeedbackDialog";
+import { UploadDialog } from "../components/UploadDialog";
+import { SignInDialog } from "../components/SignInDialog";
+import { UploadPromo } from "../components/UploadPromo";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -135,6 +138,8 @@ export default function Home() {
 
   // Beta feedback dialog
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
 
   // Init daily count from localStorage on mount
   useEffect(() => {
@@ -309,6 +314,12 @@ export default function Home() {
       {/* Beta feedback dialog */}
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
+      {/* Upload waitlist dialog */}
+      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} />
+
+      {/* Sign in dialog (visual placeholder until accounts ship) */}
+      <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
+
       {/* Header */}
       <header className="w-full max-w-7xl mx-auto px-8 py-6 flex flex-row items-center justify-between gap-6 z-20 relative">
         {/* Logo: thumbz wordmark — DO NOT CHANGE */}
@@ -358,6 +369,27 @@ export default function Home() {
           >
             <MessageSquarePlus className="w-3.5 h-3.5" />
             Send feedback
+          </button>
+
+          {/* Sign in (visual-only — opens dialog with coming-soon banner) */}
+          <button
+            type="button"
+            onClick={() => setSignInOpen(true)}
+            className="hidden sm:flex items-center gap-1.5 rounded-full transition-all hover:scale-[1.03] active:scale-[0.98]"
+            style={{
+              fontFamily: inter,
+              fontWeight: 600,
+              fontSize: "0.78rem",
+              color: "#fff",
+              padding: "6px 14px",
+              background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              boxShadow: "0 6px 18px -4px rgba(217,70,239,0.4)",
+              letterSpacing: "0.01em",
+            }}
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            Sign in
           </button>
 
         {/* Refined live indicator: green pulsing dot, LIVE small caps, N matches today secondary */}
@@ -430,7 +462,7 @@ export default function Home() {
             }}
           >
             Vote on real YouTube thumbnails. Watch the rankings change in
-            real-time. The best thumbnails rise to the top.
+            real-time. Or upload your own to see how they perform.
           </p>
         </div>
 
@@ -548,6 +580,7 @@ export default function Home() {
                     : null
                 }
                 onVote={() => handleVote(battlePair.left.id, battlePair.right.id)}
+                onReject={() => handleVote(battlePair.right.id, battlePair.left.id)}
               />
 
               <VSBadge isVoting={isVoting} />
@@ -564,6 +597,7 @@ export default function Home() {
                     : null
                 }
                 onVote={() => handleVote(battlePair.right.id, battlePair.left.id)}
+                onReject={() => handleVote(battlePair.left.id, battlePair.right.id)}
               />
               </motion.div>
             </AnimatePresence>
@@ -589,8 +623,11 @@ export default function Home() {
         )}
       </main>
 
-      {/* Faint divider between battle area and championship rankings */}
-      <div className="w-full max-w-5xl mx-auto px-6 z-20 relative">
+      {/* Upload promo — invites creators to join the waitlist */}
+      <UploadPromo onUploadClick={() => setUploadOpen(true)} />
+
+      {/* Faint divider between upload promo and championship rankings */}
+      <div className="w-full max-w-5xl mx-auto px-6 mt-12 z-20 relative">
         <div className="h-px w-full" style={{ background: "rgba(255,255,255,0.05)" }} />
       </div>
 

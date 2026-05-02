@@ -145,3 +145,19 @@ export const SubmitFeedbackBody = zod.object({
     .nullish()
     .describe("The URL the visitor was on when sending feedback"),
 });
+
+/**
+ * Records an email so we can notify the user when thumbnail uploads ship
+ * @summary Join the upload-feature waitlist
+ */
+export const joinWaitlistBodyEmailMin = 3;
+export const joinWaitlistBodyEmailMax = 254;
+
+export const JoinWaitlistBody = zod.object({
+  email: zod
+    .string()
+    .email()
+    .min(joinWaitlistBodyEmailMin)
+    .max(joinWaitlistBodyEmailMax)
+    .describe("Email address to notify when uploads launch"),
+});

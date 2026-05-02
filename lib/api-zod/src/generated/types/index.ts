@@ -16,3 +16,5 @@ export * from "./recentBattle";
 export * from "./thumbnail";
 export * from "./voteBody";
 export * from "./voteResult";
+export * from "./waitlistBody";
+export * from "./waitlistResult";

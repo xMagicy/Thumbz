@@ -1,0 +1,73 @@
+Multiple updates needed for thumbz. Apply all in parallel.
+
+1. PROPER TINDER-STYLE SWIPE FEEDBACK ON BOTH CARDS
+
+Each card (left and right) should independently respond to swipe direction:
+- Swipe a card RIGHT → green glow border + subtle green tint overlay (rgba(34, 197, 94, 0.15)) appears on THAT card. This means "I want this one"
+- Swipe a card LEFT → red glow border + subtle red tint overlay (rgba(239, 68, 68, 0.2)) appears on THAT card. This means "I don't want this one"
+- Both colors intensify the further you swipe
+- Same logic on both left and right cards independently — Tinder style
+- On click (desktop): clicking a card = same as swipe right on that card (green = chosen)
+- The unchosen card stays neutral in click mode (no color change unless explicitly swiped left)
+
+2. FIX THE VS BADGE — SWORDS BEHIND VS TEXT
+
+The VS badge has rendering bugs that need a final fix:
+
+Layer order (back to front):
+- Layer 1 (back): Soft purple glow halo (radial blur)
+- Layer 2: Solid gradient circle (#a855f7 to #d946ef), 80px diameter
+- Layer 3 (only on hover): Two crossed swords, white with dark purple outline, fading in over 300ms
+- Layer 4 (front): The "VS" text in white, Inter Black, 28px, ALWAYS visible on top
+
+CRITICAL: The "VS" text must NEVER disappear, only the swords fade in/out. The current bug is that VS disappears when swords appear. Fix this with proper z-index stacking.
+
+When mouse leaves: swords fade out smoothly, VS stays.
+During card swipe/click: entire badge fades out cleanly. New cards appear, badge fades back in.
+
+3. ADD "UPLOAD YOUR OWN" PROMOTIONAL SECTION
+
+Add a new section between the battle area and the championship rankings. Design:
+
+- Section title: "Add your thumbnails to the battle" (Inter Bold, large)
+- Subtitle: "Want to test your own thumbnails against the world? Upload them and watch them rise (or fall) in the rankings."
+- A clean call-to-action card with:
+  - Large purple gradient button: "Upload your thumbnail" (with an upload icon)
+  - Below: "Free during beta · No account required to vote"
+- Light separation from surrounding sections, premium feel
+
+For now, the upload button can lead to a simple modal/dialog that says "Upload feature coming soon — drop your email to get notified" with an email input field. Save emails to a database table called "waitlist" (fields: email, signed_up_at).
+
+4. ADD A SIMPLE ACCOUNT SYSTEM (BASIC VERSION)
+
+In the top-right header (next to the LIVE indicator), add:
+- A "Sign in" button (gradient style)
+- When clicked, opens a modal with two options:
+  - "Sign in with Google" (use Replit Auth or Google OAuth, whichever is easiest)
+  - Or: simple email + password signup
+- After signing in, the button changes to show user avatar + name
+- Authenticated users get a small dashboard accessible by clicking their avatar:
+  - "Your uploaded thumbnails" (empty for now)
+  - "Your battle stats" (votes cast, favorite niches)
+  - "Sign out"
+
+If implementing full auth is complex, just add the visual UI (Sign in button + modal) but mark the actual auth as "coming soon" — the visual presence is important for Buildathon judges to see the vision.
+
+5. UPDATE THE INTRO TEXT TO MENTION UPLOAD
+
+Below "Which thumbnail makes you click?", update the description text to:
+
+"Vote on real YouTube thumbnails. Watch the rankings change in real-time. Or upload your own to see how they perform."
+
+Keep the tone clean and minimal.
+
+6. KEEP EVERYTHING ELSE WORKING
+
+Don't break:
+- The current logo
+- The championship rankings + filter buttons (if those are working now)
+- The streak counter
+- The footer credit
+- The mobile responsiveness
+
+Apply all changes in parallel and rebuild. Test thoroughly: swipe both directions on both cards, hover the VS, click sign in, click upload, scroll through rankings.

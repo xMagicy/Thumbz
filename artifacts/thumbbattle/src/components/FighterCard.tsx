@@ -8,7 +8,10 @@ interface FighterCardProps {
   side: "left" | "right";
   isVoting: boolean;
   voteResult: "winner" | "loser" | null;
+  /** Called when the user picks THIS card (click or swipe-right). */
   onVote: () => void;
+  /** Called when the user rejects THIS card (swipe-left → other card wins). */
+  onReject: () => void;
 }
 
 const SWIPE_THRESHOLD = 100;
@@ -39,11 +42,18 @@ export function FighterCard({
   isVoting,
   voteResult,
   onVote,
+  onReject,
 }: FighterCardProps) {
   void side;
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
-  const voteOverlayOpacity = useTransform(x, [-200, -40, 0, 40, 200], [0.55, 0, 0, 0, 0.55]);
+
+  // Tinder-style per-card swipe feedback (independent on each card).
+  //   • Swipe RIGHT (positive x) → green tint + green inset glow (this card chosen)
+  //   • Swipe LEFT (negative x)  → red tint + red inset glow (this card rejected)
+  // Opacities scale with swipe magnitude so they intensify the further you go.
+  const greenSwipeOpacity = useTransform(x, [0, 100, 200], [0, 0.7, 1]);
+  const redSwipeOpacity = useTransform(x, [-200, -100, 0], [1, 0.7, 0]);
 
   // Tracks active drag — used to lift the card above the VS badge while it slides.
   const [isDragging, setIsDragging] = useState(false);
@@ -64,7 +74,12 @@ export function FighterCard({
       // Snap back to center inside the same 150ms feedback window so the
       // vote animation starts cleanly from rest — no jump, no fight with keyframes.
       animate(x, 0, { duration: 0.15, ease: EASE_STANDARD });
-      onVote();
+      // Tinder semantics: swiping right = "I want this", swiping left = "I don't want this".
+      if (offset > 0 || velocity > 0) {
+        onVote();
+      } else {
+        onReject();
+      }
     } else {
       animate(x, 0, { type: "spring", stiffness: 400, damping: 30 });
     }
@@ -101,8 +116,9 @@ export function FighterCard({
     ? { duration: 0.8, times: [0, 0.1875, 0.625, 1], ease: EASE_STANDARD }
     : { type: "spring" as const, stiffness: 280, damping: 22 };
 
+  // Click-time green winner glow (clicking a card == "swiped right" == green chosen state).
   const winnerGlow =
-    "0 0 80px rgba(217, 70, 239, 0.7), 0 0 32px rgba(139, 92, 246, 0.5), 0 24px 50px -16px rgba(0,0,0,0.7)";
+    "0 0 80px rgba(34, 197, 94, 0.6), 0 0 32px rgba(16, 185, 129, 0.45), 0 24px 50px -16px rgba(0,0,0,0.7)";
 
   const category = deriveCategory(thumbnail.title, thumbnail.channelName);
   const youtubeUrl = extractYoutubeUrl(thumbnail.imageUrl);
@@ -136,7 +152,7 @@ export function FighterCard({
         style={{
           borderRadius: 18,
           borderColor:
-            voteResult === "winner" ? "rgba(217,70,239,0.7)" : "rgba(255,255,255,0.1)",
+            voteResult === "winner" ? "rgba(34,197,94,0.85)" : "rgba(255,255,255,0.1)",
           boxShadow: voteResult === "winner" ? winnerGlow : undefined,
           transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
         }}
@@ -159,16 +175,39 @@ export function FighterCard({
           }}
         />
 
-        {/* Winner inner purple/magenta tint — fades in within the 150ms feedback window */}
+        {/* Click-time GREEN winner tint — fades in within the 150ms feedback window
+            (the parent element's borderColor + winnerGlow paint the surrounding green
+            border + outer glow simultaneously). */}
         <motion.div
           className="absolute inset-0 pointer-events-none"
           initial={false}
           animate={{ opacity: voteResult === "winner" ? 1 : 0 }}
           transition={{ duration: 0.15, ease: EASE_STANDARD }}
           style={{
-            background:
-              "linear-gradient(135deg, rgba(139,92,246,0.18), rgba(217,70,239,0.22))",
-            mixBlendMode: "screen",
+            background: "rgba(34, 197, 94, 0.18)",
+          }}
+        />
+
+        {/* Tinder GREEN: swipe RIGHT → "I want this one". Tint + inset green border ring.
+            Opacity scales with swipe magnitude (0 → 1 across 200px). */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            opacity: greenSwipeOpacity,
+            background: "rgba(34, 197, 94, 0.15)",
+            boxShadow:
+              "inset 0 0 0 3px rgba(34,197,94,0.85), inset 0 0 60px rgba(34,197,94,0.4)",
+          }}
+        />
+
+        {/* Tinder RED: swipe LEFT → "I don't want this one". Tint + inset red border ring. */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            opacity: redSwipeOpacity,
+            background: "rgba(239, 68, 68, 0.20)",
+            boxShadow:
+              "inset 0 0 0 3px rgba(239,68,68,0.85), inset 0 0 60px rgba(239,68,68,0.35)",
           }}
         />
 
@@ -203,30 +242,6 @@ export function FighterCard({
             <Youtube className="w-4 h-4" />
           </a>
         )}
-
-        {/* Swipe vote overlay (green = "vote for this") */}
-        <motion.div
-          className="absolute inset-0 pointer-events-none flex items-center justify-center"
-          style={{
-            opacity: voteOverlayOpacity,
-            background:
-              "linear-gradient(135deg, rgba(34, 197, 94, 0.35), rgba(16, 185, 129, 0.55))",
-          }}
-        >
-          <div
-            className="px-5 py-2 rounded-full border-2 border-emerald-300 text-white"
-            style={{
-              fontFamily: "'Inter', system-ui, sans-serif",
-              fontWeight: 800,
-              fontSize: "1.1rem",
-              letterSpacing: "0.04em",
-              background: "rgba(0,0,0,0.35)",
-              backdropFilter: "blur(4px)",
-            }}
-          >
-            Vote
-          </div>
-        </motion.div>
       </div>
 
       <div className="flex flex-col gap-1.5 px-1 text-left">

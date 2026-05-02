@@ -45,7 +45,7 @@ function SwordSVG({ size = 78 }: { size?: number }) {
 
 export function VSBadge({ isVoting = false }: VSBadgeProps) {
   const [hovered, setHovered] = useState(false);
-  // Show swords ONLY while hovered and not in the middle of a vote transition.
+  // Swords appear ONLY while hovered AND not in the middle of a vote transition.
   const showSwords = hovered && !isVoting;
 
   return (
@@ -65,21 +65,23 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
         className="relative flex items-center justify-center"
         style={{ width: 160, height: 160 }}
       >
-        {/* Soft outer purple/pink halo — always visible, soft pulse */}
+        {/* Layer 1 — soft outer purple/pink halo (always on, soft pulse via blur) */}
         <div
           className="absolute inset-0 rounded-full pointer-events-none"
           style={{
+            zIndex: 1,
             background:
               "radial-gradient(closest-side, rgba(217,70,239,0.55) 0%, rgba(139,92,246,0.3) 50%, rgba(0,0,0,0) 80%)",
             filter: "blur(14px)",
           }}
         />
 
-        {/* Crossed swords — only visible while hovered. Static rotations form an X
-            behind the gradient circle. Smooth 300ms fade in/out via opacity only. */}
+        {/* Layer 3 — crossed swords. Centered behind the gradient circle via a
+            full-size flex wrapper, then rotated ±45° around the badge center.
+            300ms fade in/out on hover. Only visible when hovered. */}
         <motion.div
-          className="absolute pointer-events-none"
-          style={{ rotate: 45 }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+          style={{ zIndex: 2, rotate: 45 }}
           initial={false}
           animate={{ opacity: showSwords ? 1 : 0 }}
           transition={{ duration: 0.3, ease: EASE_STANDARD }}
@@ -87,8 +89,8 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
           <SwordSVG />
         </motion.div>
         <motion.div
-          className="absolute pointer-events-none"
-          style={{ rotate: -45 }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+          style={{ zIndex: 2, rotate: -45 }}
           initial={false}
           animate={{ opacity: showSwords ? 1 : 0 }}
           transition={{ duration: 0.3, ease: EASE_STANDARD }}
@@ -96,12 +98,12 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
           <SwordSVG />
         </motion.div>
 
-        {/* Solid gradient circle, 80px, with subtle pulse — visual only (no pointer
-            events). VS text is layered ON TOP of the swords because the circle paints
-            after the sword motion.divs in DOM order. */}
+        {/* Layer 2 — solid gradient circle (80px). Painted ABOVE the swords so the
+            bottom halves of the swords sit visually behind it. */}
         <motion.div
           className="absolute rounded-full flex items-center justify-center pointer-events-none"
           style={{
+            zIndex: 3,
             width: 80,
             height: 80,
             background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
@@ -112,9 +114,13 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          {/* VS text — always visible. Stays on top of the swords. */}
+          {/* Layer 4 — VS text. ALWAYS visible at full opacity, on top of every other
+              element in the badge. Never fades out; only the surrounding badge fades
+              when a vote is in progress (handled by the outer motion.div). */}
           <span
             style={{
+              position: "relative",
+              zIndex: 4,
               fontFamily: "'Inter', system-ui, sans-serif",
               fontWeight: 900,
               fontSize: 28,
@@ -128,13 +134,15 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
           </span>
         </motion.div>
 
-        {/* Dedicated hover/click target — transparent button sits on top, slightly larger
-            than the visible circle for a forgiving hover area. Drives the sword fade. */}
+        {/* Hover/click target — transparent button slightly larger than the visible
+            circle for a forgiving hover area. Drives the sword fade. Sits above
+            everything so it always receives the hover events. */}
         <button
           type="button"
           aria-label="VS"
           className="absolute rounded-full pointer-events-auto"
           style={{
+            zIndex: 5,
             width: 96,
             height: 96,
             background: "transparent",

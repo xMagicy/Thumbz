@@ -1,0 +1,87 @@
+Helder, even fixen. Hier is de aangepaste prompt — geen TikTok 11 jaar, geen Minecraft-server, gewoon globaal wat je nu doet:
+
+```
+Build a personal portfolio website for xMagicy (Maarten, 24, from the Netherlands).
+
+ABOUT THE BRAND:
+xMagicy is a creative working in thumbnail design and video editing. The portfolio should feel personal but professional, clean and modern.
+
+PAGES / SECTIONS (single-page site, scroll-based):
+
+1. HERO SECTION
+- Big bold headline: "xMagicy"
+- Tagline: "Thumbnail design and video editing"
+- Short intro: "I help creators make work that gets clicked."
+- A subtle "Scroll to see my work" indicator at the bottom
+- Background: dark with subtle animated gradient (purple/blue tones, matching the M logo aesthetic)
+
+2. ABOUT SECTION
+- Title: "About me"
+- 2 short paragraphs about Maarten:
+  - A creative based in the Netherlands, working full-time on YouTube and freelance thumbnail design
+  - Always exploring new creative tools — recently started vibe coding
+- Place a photo placeholder (a circular avatar slot) on the side
+- Keep tone friendly but minimal — no buzzwords
+
+3. WORK / PORTFOLIO SECTION
+- Title: "Selected work"
+- A clean grid of work items (start with 6-8 placeholder cards)
+- Each card shows: thumbnail/preview image, project title, type (Thumbnail / Video edit / Channel), and optional brief description
+- Hover effect: card scales slightly, shows a subtle purple glow
+- Click on a card opens a modal with larger preview + description
+- For now, use placeholder images — I'll replace them with real work later
+
+4. SERVICES SECTION
+- Title: "What I do"
+- Three service cards:
+  - "Thumbnail design" — bold, eye-catching thumbnails for YouTube
+  - "Video editing" — long-form and short-form video edits
+  - "Channel building" — growth strategy and content automation
+- Each card has an icon, short description, and a "Get in touch" link
+
+5. CONTACT SECTION
+- Title: "Let's work together"
+- Short message: "Looking for a thumbnail designer or editor? Send me a message."
+- Contact options:
+  - Email form (name, email, message, send button)
+  - Direct links to YouTube, TikTok, and email
+- Save form submissions to a database (just for now, simple table)
+
+6. FOOTER
+- "© 2026 xMagicy"
+- Small social links: YouTube, TikTok
+- Subtle copyright text in muted grey
+
+DESIGN SYSTEM:
+
+Colors:
+- Background: very dark navy/purple (#0a0a14 base, with subtle gradients to #1a0d2e in places)
+- Accent: purple-to-blue gradient (#8b5cf6 to #3b82f6) — matches my M logo
+- Text primary: white
+- Text secondary: muted grey (#9ca3af)
+
+Typography:
+- Use Inter font everywhere
+- Big headlines: Inter Black (weight 900), tight letter-spacing
+- Body: Inter Regular (weight 400)
+- All text in sentence case, no all-caps
+
+Vibe:
+- Clean, premium, modern (think Linear, Vercel, Pieter Levels portfolios)
+- Not overly fancy — just confident and minimal
+- Smooth scroll, subtle animations on scroll-into-view
+- Mobile-responsive
+
+LOGO:
+I will upload my own logo PNG after the site is built. For now, just use the text "xMagicy" in the header (lowercase x, capital M, lowercase rest — like iPhone or eBay). Place it top-left.
+
+TECH:
+- Use whatever stack you think is fastest (React + Tailwind preferred)
+- Single-page site with smooth scroll between sections
+- No login system, no admin panel — keep it simple
+- Make it deploy-ready
+
+Build the basic working version first. I'll add real images, real bio, and real project details after.
+```
+
+Plak en wacht. Stuur screenshot zodra hij iets heeft.

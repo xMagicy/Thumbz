@@ -75,6 +75,20 @@ export interface FeedbackResult {
   createdAt: string;
 }
 
+export interface WaitlistBody {
+  /**
+   * Email address to notify when uploads launch
+   * @minLength 3
+   * @maxLength 254
+   */
+  email: string;
+}
+
+export interface WaitlistResult {
+  id: number;
+  signedUpAt: string;
+}
+
 export interface ErrorResponse {
   error: string;
 }
