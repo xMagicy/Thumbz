@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "ThumbBattle"
+title = "Thumbz"
 version = "1.0.0"
 id = "artifacts/thumbbattle"
 router = "path"
