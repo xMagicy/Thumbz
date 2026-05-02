@@ -18,23 +18,14 @@ const SWIPE_THRESHOLD = 100;
 // Material Design standard easing — natural deceleration / acceleration
 const EASE_STANDARD = [0.4, 0, 0.2, 1] as const;
 
-function deriveCategory(title: string, channel: string): string {
-  const t = `${title} ${channel}`.toLowerCase();
-  if (/(minecraft|fortnite|gaming|game|gta|fps|pvp|speedrun|roblox)/.test(t)) return "Gaming";
-  if (/(tutorial|how to|guide|learn|tips)/.test(t)) return "Tutorial";
-  if (/(music|song|remix|beat|album|cover|artist)/.test(t)) return "Music";
-  if (/(invest|money|finance|stock|crypto|wealth|trading)/.test(t)) return "Finance";
-  if (/(react|code|programming|javascript|python|dev)/.test(t)) return "Coding";
-  if (/(food|recipe|cook|chef|baking)/.test(t)) return "Food";
-  if (/(workout|fitness|gym|exercise)/.test(t)) return "Fitness";
-  if (/(vlog|day in|life|story)/.test(t)) return "Lifestyle";
-  return "Trending";
-}
-
-function extractYoutubeUrl(imageUrl: string): string | null {
-  const match = imageUrl.match(/\/vi\/([^/]+)\//);
+function extractYoutubeUrl(thumbnail: Thumbnail): string | null {
+  if (thumbnail.youtubeUrl) return thumbnail.youtubeUrl;
+  const match = thumbnail.imageUrl.match(/\/vi\/([^/]+)\//);
   return match ? `https://www.youtube.com/watch?v=${match[1]}` : null;
 }
+
+const INTER_STACK = "'Inter', system-ui, sans-serif";
+const ACCENT_GRADIENT = "linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%)";
 
 export function FighterCard({
   thumbnail,
@@ -120,8 +111,12 @@ export function FighterCard({
   const winnerGlow =
     "0 0 80px rgba(34, 197, 94, 0.6), 0 0 32px rgba(16, 185, 129, 0.45), 0 24px 50px -16px rgba(0,0,0,0.7)";
 
-  const category = deriveCategory(thumbnail.title, thumbnail.channelName);
-  const youtubeUrl = extractYoutubeUrl(thumbnail.imageUrl);
+  const niche = thumbnail.niche ?? "Trending";
+  const youtubeUrl = extractYoutubeUrl(thumbnail);
+  const winRateLabel =
+    thumbnail.winRate !== null && thumbnail.winRate !== undefined
+      ? `${Math.round(thumbnail.winRate)}% win rate`
+      : "New contender";
 
   // Z-index management: cards sit BELOW the VS badge at rest (so VS visually overlaps
   // the card edges), and ABOVE the VS badge while being dragged or animated through a
@@ -139,7 +134,7 @@ export function FighterCard({
       dragElastic={0.7}
       onDragStart={() => setIsDragging(true)}
       onDragEnd={handleDragEnd}
-      whileHover={voteResult || isVoting ? undefined : { scale: 1.04, y: -8 }}
+      whileHover={voteResult || isVoting ? undefined : { y: -4 }}
       animate={animateState}
       transition={voteTransition}
       onClick={() => {
@@ -148,9 +143,9 @@ export function FighterCard({
       }}
     >
       <div
-        className="thumb-card-shadow relative aspect-video overflow-hidden border-2 group-hover:border-purple-400/70 transition-[border-color,box-shadow] duration-150"
+        className="thumb-card-shadow relative aspect-video overflow-hidden border-2 group-hover:border-purple-400/80 group-hover:shadow-[0_0_40px_rgba(139,92,246,0.35)] transition-[border-color,box-shadow] duration-200"
         style={{
-          borderRadius: 18,
+          borderRadius: 16,
           borderColor:
             voteResult === "winner" ? "rgba(34,197,94,0.85)" : "rgba(255,255,255,0.1)",
           boxShadow: voteResult === "winner" ? winnerGlow : undefined,
@@ -211,94 +206,90 @@ export function FighterCard({
           }}
         />
 
-        {/* Top-left: Category pill */}
+        {/* Top-left: niche pill */}
         <div className="absolute top-3 left-3 z-10 pointer-events-none">
           <div
-            className="px-2.5 py-1 rounded-full backdrop-blur-md border"
+            className="rounded-full backdrop-blur-md"
             style={{
-              fontFamily: "'Inter', system-ui, sans-serif",
+              padding: "4px 10px",
+              fontFamily: INTER_STACK,
               fontWeight: 500,
-              fontSize: "0.7rem",
-              letterSpacing: "0.02em",
-              color: "rgba(255,255,255,0.9)",
-              background: "rgba(0,0,0,0.45)",
-              borderColor: "rgba(255,255,255,0.15)",
+              fontSize: 11,
+              lineHeight: 1.2,
+              color: "#ffffff",
+              background: "rgba(0,0,0,0.6)",
             }}
           >
-            {category}
+            {niche}
           </div>
         </div>
 
-        {/* Top-right: YouTube link */}
+        {/* Top-right: YouTube link icon */}
         {youtubeUrl && (
           <a
             href={youtubeUrl}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full backdrop-blur-md border border-white/15 bg-black/45 text-white/80 hover:text-white hover:bg-red-600/80 hover:border-red-400/50 transition-colors"
+            className="absolute top-3 right-3 z-10 flex items-center justify-center rounded-full text-white/85 opacity-90 hover:opacity-100 hover:scale-110 transition-transform duration-150"
+            style={{
+              width: 28,
+              height: 28,
+              background: "rgba(0,0,0,0.6)",
+            }}
+            aria-label="Watch on YouTube"
             title="Watch on YouTube"
           >
-            <Youtube className="w-4 h-4" />
+            <Youtube style={{ width: 14, height: 14 }} />
           </a>
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5 px-1 text-left">
+      {/* Info section */}
+      <div
+        className="flex flex-col text-left"
+        style={{ padding: 12, paddingTop: 4 }}
+      >
         <h3
-          className="leading-tight line-clamp-2 text-white/95"
+          className="line-clamp-2 text-white text-base sm:text-[18px]"
           style={{
-            fontFamily: "'Inter', system-ui, sans-serif",
+            fontFamily: INTER_STACK,
             fontWeight: 600,
-            fontSize: "1.25rem",
+            lineHeight: 1.25,
             letterSpacing: "-0.01em",
           }}
         >
           {thumbnail.title}
         </h3>
-        <div className="flex items-center justify-between gap-2 mt-1">
+        <div
+          className="flex items-baseline justify-between gap-3"
+          style={{ marginTop: 8 }}
+        >
           <span
+            className="truncate text-[13px] sm:text-sm"
             style={{
-              fontFamily: "'Inter', system-ui, sans-serif",
+              fontFamily: INTER_STACK,
               fontWeight: 400,
-              fontSize: "0.875rem",
-              color: "#888",
+              color: "#9ca3af",
             }}
           >
             {thumbnail.channelName}
           </span>
-          <div className="flex items-center gap-1.5">
-            {thumbnail.ctr !== null && thumbnail.ctr !== undefined && (
-              <div
-                className="px-2.5 py-1 rounded-full backdrop-blur-sm"
-                style={{
-                  fontFamily: "'Inter', system-ui, sans-serif",
-                  fontWeight: 600,
-                  fontSize: "0.72rem",
-                  color: "#86efac",
-                  background: "rgba(34,197,94,0.12)",
-                  border: "1px solid rgba(34,197,94,0.35)",
-                  letterSpacing: "0.02em",
-                }}
-              >
-                {thumbnail.ctr.toFixed(1)}% CTR
-              </div>
-            )}
-            <div
-              className="px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-sm"
-              style={{
-                fontFamily: "'Inter', system-ui, sans-serif",
-                fontWeight: 500,
-                fontSize: "0.75rem",
-                color: "rgba(255,255,255,0.85)",
-                letterSpacing: "0.02em",
-              }}
-            >
-              {thumbnail.winRate !== null && thumbnail.winRate !== undefined
-                ? `${Math.round(thumbnail.winRate)}% win rate`
-                : "New contender"}
-            </div>
-          </div>
+          <span
+            className="shrink-0 rounded-full"
+            style={{
+              padding: "4px 10px",
+              fontFamily: INTER_STACK,
+              fontWeight: 600,
+              fontSize: 12,
+              color: "#ffffff",
+              background: ACCENT_GRADIENT,
+              boxShadow: "0 4px 12px rgba(139,92,246,0.25)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {winRateLabel}
+          </span>
         </div>
       </div>
     </motion.div>
