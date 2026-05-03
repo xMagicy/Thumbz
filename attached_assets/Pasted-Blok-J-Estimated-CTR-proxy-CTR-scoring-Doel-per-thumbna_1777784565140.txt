@@ -1,0 +1,55 @@
+Blok J — Estimated CTR (proxy CTR scoring)
+Doel: per thumbnail een geschatte CTR waarde in % geven, gebaseerd op publieke signals. Filtert lage performers + maakt UI rijker (creators willen weten "hoe goed performt deze thumbnail").
+
+Disclaimer in code commenten
+CTR is privé YouTube data. Dit is een proxy schatting op basis van view velocity + overperformer ratio + engagement rate. Niet de echte YouTube Studio CTR, maar gecalibreerd om dezelfde distributie te volgen (mediaan ~5%, top tier 10%+).
+
+Schema addition
+ALTER TABLE thumbnails ADD COLUMN estimated_ctr numeric;
+Berekening
+Voor elke thumbnail tijdens sync:
+
+// Step 1: Normaliseer signals naar 0-1 range per category
+// (een hoge view_velocity in Music vs Gaming verschilt absoluut)
+velocity_score = clamp(views_per_hour / category_p90_velocity, 0, 1)
+overperform_score = clamp(view_to_sub_ratio / 5.0, 0, 1)
+engagement_score = clamp((likes / views) / 0.05, 0, 1)
+// Step 2: Weighted composite
+raw_ctr = (velocity_score * 0.4) 
+        + (overperform_score * 0.4) 
+        + (engagement_score * 0.2)
+// Step 3: Schaal naar realistic CTR range (1-12%)
+estimated_ctr = 1.0 + (raw_ctr * 11.0)
+category_p90_velocity = de 90e percentile views_per_hour binnen die category. Bereken eens per dag, cache.
+
+Filter rule (sourcing)
+Add aan Blok A's filter chain:
+
+13. estimated_ctr >= 4.0 (= boven YouTube average)
+Lage CTR thumbnails komen niet in de pool. Klaart de Hermitcraft/lyric-video achtige content op die wel views haalt maar puur op fanbase, niet op design.
+
+UI exposure
+Op dashboard / thumbnail detail page: toon estimated_ctr als badge:
+
+1-3%: "Below average" (rood)
+4-6%: "Average" (geel)
+7-9%: "Strong" (groen)
+10%+: "Elite" (paars)
+Voor creators die hun upload willen valideren: deze badge is direct value.
+
+Toekomstige verbetering (niet nu)
+Zodra we genoeg battle data hebben (>50 battles per thumbnail): blend de battle win rate in als sterker signaal.
+
+// Eventueel later
+ctr_blended = (estimated_ctr * 0.4) + (battle_win_rate * 12 * 0.6)
+Win rate IS de feitelijke CTR-equivalent voor onze pool. Park voor later.
+
+Verificatie
+-- CTR distributie sanity check
+SELECT 
+  ROUND(AVG(estimated_ctr), 2) AS avg,
+  ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY estimated_ctr), 2) AS median,
+  ROUND(percentile_cont(0.9) WITHIN GROUP (ORDER BY estimated_ctr), 2) AS p90,
+  MIN(estimated_ctr), MAX(estimated_ctr)
+FROM thumbnails WHERE archived IS NOT true;
+-- [Expected: median ~5-6, p90 ~9-10, geen waardes <1 in pool]
