@@ -16,7 +16,10 @@ function normalizeNiche(raw: string | undefined): Niche | undefined {
   return matched;
 }
 
-const toDto = (t: typeof thumbnailsTable.$inferSelect) => ({
+const toDto = (
+  t: typeof thumbnailsTable.$inferSelect,
+  recentRatings: number[] = [],
+) => ({
   id: t.id,
   title: t.title,
   imageUrl: t.imageUrl,
@@ -32,7 +35,46 @@ const toDto = (t: typeof thumbnailsTable.$inferSelect) => ({
     t.wins + t.losses > 0
       ? Math.round((t.wins / (t.wins + t.losses)) * 100 * 10) / 10
       : null,
+  recentRatings,
 });
+
+// Batched fetch of the most-recent N rating snapshots for a set of thumbnail
+// IDs. Returns a Map<thumbnailId, number[]> with values in chronological
+// order (oldest first). Replaces the previous N+1 per-row fetch from the
+// leaderboard sparklines.
+async function fetchRecentRatingsByThumbnail(
+  ids: number[],
+  perThumbnail = 20,
+): Promise<Map<number, number[]>> {
+  const out = new Map<number, number[]>();
+  if (ids.length === 0) return out;
+  // Window-function query: get the most recent `perThumbnail` rows per
+  // thumbnail in a single round-trip, then re-emit chronologically.
+  // IDs are integers we just selected ourselves so it is safe to inline
+  // them with sql.raw — drizzle's `${ids}` would wrap the array in extra
+  // parens which Postgres rejects for ANY(...).
+  const idList = ids.map((n) => Number(n)).join(",");
+  const limit = Math.max(1, Math.floor(perThumbnail));
+  const rows = (await db.execute(sql`
+    SELECT thumbnail_id, rating, created_at
+    FROM (
+      SELECT thumbnail_id, rating, created_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY thumbnail_id ORDER BY created_at DESC
+        ) AS rn
+      FROM rating_history
+      WHERE thumbnail_id IN (${sql.raw(idList)})
+    ) ranked
+    WHERE rn <= ${sql.raw(String(limit))}
+    ORDER BY thumbnail_id ASC, created_at ASC
+  `)) as unknown as { rows: Array<{ thumbnail_id: number; rating: number }> };
+  for (const r of rows.rows) {
+    const arr = out.get(r.thumbnail_id) ?? [];
+    arr.push(r.rating);
+    out.set(r.thumbnail_id, arr);
+  }
+  return out;
+}
 
 // GET /api/thumbnails?niche=&sort=elo|winRate|ctr|battles
 router.get("/", async (req, res) => {
@@ -67,7 +109,12 @@ router.get("/", async (req, res) => {
     void asc; // keep import for symmetry
 
     const rows = await db.select().from(thumbnailsTable).where(where).orderBy(orderBy);
-    res.json(rows.map(toDto));
+    // Batched history fetch — one extra round-trip total instead of N (one
+    // per row). Lets the leaderboard render sparklines instantly without
+    // saturating the browser's 6-per-origin connection limit and starving
+    // the battle/image preload paths.
+    const histories = await fetchRecentRatingsByThumbnail(rows.map((r) => r.id));
+    res.json(rows.map((r) => toDto(r, histories.get(r.id) ?? [])));
   } catch (err) {
     req.log.error({ err }, "Failed to list thumbnails");
     res.status(500).json({ error: "Failed to list thumbnails" });

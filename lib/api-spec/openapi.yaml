@@ -326,6 +326,15 @@ components:
         winRate:
           type: ["number", "null"]
           description: Win rate as a percentage (0-100), null if no battles
+        recentRatings:
+          type: array
+          items:
+            type: integer
+          description: |
+            Most recent rating snapshots for this thumbnail (chronological,
+            oldest first, up to 20 points). Embedded so leaderboard
+            sparklines can render without N+1 per-row fetches. Empty array
+            for thumbnails that have not battled yet.
       required:
         - id
         - title

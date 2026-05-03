@@ -386,11 +386,14 @@ export function Leaderboard({
                       </p>
                     </div>
 
-                    {/* Stats */}
-                    <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center shrink-0 gap-2 mt-4 md:mt-0 bg-white/5 md:bg-transparent p-3 md:p-0 rounded-lg">
-                      <div className="flex flex-col items-start md:items-end">
+                    {/* Stats — fixed-width right rail so RATING and WIN RATE
+                        share the same right edge across every row, instead
+                        of the sparkline pushing the rating block leftward
+                        unpredictably. */}
+                    <div className="flex md:flex-col items-stretch md:items-end justify-between md:justify-center shrink-0 gap-3 md:gap-4 mt-4 md:mt-0 bg-white/5 md:bg-transparent p-3 md:p-0 rounded-lg w-full md:w-36">
+                      <div className="flex flex-col items-end w-full">
                         <span
-                          className="uppercase mb-1 flex items-center gap-1"
+                          className="uppercase mb-1.5 flex items-center gap-1"
                           style={{
                             fontFamily: inter,
                             fontWeight: 500,
@@ -402,13 +405,13 @@ export function Leaderboard({
                           <TrendingUp className="w-3 h-3 opacity-70" />
                           Rating
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-end gap-2 w-full">
                           <EloSparkline
-                            thumbnailId={thumb.id}
+                            recentRatings={thumb.recentRatings ?? []}
                             currentElo={Math.round(thumb.eloRating)}
                           />
                           <div
-                            className="leading-none text-transparent bg-clip-text"
+                            className="leading-none text-transparent bg-clip-text tabular-nums"
                             style={{
                               fontFamily: inter,
                               fontWeight: 800,
@@ -424,13 +427,13 @@ export function Leaderboard({
                         </div>
                       </div>
 
-                      <div className="flex flex-col items-end md:items-end w-28">
+                      <div className="flex flex-col items-end w-full">
                         <span
-                          className="uppercase mb-1"
+                          className="uppercase mb-1.5"
                           style={{
                             fontFamily: inter,
                             fontWeight: 500,
-                            fontSize: "0.6rem",
+                            fontSize: "0.65rem",
                             letterSpacing: "0.12em",
                             color: "#666",
                           }}
@@ -447,11 +450,11 @@ export function Leaderboard({
                           />
                         </div>
                         <span
-                          className="mt-1"
+                          className="mt-1.5 tabular-nums"
                           style={{
                             fontFamily: inter,
                             fontWeight: 600,
-                            fontSize: "0.78rem",
+                            fontSize: "0.8125rem",
                             color: "#fff",
                           }}
                         >

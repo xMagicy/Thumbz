@@ -7,7 +7,10 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { useGetThumbnailRatingHistory } from "@workspace/api-client-react";
+import {
+  useGetThumbnailRatingHistory,
+  getGetThumbnailRatingHistoryQueryKey,
+} from "@workspace/api-client-react";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -29,6 +32,7 @@ export interface EloTrendPoint {
 export function useRealEloTrend(thumbnailId: number, currentElo: number) {
   const query = useGetThumbnailRatingHistory(thumbnailId, {
     query: {
+      queryKey: getGetThumbnailRatingHistoryQueryKey(thumbnailId),
       // Cache briefly — history only changes after a vote on this thumbnail.
       staleTime: 30_000,
     },
@@ -69,13 +73,28 @@ function trendColors(points: EloTrendPoint[]) {
  * has fewer than 2 recorded points.
  */
 export function EloSparkline({
-  thumbnailId,
+  recentRatings,
   currentElo,
 }: {
-  thumbnailId: number;
+  /**
+   * Chronological rating snapshots (oldest first) embedded in the thumbnail
+   * list response. Pass the empty array for never-battled thumbnails — we
+   * fall back to a flat 2-point line at `currentElo`. CRITICAL: this prop
+   * replaces the previous per-row fetch that caused N+1 network saturation
+   * on the leaderboard.
+   */
+  recentRatings: number[];
   currentElo: number;
 }) {
-  const { points } = useRealEloTrend(thumbnailId, currentElo);
+  const points = useMemo<EloTrendPoint[]>(() => {
+    if (recentRatings.length >= 2) {
+      return recentRatings.map((rating, i) => ({ index: i + 1, rating }));
+    }
+    return [
+      { index: 1, rating: currentElo },
+      { index: 2, rating: currentElo },
+    ];
+  }, [recentRatings, currentElo]);
   const { trendUp, stroke, fill } = trendColors(points);
 
   const ratings = points.map((p) => p.rating);

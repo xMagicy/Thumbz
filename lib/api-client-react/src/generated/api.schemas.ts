@@ -36,6 +36,12 @@ export interface Thumbnail {
    * @nullable
    */
   winRate?: number | null;
+  /** Most recent rating snapshots for this thumbnail (chronological,
+oldest first, up to 20 points). Embedded so leaderboard
+sparklines can render without N+1 per-row fetches. Empty array
+for thumbnails that have not battled yet.
+ */
+  recentRatings?: number[];
 }
 
 export type UploadThumbnailRequestNiche =

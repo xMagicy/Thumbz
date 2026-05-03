@@ -60,6 +60,12 @@ export const ListThumbnailsResponseItem = zod.object({
     .number()
     .nullish()
     .describe("Win rate as a percentage (0-100), null if no battles"),
+  recentRatings: zod
+    .array(zod.number())
+    .optional()
+    .describe(
+      "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
+    ),
 });
 export const ListThumbnailsResponse = zod.array(ListThumbnailsResponseItem);
 
@@ -171,6 +177,12 @@ export const GetBattlePairResponse = zod.object({
             .number()
             .nullish()
             .describe("Win rate as a percentage (0-100), null if no battles"),
+          recentRatings: zod
+            .array(zod.number())
+            .optional()
+            .describe(
+              "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
+            ),
         }),
         right: zod.object({
           id: zod.number(),
@@ -200,6 +212,12 @@ export const GetBattlePairResponse = zod.object({
             .number()
             .nullish()
             .describe("Win rate as a percentage (0-100), null if no battles"),
+          recentRatings: zod
+            .array(zod.number())
+            .optional()
+            .describe(
+              "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
+            ),
         }),
       }),
     )
@@ -284,6 +302,12 @@ export const CastVoteResponse = zod.object({
       .number()
       .nullish()
       .describe("Win rate as a percentage (0-100), null if no battles"),
+    recentRatings: zod
+      .array(zod.number())
+      .optional()
+      .describe(
+        "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
+      ),
   }),
   loser: zod.object({
     id: zod.number(),
@@ -313,6 +337,12 @@ export const CastVoteResponse = zod.object({
       .number()
       .nullish()
       .describe("Win rate as a percentage (0-100), null if no battles"),
+    recentRatings: zod
+      .array(zod.number())
+      .optional()
+      .describe(
+        "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
+      ),
   }),
   totalVotes: zod.number(),
 });
