@@ -11,6 +11,7 @@
     "archive-trailers": "tsx ./src/archiveTrailers.ts",
     "cleanup-bad-content": "tsx ./src/cleanupBadContent.ts",
     "backfill-thumbnail-dimensions": "tsx ./src/backfillThumbnailDimensions.ts",
+    "restore-broken-backfill": "tsx ./src/restoreBrokenBackfill.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

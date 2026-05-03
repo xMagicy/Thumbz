@@ -476,10 +476,17 @@ function pickAspectThumbnail(v: YtVideo): YtThumbnail | null {
 // while the medium / default / high variants stay 9:16 (the original
 // aspect). pickAspectThumbnail uses maxres → high which can miss this.
 // detectVerticalAcrossAllVariants flags the row as soon as ANY variant
-// has w/h < 1.5 (i.e. anything boxier than 16:10). Used as the
-// persisted is_vertical_thumbnail signal so the query-time filter can
-// defend against vertical Shorts and square reuploads that the aspect
+// has h ≥ w. Used as the persisted is_vertical_thumbnail signal so the
+// query-time filter can defend against vertical Shorts that the aspect
 // gate at sync time wouldn't have caught on maxres alone.
+//
+// IMPORTANT: do NOT tighten this to "ratio < 1.5" or similar. YouTube
+// always returns 4:3-letterboxed default (120×90), high (480×360) and
+// standard (640×480) variants for EVERY video including pure 16:9
+// landscape uploads — those variants have ratio 1.33. A <1.5 threshold
+// flags every row as vertical. The h ≥ w check is correct because
+// the letterboxed variants always have w > h, so only genuinely
+// vertical/square SOURCE uploads trigger.
 function detectVerticalAcrossAllVariants(v: YtVideo): {
   isVertical: boolean;
   width: number | null;
@@ -503,20 +510,13 @@ function detectVerticalAcrossAllVariants(v: YtVideo): {
     storedHeight = primary.height;
   }
 
-  // Threshold tightened from h≥w (ratio ≤1.0) to ratio <1.5: square
-  // 1080×1080 reuploads and 4:3 / 5:4 podcast clips were passing the
-  // old gate even though they're clearly not proper landscape thumbs.
-  // 1.5 leaves room for 16:10 (1.6) and 16:9 (1.78) while rejecting
-  // anything boxier than that. Field name kept as isVertical to avoid
-  // a schema rename — semantically it now means "non-landscape".
   let isVertical = false;
   for (const t of variants) {
     if (
       typeof t.width === "number" &&
       typeof t.height === "number" &&
       t.width > 0 &&
-      t.height > 0 &&
-      t.width / t.height < 1.5
+      t.height >= t.width
     ) {
       isVertical = true;
       break;
@@ -866,8 +866,8 @@ function passesPreClassifierFilters(
   // maxres → high which let through Hasan-Minhaj-style vertical podcast
   // clips where YouTube returns a 16:9-cropped maxres while medium and
   // default stayed 9:16. detectVerticalAcrossAllVariants flags the row
-  // if ANY variant is non-landscape (ratio <1.5) — catches both 9:16
-  // Shorts and square 1080×1080 reuploads in one pass.
+  // if ANY variant is vertical — so a 9:16 in default alone already
+  // rejects the video.
   const aspectInfo = detectVerticalAcrossAllVariants(v);
   if (aspectInfo.isVertical) {
     return "shorts_vertical_thumbnail";
