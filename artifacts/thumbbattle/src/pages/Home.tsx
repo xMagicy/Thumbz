@@ -191,7 +191,7 @@ export default function Home() {
   }, []);
 
   const {
-    data: battlePair,
+    data: rawBattlePair,
     isLoading: isLoadingPair,
     isFetching: isFetchingPair,
     isError: isErrorPair,
@@ -207,6 +207,13 @@ export default function Home() {
       placeholderData: keepPreviousData,
     },
   });
+
+  // The next-pair refetch fires the moment the user clicks vote, in parallel
+  // with the swipe animation. If we let useGetBattlePair's data swap the pair
+  // mid-animation, AnimatePresence would interrupt FighterCard's exit. Freeze
+  // the pair locally during voting, then release on round-bump.
+  const [frozenPair, setFrozenPair] = useState<typeof rawBattlePair | null>(null);
+  const battlePair = frozenPair ?? rawBattlePair;
 
   const {
     data: thumbnails,
@@ -240,7 +247,11 @@ export default function Home() {
   // to mutation success. This guarantees the UI unlocks at exactly 800ms regardless of whether
   // the vote API succeeded, failed, or stalled, and regardless of whether the random pair
   // selector returns the same pair twice in a row.
-  const VOTE_ANIM_DURATION_MS = 800;
+  // Reduced from 800ms → 250ms for a Tinder-snap swipe. Keep in sync with the
+  // `duration` field in FighterCard's voteTransition. The next-pair refetch
+  // fires the moment the user clicks (parallel to the animation), so by the
+  // time this timer expires the new pair is usually already in cache.
+  const VOTE_ANIM_DURATION_MS = 250;
 
   const castVote = useCastVote({
     mutation: {
@@ -261,9 +272,13 @@ export default function Home() {
   const handleVote = (winnerId: number, loserId: number) => {
     // Gate on activeVote (round-aware), NOT raw voteState — stale voteState from previous
     // rounds is harmless and intentionally lingers until the next setVoteState overwrites it.
-    if (activeVote !== null || !currentPairKey) return;
+    if (activeVote !== null || !currentPairKey || !battlePair) return;
     voteStartedAtRef.current = Date.now();
     setVoteState({ winnerId, round });
+
+    // Pin the displayed pair to the current value so the parallel refetch we
+    // kick off below cannot mutate the rendered pair mid-animation.
+    setFrozenPair(battlePair);
 
     // Increment via refs (race-free sync writes), then mirror to state for rendering.
     setStreak((s) => s + 1);
@@ -295,16 +310,20 @@ export default function Home() {
       /* ignore quota / disabled storage */
     }
 
-    // Fire the mutation right away so server work overlaps with the cinematic animation.
+    // Fire the vote mutation AND the next-pair refetch simultaneously. Both
+    // overlap with the swipe animation so by the time the timer below expires
+    // the new pair is usually already in cache and the round-bump is instant.
     castVote.mutate({ data: { winnerId, loserId } });
+    const refetchPromise = queryClient.invalidateQueries({
+      queryKey: getGetBattlePairQueryKey(),
+    });
 
-    // 800ms after the click, the cinematic exit (cards lifted -30 / opacity 0) is complete.
-    // We then start the next-pair refetch and ONLY commit the round-swap (which forces
-    // AnimatePresence to remount with the new pair) once the refetch has actually settled.
-    // This closes the architect-flagged race where remounting on stale cached data showed
-    // the old pair flashing back as interactive.
+    // VOTE_ANIM_DURATION_MS after the click, the cinematic exit is complete.
+    // We then commit the round-swap (which forces AnimatePresence to remount
+    // with the new pair) once the parallel refetch has actually settled.
     //
-    // A 2s safety fallback guarantees the UI never deadlocks even if the refetch hangs.
+    // A 1.5s safety fallback guarantees the UI never deadlocks even if the
+    // refetch hangs — short because the fetch has been running since click.
     if (pairRefreshTimeoutRef.current !== null) {
       window.clearTimeout(pairRefreshTimeoutRef.current);
     }
@@ -317,13 +336,11 @@ export default function Home() {
         if (safetyId !== null) window.clearTimeout(safetyId);
         setVoteState(null);
         setRound((r) => r + 1);
+        // Release the frozen pair so the freshly-fetched data is rendered.
+        setFrozenPair(null);
       };
-      // Trigger refetch and commit when the invalidation's promise settles (success or fail).
-      queryClient
-        .invalidateQueries({ queryKey: getGetBattlePairQueryKey() })
-        .then(commit, commit);
-      // Safety net: never wait longer than 2s before unlocking the UI.
-      const safetyId = window.setTimeout(commit, 2000);
+      refetchPromise.then(commit, commit);
+      const safetyId = window.setTimeout(commit, 1500);
     }, VOTE_ANIM_DURATION_MS);
   };
 

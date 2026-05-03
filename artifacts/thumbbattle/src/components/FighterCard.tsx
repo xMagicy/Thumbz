@@ -109,7 +109,7 @@ export function FighterCard({
       : restState;
 
   const voteTransition = voteResult
-    ? { duration: 0.8, times: [0, 0.1875, 0.625, 1], ease: EASE_STANDARD }
+    ? { duration: 0.25, times: [0, 0.1875, 0.625, 1], ease: EASE_STANDARD }
     : { type: "spring" as const, stiffness: 280, damping: 22 };
 
   // Click-time green winner glow (clicking a card == "swiped right" == green chosen state).
