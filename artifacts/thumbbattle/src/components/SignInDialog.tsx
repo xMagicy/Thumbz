@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mail } from "lucide-react";
+import { X, Mail, Loader2 } from "lucide-react";
+import { signIn, signUp } from "../lib/auth-client";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -9,10 +10,16 @@ interface SignInDialogProps {
   onClose: () => void;
 }
 
-// Visual-only sign-in dialog. Auth wiring is intentionally deferred — the buttons
-// surface the upcoming flow without performing any network calls. A "Coming soon"
-// banner makes the state unambiguous to users (and judges).
+type Mode = "signin" | "signup";
+
 export function SignInDialog({ open, onClose }: SignInDialogProps) {
+  const [mode, setMode] = useState<Mode>("signin");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -21,6 +28,77 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // Reset transient state whenever the dialog re-opens so previous errors and
+  // loading flags don't leak into a fresh attempt.
+  useEffect(() => {
+    if (open) {
+      setError(null);
+      setSubmitting(false);
+    }
+  }, [open]);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (submitting) return;
+    setError(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError("Email and password are required.");
+      return;
+    }
+    if (mode === "signup" && password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (mode === "signup" && !name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (mode === "signin") {
+        const { error: err } = await signIn.email({
+          email: trimmedEmail,
+          password,
+        });
+        if (err) {
+          setError(err.message ?? "Sign in failed.");
+          setSubmitting(false);
+          return;
+        }
+      } else {
+        const { error: err } = await signUp.email({
+          email: trimmedEmail,
+          password,
+          name: name.trim(),
+        });
+        if (err) {
+          setError(err.message ?? "Sign up failed.");
+          setSubmitting(false);
+          return;
+        }
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setSubmitting(false);
+    }
+  }
+
+  function toggleMode() {
+    setMode((m) => (m === "signin" ? "signup" : "signin"));
+    setError(null);
+  }
+
+  const isSignup = mode === "signup";
+  const submitLabel = isSignup ? "Create account" : "Sign in";
+  const headingLabel = isSignup ? "Create your account" : "Sign in to thumbz";
+  const subLabel = isSignup
+    ? "Save your stats, upload thumbnails, and track your taste over time."
+    : "Welcome back. Pick up where you left off.";
 
   return (
     <AnimatePresence>
@@ -90,7 +168,7 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
                 className="text-white"
                 style={{ fontWeight: 700, fontSize: "1.25rem", letterSpacing: "-0.01em" }}
               >
-                Sign in to thumbz
+                {headingLabel}
               </h2>
               <p
                 style={{
@@ -100,38 +178,8 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
                   maxWidth: 280,
                 }}
               >
-                Save your stats, upload thumbnails, and track your taste over time.
+                {subLabel}
               </p>
-            </div>
-
-            {/* Coming-soon banner */}
-            <div
-              className="rounded-lg px-3 py-2.5 mb-4 flex items-center gap-2"
-              style={{
-                background: "rgba(168,85,247,0.10)",
-                border: "1px solid rgba(168,85,247,0.32)",
-                fontSize: "0.78rem",
-                color: "rgba(255,255,255,0.78)",
-                lineHeight: 1.4,
-              }}
-            >
-              <span
-                className="uppercase shrink-0"
-                style={{
-                  fontWeight: 700,
-                  fontSize: "9px",
-                  color: "#c084fc",
-                  background: "rgba(168, 85, 247, 0.18)",
-                  border: "1px solid rgba(168, 85, 247, 0.5)",
-                  padding: "3px 7px",
-                  borderRadius: "9999px",
-                  letterSpacing: "0.08em",
-                  lineHeight: 1,
-                }}
-              >
-                Soon
-              </span>
-              <span>Accounts launch right after the beta. Voting works without one.</span>
             </div>
 
             <div className="flex flex-col gap-2.5">
@@ -164,7 +212,25 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
                 <div className="flex-1 h-px bg-white/10" />
               </div>
 
-              <div className="flex flex-col gap-2">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+                {isSignup && (
+                  <input
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={submitting}
+                    className="w-full rounded-lg px-3 py-2 text-white placeholder:text-white/25 focus:outline-none focus:border-[rgba(168,85,247,0.55)]"
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      fontFamily: inter,
+                      fontSize: "0.85rem",
+                    }}
+                  />
+                )}
+
                 <div className="relative">
                   <Mail
                     className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
@@ -172,35 +238,55 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
                   />
                   <input
                     type="email"
+                    autoComplete="email"
                     placeholder="you@example.com"
-                    disabled
-                    className="w-full rounded-lg pl-9 pr-3 py-2 text-white placeholder:text-white/25"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={submitting}
+                    className="w-full rounded-lg pl-9 pr-3 py-2 text-white placeholder:text-white/25 focus:outline-none focus:border-[rgba(168,85,247,0.55)]"
                     style={{
                       background: "rgba(255,255,255,0.03)",
                       border: "1px solid rgba(255,255,255,0.08)",
                       fontFamily: inter,
                       fontSize: "0.85rem",
-                      cursor: "not-allowed",
                     }}
                   />
                 </div>
+
                 <input
                   type="password"
-                  placeholder="Password"
-                  disabled
-                  className="w-full rounded-lg px-3 py-2 text-white placeholder:text-white/25"
+                  autoComplete={isSignup ? "new-password" : "current-password"}
+                  placeholder={isSignup ? "At least 8 characters" : "Password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={submitting}
+                  className="w-full rounded-lg px-3 py-2 text-white placeholder:text-white/25 focus:outline-none focus:border-[rgba(168,85,247,0.55)]"
                   style={{
                     background: "rgba(255,255,255,0.03)",
                     border: "1px solid rgba(255,255,255,0.08)",
                     fontFamily: inter,
                     fontSize: "0.85rem",
-                    cursor: "not-allowed",
                   }}
                 />
+
+                {error && (
+                  <p
+                    role="alert"
+                    style={{
+                      color: "#fca5a5",
+                      fontSize: "0.78rem",
+                      lineHeight: 1.4,
+                      marginTop: 2,
+                    }}
+                  >
+                    {error}
+                  </p>
+                )}
+
                 <button
-                  type="button"
-                  disabled
-                  className="w-full rounded-full px-4 py-2.5 mt-1 transition-all cursor-not-allowed"
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full flex items-center justify-center gap-2 rounded-full px-4 py-2.5 mt-1 transition-all disabled:cursor-not-allowed"
                   style={{
                     fontFamily: inter,
                     fontWeight: 600,
@@ -208,12 +294,31 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
                     color: "#fff",
                     background:
                       "linear-gradient(135deg, hsl(280 90% 60%), hsl(320 90% 55%))",
-                    opacity: 0.55,
+                    opacity: submitting ? 0.6 : 1,
                   }}
                 >
-                  Sign in
+                  {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {submitLabel}
                 </button>
-              </div>
+              </form>
+
+              <button
+                type="button"
+                onClick={toggleMode}
+                disabled={submitting}
+                className="text-center mt-2 transition-colors hover:text-white/80 disabled:cursor-not-allowed"
+                style={{
+                  fontSize: "0.78rem",
+                  color: "rgba(255,255,255,0.55)",
+                  background: "transparent",
+                  border: 0,
+                  padding: 0,
+                }}
+              >
+                {isSignup
+                  ? "Already have an account? Sign in"
+                  : "Need an account? Sign up"}
+              </button>
             </div>
 
             <p
@@ -234,7 +339,6 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
 }
 
 function GoogleIcon() {
-  // Google G logo, official colors
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden>
       <path
