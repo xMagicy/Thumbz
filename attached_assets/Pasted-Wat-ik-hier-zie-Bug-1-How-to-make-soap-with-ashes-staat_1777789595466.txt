@@ -1,0 +1,65 @@
+Wat ik hier zie
+Bug 1: "How to make soap with ashes" staat op #3 in Champions
+Replit Agent bevestigde net via SQL: archived=true, status='shorts_archived'. Maar hier staat hij gewoon in de Champions ranking.
+
+Twee mogelijke oorzaken:
+
+A) Republish is nog niet gebeurd → live code filtert nog niet op archived in de leaderboard query (Layer 2 zit in commit 94f0cdc, niet live)
+B) Of: rankings query mist archived = false filter compleet
+Bug 2: "Champions" met 0 battles
+Top 3 hebben respectievelijk 2, 0, 0 battles. Een "champion" met 0 battles is gewoon een nieuwe thumbnail met default ELO 1200. Dit is een UX bug — niet alle untested thumbs uitfilteren leidt tot zinloze ranglijst. Je moet minstens 5-10 battles vereisen om in Champions te verschijnen.
+
+Bug 3: Channel met "Shorts" in naam
+"Rich Ross: Never Leave Money" by "School of Hard Knocks Shorts" — channel naam bevat letterlijk "Shorts" als woord. Onze blacklist controleert dit niet. Gap in filter.
+
+Bonus: Russisch in Tutorial
+"Как варить лапшу" — ja, Russisch wordt nu gewoon doorgelaten. Die language filter staat in Ronde 2 die we nog niet gebouwd hebben.
+
+Plak dit bij Replit Agent — drie patches
+Drie aparte bugs in de Championship Rankings page. Fix in deze volgorde.
+
+Bug 1: Republish (NU)
+Als je dit nog niet gedaan hebt: roep suggest_deploy aan voor commit 94f0cdc.
+
+Geen excuses. Layer 2 (archived filter in leaderboard query) draait niet live tot dit gebeurt. Daarom zie ik gearchiveerde Shorts terug in de Champions UI.
+
+Bug 2: Champions vereist minimum battles
+Filter Champions ranking op battle_count >= 5. Thumbnails met minder dan 5 battles zijn niet "champions" — het zijn newcomers met default ELO.
+
+Pas aan in de query voor /api/thumbnails?sort=rating:
+
+WHERE archived = false 
+  AND status = 'active'
+  AND battle_count >= 5
+ORDER BY elo_rating DESC
+Voor de "Top Contenders / Climbing fast" sectie: gebruik battle_count >= 3 (lagere drempel, want hier wil je juist newcomers tonen).
+
+Bug 3: "Shorts" in channel name blacklisten
+Voeg "Shorts" toe aan CHANNEL_BLOCKLIST_TERMS met word-boundary match:
+
+// In de channel name check:
+/\b(VEVO|Records|Films|Studios|Pictures|Network|Shorts|TikTok|Reels)\b/i
+Plus eenmalige cleanup:
+
+UPDATE thumbnails 
+SET archived = true, status = 'shorts_channel_archived' 
+WHERE archived = false 
+  AND channel_name ~* '\b(Shorts|TikTok|Reels)\b';
+
+-- Verifieer
+SELECT title, channel_name FROM thumbnails 
+WHERE archived = false AND channel_name ILIKE '%shorts%';
+-- MOET LEEG ZIJN
+Verificatie
+Na alle drie:
+
+-- Champions ranking sanity (mag geen archived rows hebben)
+SELECT id, title, channel_name, archived, elo_rating, battle_count
+FROM thumbnails
+WHERE archived = false AND status = 'active' AND battle_count >= 5
+ORDER BY elo_rating DESC LIMIT 10;
+
+-- "Shorts" in channel naam check
+SELECT COUNT(*) FROM thumbnails 
+WHERE archived = false AND channel_name ~* '\bShorts\b';
+-- MOET 0 ZIJN

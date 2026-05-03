@@ -1,0 +1,113 @@
+Het zit allemaal in dezelfde Ronde 3
+Wat je nu vraagt + de ranking bugs + jouw eerdere "A" keuze (filter relaxation) zijn allemaal hetzelfde probleem: pool is te klein, en wat erin zit is niet trend-genoeg.
+
+Laten we Ronde 3 nu definitief uitschrijven, alles in één bericht aan Replit Agent.
+
+Plak dit bij Replit Agent — Ronde 3 complete brief
+Ronde 3: Pool recovery + trend spotting + ranking fixes
+Doel: actieve pool van 100+ YouTube thumbs, gefocust op échte viral trends, met werkende ranking UI. Implementeer alles, test elk blok, dan pas door.
+
+Blok 1: Republish + ranking bugs
+Republish commit 94f0cdc (Layer 2+4 Shorts defense moet live)
+Champions ranking: filter battle_count >= 5 op /api/thumbnails?sort=rating
+Top Contenders: filter battle_count >= 3
+Channel blacklist: voeg "Shorts", "TikTok", "Reels" toe als word-boundary match
+Cleanup: archive bestaande rijen met "Shorts/TikTok/Reels" in channel name
+Blok 2: Filter relaxation (pool recovery)
+Huidige filters zijn te agressief — pool is gekrompen tot 17 active YT thumbs.
+
+Channel blacklist verzwakken
+Verwijder uit CHANNEL_BLOCKLIST_TERMS:
+
+"TV" (catcht Vsauce TV, etc.)
+"Media" (catcht Linus Media Group)
+"Channel" (catcht legitime creators)
+"Official" (catcht Casey Neistat type channels)
+Behouden met suffix-only word boundary: Studios, Pictures, Films, Productions, Records, VEVO, Network, Shorts, TikTok, Reels.
+
+// Suffix match: alleen aan einde van naam
+/\b(Studios|Pictures|Films|Productions|Records|VEVO|Network|Shorts|TikTok|Reels)$/i
+CAST_LIST_PATTERN verzwakken
+Huidige regex catcht legitime panel discussies. Vervang met striktere conditie:
+
+Match alleen als ook trailer keyword aanwezig is
+Of: drop deze filter helemaal en vertrouw op channel blacklist + trailer keywords + category 1 exclusion
+Mijn voorkeur: drop. Te veel false positives.
+
+Category balance cap minimum
+Huidige cap = floor(rows * 0.20) → bij 17 rows is cap 3, één Gaming sweep nuked alles.
+
+Wijzig naar:
+
+cap = Math.max(8, Math.floor(activeYouTubeRows * 0.20));
+Dus: minimum 8 per category, of 20% bij grotere pools.
+
+Blok 3: Trend spotting expansion
+Doel: vangen wat NU viral gaat, vooral nieuwe creators in opkomende niches.
+
+Lower velocity thresholds voor jonge videos
+Voor videos < 72 uur oud:
+
+Min views: 10K (i.p.v. 25K)
+Min views/hour: 200 (i.p.v. 500)
+Reden: een 24-uur oude video met 50K views = 2K/uur is een sterke breakout signaal, ook al haalt hij niet 25K totaal yet
+Voor videos > 72 uur:
+
+Behoud huidige thresholds (25K min, 500/h)
+Extra targeted searches voor trending topics
+Voeg toe aan bestaande targeted searches:
+
+const TRENDING_SEARCH_QUERIES = [
+  { query: "viral", minDays: 7 },
+  { query: "trending OR viral now", minDays: 3 },
+  { query: "everyone is talking about", minDays: 7 },
+  { query: "what happened to", minDays: 14 },
+  { query: "the truth about", minDays: 14 },
+];
+Run elk met order=viewCount&publishedAfter=last_<minDays>.
+
+Sync frequency verhogen
+Verhoog van 6u naar 3u interval voor trend responsiveness. Quota nog steeds binnen budget (~3500/dag bij 12 regions × 8 runs).
+
+Blok 4: Breakout score wiring (jouw eerdere "B" keuze)
+/api/thumbnails?sort=rising — vervang viewVelocity met breakout_score in ORDER BY
+Toon breakout_score in UI als badge op high-scoring thumbs (score > 70 = 🔥 trending badge)
+Schrijf breakout_score persistent bij elke sync (was berekend in-memory maar niet opgeslagen — fix per eerdere P0)
+Blok 5: Legacy data cleanup
+Re-run classifier op rijen met app_category IS NULL
+Anonieme uploads (5 rijen met user_id IS NULL + source='user'): assign aan sentinel user "legacy_anon" of archive
+Verificatie queries (verplicht)
+Run na implementatie, plak ALLE output:
+
+-- 1. Pool size na recovery (target: 100+)
+SELECT COUNT(*) FROM thumbnails 
+WHERE archived = false AND source = 'youtube';
+
+-- 2. Per category (alle moeten >= 8)
+SELECT app_category, COUNT(*) FROM thumbnails 
+WHERE archived = false AND source = 'youtube' 
+GROUP BY app_category ORDER BY 2 DESC;
+
+-- 3. Breakout score is gevuld
+SELECT COUNT(*) FILTER (WHERE breakout_score IS NULL) AS null_count,
+       COUNT(*) FILTER (WHERE breakout_score > 0) AS scored,
+       ROUND(AVG(breakout_score), 1) AS avg_score
+FROM thumbnails WHERE archived = false;
+
+-- 4. Emerging creators in pool
+SELECT COUNT(*) FROM thumbnails 
+WHERE archived = false AND is_emerging_channel = true;
+-- Target: minstens 15
+
+-- 5. Top 10 op breakout_score (sanity check)
+SELECT title, channel_name, breakout_score, views_per_hour, view_to_sub_ratio
+FROM thumbnails 
+WHERE archived = false 
+ORDER BY breakout_score DESC NULLS LAST LIMIT 10;
+Niet doen in deze ronde
+Language filter (English-dominant) — Ronde 4
+Discover tab UI — Ronde 4 (nu alleen sort wiring)
+Music re-enabling — niet doen
+Vision-based classifier — Ronde 5+
+Republish na blok 1+2 al — pool moet snel opleven, niet wachten tot alles af is.
+

@@ -94,6 +94,11 @@ const CHANNEL_BLOCKLIST_TERMS = [
   "Productions", "Entertainment Group", "Media Group", "Media", "TV",
   "Channel", "Official", "Music Group", "Animation", "Concept",
   "Trailers", "Movies", "Movieclips", "Movie Network",
+  // Shorts/TikTok/Reels channel suffixes (post-republish gap fix —
+  // "School of Hard Knocks Shorts" slipped through). Word-boundary
+  // match so legit creators with these tokens inside a longer word
+  // are unaffected.
+  "Shorts", "TikTok", "Reels",
 ];
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

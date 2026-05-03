@@ -137,6 +137,17 @@ router.get("/", async (req, res) => {
       eq(thumbnailsTable.archived, false),
       SHORTS_TITLE_EXCLUSION_SQL,
     ];
+    // Minimum-battles gate for ranking sorts. A "champion" with 0 battles
+    // is just a fresh row at default ELO 1200 — surfacing those pollutes
+    // the leaderboard with noise. Threshold differs per sort:
+    //   - elo / winRate: 5 battles (need real signal before crowning)
+    //   - rising:        3 battles (lower bar; this view exists to surface newcomers)
+    //   - ctr / battles: no gate (ctr is independent of ELO, battles obvious)
+    if (sort === "elo" || sort === "winRate") {
+      conditions.push(sql`${thumbnailsTable.wins} + ${thumbnailsTable.losses} >= 5`);
+    } else if (sort === "rising") {
+      conditions.push(sql`${thumbnailsTable.wins} + ${thumbnailsTable.losses} >= 3`);
+    }
     // Single source of truth (Blok 5, post task #16 backfill): filter on
     // app_category directly. All legacy NULL rows have been backfilled from
     // `niche`, and new uploads write app_category at insert time, so the
