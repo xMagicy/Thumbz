@@ -136,14 +136,41 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/thumbnails/battle?niche=&count=N — N random active thumbnail pairs
+// GET /api/thumbnails/battle?niche=&count=N — N quality-matched thumbnail pairs
 // (default 1, max 10). Client uses count>1 to maintain a prefetched queue so
 // swipes feel instant — no network on the critical path between votes.
+//
+// Matchmaking rules (in priority order, falls back per-pair):
+//   1. Same niche + same view-tier + different channel  (ideal)
+//   2. Same niche + different channel                    (relax tier)
+//   3. Same niche                                        (relax channel)
+//   4. Any active thumbnail                              (last-resort fallback)
+//
+// View tiers (bucket by total view count, log-ish):
+//   user   – source='user' (no view_count, judged on design only)
+//   micro  – 100k – 500k
+//   mid    – 500k – 2M
+//   macro  – 2M  – 10M
+//   mega   – 10M+
+//
+// We fetch the candidate pool in one query (~hundreds of rows, cheap) and
+// pair entirely in memory. Keeps the database hot path simple and lets the
+// fallback chain run without N extra round-trips.
+type Tier = "user" | "micro" | "mid" | "macro" | "mega";
+
+function viewTier(row: { source: string | null; viewCount: number | null }): Tier {
+  if (row.source !== "youtube" || row.viewCount === null) return "user";
+  const v = row.viewCount;
+  if (v >= 10_000_000) return "mega";
+  if (v >= 2_000_000) return "macro";
+  if (v >= 500_000) return "mid";
+  return "micro";
+}
+
 router.get("/battle", async (req, res) => {
   try {
     const niche = normalizeNiche(typeof req.query.niche === "string" ? req.query.niche : undefined);
 
-    // Parse count: clamp to [1, 10], default 1. Anything unparseable → 1.
     const rawCount = typeof req.query.count === "string" ? Number(req.query.count) : 1;
     const count =
       Number.isFinite(rawCount) && rawCount >= 1
@@ -154,23 +181,69 @@ router.get("/battle", async (req, res) => {
     if (niche) conditions.push(eq(thumbnailsTable.niche, niche));
     const where = conditions.length === 1 ? conditions[0] : and(...conditions);
 
-    // Fetch up to count*2 random rows in one query, then chunk into pairs.
-    // If the niche has fewer rows than requested we silently return fewer
-    // pairs — never less than 1, otherwise we 400 (handled below).
-    const rows = await db
-      .select()
-      .from(thumbnailsTable)
-      .where(where)
-      .orderBy(sql`RANDOM()`)
-      .limit(count * 2);
+    const pool = await db.select().from(thumbnailsTable).where(where);
 
-    if (rows.length < 2) {
+    if (pool.length < 2) {
       return res.status(400).json({ error: "Not enough thumbnails for a battle" });
     }
 
+    // Pre-bucket by (niche, tier) for cheap lookup during pair generation.
+    const byNicheTier = new Map<string, typeof pool>();
+    const byNiche = new Map<string, typeof pool>();
+    for (const row of pool) {
+      const tier = viewTier(row);
+      const nicheKey = row.niche ?? "Other";
+      const ntKey = `${nicheKey}|${tier}`;
+      const ntList = byNicheTier.get(ntKey) ?? [];
+      ntList.push(row);
+      byNicheTier.set(ntKey, ntList);
+      const nList = byNiche.get(nicheKey) ?? [];
+      nList.push(row);
+      byNiche.set(nicheKey, nList);
+    }
+
+    // Pick a pair from a candidate list, preferring different channels.
+    // Returns null if the list has fewer than 2 distinct entries.
+    function pickPair(list: typeof pool): [typeof pool[0], typeof pool[0]] | null {
+      if (list.length < 2) return null;
+      const left = list[Math.floor(Math.random() * list.length)];
+      // Try 5 times to find a different-channel partner before relaxing.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const right = list[Math.floor(Math.random() * list.length)];
+        if (right.id === left.id) continue;
+        if (right.channelName && left.channelName && right.channelName === left.channelName) continue;
+        return [left, right];
+      }
+      // Relaxed: any different id is acceptable.
+      const others = list.filter((r) => r.id !== left.id);
+      if (others.length === 0) return null;
+      return [left, others[Math.floor(Math.random() * others.length)]];
+    }
+
     const pairs = [];
-    for (let i = 0; i + 1 < rows.length; i += 2) {
-      pairs.push({ left: toDto(rows[i]), right: toDto(rows[i + 1]) });
+    for (let i = 0; i < count; i++) {
+      // Walk the fallback chain. We pick a random (niche, tier) bucket from
+      // the buckets that actually have ≥2 entries, then fall back if needed.
+      const ntCandidates = [...byNicheTier.values()].filter((l) => l.length >= 2);
+      let pair: [typeof pool[0], typeof pool[0]] | null = null;
+      if (ntCandidates.length > 0) {
+        const bucket = ntCandidates[Math.floor(Math.random() * ntCandidates.length)];
+        pair = pickPair(bucket);
+      }
+      if (!pair) {
+        const nCandidates = [...byNiche.values()].filter((l) => l.length >= 2);
+        if (nCandidates.length > 0) {
+          const bucket = nCandidates[Math.floor(Math.random() * nCandidates.length)];
+          pair = pickPair(bucket);
+        }
+      }
+      if (!pair) pair = pickPair(pool);
+      if (!pair) break; // Pool too small even for last-resort.
+      pairs.push({ left: toDto(pair[0]), right: toDto(pair[1]) });
+    }
+
+    if (pairs.length === 0) {
+      return res.status(400).json({ error: "Not enough thumbnails for a battle" });
     }
 
     return res.json({ pairs });

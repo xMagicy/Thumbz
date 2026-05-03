@@ -23,7 +23,12 @@ let bootTimer: NodeJS.Timeout | null = null;
 async function runYoutubeSync() {
   try {
     const result = await syncTrendingVideos({
-      regions: ["NL", "US", "GB", "DE"],
+      // 12 regions × 50 results × 4 syncs/day = 2400 quota units/day,
+      // well under YouTube's 10k/day free tier.
+      regions: [
+        "US", "GB", "CA", "AU", "DE", "FR",
+        "NL", "BR", "MX", "JP", "KR", "IN",
+      ],
       maxResults: 50,
     });
     if (!result.ok && result.reason === "missing_api_key") {
