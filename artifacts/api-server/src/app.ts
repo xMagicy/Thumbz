@@ -5,6 +5,7 @@ import { toNodeHandler } from "better-auth/node";
 import router from "./routes";
 import { auth } from "./lib/auth";
 import { logger } from "./lib/logger";
+import { startScheduler } from "./lib/scheduler";
 
 const app: Express = express();
 
@@ -38,5 +39,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// Boot the background scheduler (YouTube trending sync, etc.).
+// Safe no-op when YOUTUBE_API_KEY is missing.
+startScheduler();
 
 export default app;
