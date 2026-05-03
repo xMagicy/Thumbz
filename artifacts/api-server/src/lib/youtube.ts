@@ -53,12 +53,59 @@ const TARGETED_SEARCHES: Array<{
   { category: "Tutorial", q: "how to OR tutorial", videoCategoryId: "26" },
 ];
 
-// Channel-name pattern blocklist. These channels are usually labels /
-// movie studios where the brand pulls the views, not the thumbnail.
-const CHANNEL_NAME_BLOCKLIST = /\b(VEVO|Records|Films|Studios|Pictures|Network)\b/i;
+// Channel-name pattern blocklist. These channels are usually labels,
+// movie studios, news networks, brands or kids/franchise factories
+// where the brand pulls the views, not the thumbnail. Matched as whole
+// words (\b…\b) so a creator who happens to have e.g. "Apple" in their
+// channel name as part of a longer word isn't auto-rejected.
+//
+// Order doesn't matter — the regex is a flat alternation. Edits should
+// keep entries case-insensitive (the /i flag does the lifting).
+const CHANNEL_BLOCKLIST_TERMS = [
+  // Original generic suffixes
+  "VEVO", "Records", "Films", "Studios", "Pictures", "Network",
+  // Movie / TV studios
+  "Marvel", "Disney", "Pixar", "DreamWorks", "Warner Bros", "Universal",
+  "Paramount", "Sony Pictures", "Lionsgate", "A24", "Searchlight",
+  "Focus Features", "MGM", "20th Century", "Fox",
+  // Streaming services
+  "Netflix", "HBO", "Hulu", "Prime Video", "Apple TV", "Peacock", "Max",
+  "Disney+", "Discovery", "Paramount+",
+  // News networks
+  "CNN", "Fox News", "MSNBC", "BBC News", "Sky News", "NBC", "ABC",
+  "CBS", "ESPN", "Bloomberg", "CNBC", "Reuters", "AP", "Al Jazeera",
+  // Music labels
+  "Atlantic", "Capitol", "Columbia", "Republic", "Def Jam", "Interscope",
+  "RCA", "Warner Music", "Sony Music", "Universal Music",
+  // Kids / animation factories
+  "Cocomelon", "Pinkfong", "Kids Diana", "Vlad and Niki", "Like Nastya",
+  "Ryan's World",
+  // Sports leagues / broadcasters
+  "NBA", "NFL", "NHL", "MLB", "FIFA", "UEFA", "F1", "Sky Sports",
+  // Brand channels
+  "Apple", "Samsung", "Google", "Microsoft", "Coca-Cola", "Pepsi",
+  "Nike", "Adidas", "McDonald's", "Tesla",
+];
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+const CHANNEL_NAME_BLOCKLIST = new RegExp(
+  `\\b(${CHANNEL_BLOCKLIST_TERMS.map(escapeRegex).join("|")})\\b`,
+  "i",
+);
 
-// Excluded YouTube category IDs. cat 1 = Film & Animation (movie trailers).
-const EXCLUDED_CATEGORIES = new Set(["1"]);
+// Excluded YouTube category IDs.
+//   1  = Film & Animation (movie trailers, studio-driven)
+//   10 = Music (officially removed from the app — labels dominate the
+//        space and we deliberately don't compete on music thumbnails;
+//        see Music removal in Blok H spec)
+const EXCLUDED_CATEGORIES = new Set(["1", "10"]);
+
+// Hard subscriber ceiling. Above this, channels are essentially always
+// corporate aggregators (T-Series, SET India, Cocomelon) or mega-creators
+// where the audience picks the video, not the thumbnail. MrBeast (350M)
+// gets filtered here too — that's a deliberate scoping choice, not a bug.
+const MAX_SUBSCRIBER_COUNT = 50_000_000;
 
 // ─── Blok E classifier dictionaries ──────────────────────────────────
 // Order: Gaming → Music → Finance → Tech → Tutorial → Lifestyle → Vlog → Other.
@@ -291,19 +338,11 @@ function classify(v: YtVideo): { category: string; confidence: Confidence } {
     }
   }
 
-  // 2. Music
-  {
-    if (cat === "10") {
-      const isAudioVariant = anyContains(title, MUSIC_AUDIO_EXCLUSIONS);
-      if (!isAudioVariant) {
-        return { category: "Music", confidence: "high" };
-      }
-      // Falls through — auto-generated lyric / sleep music thumbnails are
-      // not real music videos, evaluate against later categories.
-    } else if (anyContains(title, MUSIC_POSITIVE_KEYWORDS)) {
-      return { category: "Music", confidence: "medium" };
-    }
-  }
+  // 2. Music — REMOVED (Blok H). categoryId=10 is now in
+  //    EXCLUDED_CATEGORIES so music videos never reach the classifier
+  //    in the first place. The MUSIC_* keyword arrays are kept above as
+  //    documentation of the previous heuristic in case it's ever
+  //    revived; they're unused at runtime.
 
   // 3. Finance
   {
@@ -414,6 +453,13 @@ function passesPreClassifierFilters(
   if (!Number.isFinite(likes)) return "no_like_count";
   const engagement = likes / views;
   if (engagement < 0.02) return "low_engagement";
+
+  // Blok H: hard subscriber ceiling. Above 50M ≈ always corporate or
+  // mega-creator territory where the thumbnail no longer drives the
+  // click. Whitelisting can opt specific channels back in later.
+  if (subscriberCount !== null && subscriberCount > MAX_SUBSCRIBER_COUNT) {
+    return "above_sub_cap";
+  }
 
   // Blok G: tiered overperformer threshold replaces the flat ratio check.
   // Channels with hidden subs (subscriberCount === 0) get the <1k bucket

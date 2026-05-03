@@ -1,0 +1,52 @@
+Music category verwijderen
+Music removal:
+
+Schrap Music uit app_category evaluation order in classifier
+UI: verwijder Music tab uit category tabs
+Data migration: bestaande Music rows → archive (niet delete, voor toekomstige flexibiliteit)
+UPDATE thumbnails SET archived = true WHERE app_category = 'Music';
+Sourcing: skip categoryId 10 entirely tijdens fetch (mostPopular excluden, search.list niet meer hitten voor music keywords)
+Quota saved: ~25 calls/dag terug naar quota budget
+2. Hardere corporate / movie filter
+Anti-corporate strengthening:
+
+Channel name blacklist (case-insensitive substring match — uitbreiden):
+
+Bestaand: VEVO, Records, Films, Studios, Pictures, Network
+Toevoegen:
+- Movie/TV studios: Marvel, Disney, Pixar, DreamWorks, Warner Bros, 
+  Universal, Paramount, Sony Pictures, Lionsgate, A24, Searchlight, 
+  Focus Features, MGM, 20th Century, Fox
+- Streaming services: Netflix, HBO, Hulu, Prime Video, Apple TV, 
+  Peacock, Max, Disney+, Discovery, Paramount+
+- News networks: CNN, Fox News, MSNBC, BBC News, Sky News, NBC, ABC, 
+  CBS, ESPN, Bloomberg, CNBC, Reuters, AP, Al Jazeera
+- Music labels: Atlantic, Capitol, Columbia, Republic, Def Jam, 
+  Interscope, RCA, Warner Music, Sony Music, Universal Music
+- Kids/animation: Cocomelon, Pinkfong, Kids Diana, Vlad and Niki, 
+  Like Nastya, Ryan's World
+- Sports: NBA, NFL, NHL, MLB, FIFA, UEFA, F1, ESPN, Sky Sports
+- Brand channels: Apple, Samsung, Google, Microsoft, Coca-Cola, 
+  Pepsi, Nike, Adidas, McDonald's, Tesla
+Match logic: regex \b(name)\b om false positives te voorkomen (zodat een creator met "Apple" in naam niet automatisch out is — alleen "Apple" als heel woord).
+
+Categorie 1 blocking (Film & Animation): blijft, plus uitbreiden met:
+
+Title bevat: "official trailer", "movie trailer", "teaser trailer", "first look", "behind the scenes" + één van bovenstaande studio namen
+Subscriber upper bound (creator focus)
+Geen videos van channels > 50M subs.
+
+Reden: boven 50M is bijna altijd corporate (T-Series, SET India, Cocomelon) of mega-creators waar de fanbase zo groot is dat thumbnail er niet meer toe doet. MrBeast (350M) valt nu af — dat is een keuze, niet een bug.
+
+Als je MrBeast wel wilt: kies een hogere ceiling of whitelist specifieke creator-channels.
+
+3. Whitelist mechanism (optioneel, voor flexibiliteit)
+Schema:
+
+CREATE TABLE channel_whitelist (
+  channel_name text PRIMARY KEY,
+  added_at timestamptz DEFAULT now(),
+  reason text
+);
+Channels op whitelist passen blacklist filter en sub-cap. Voor edge cases.
+

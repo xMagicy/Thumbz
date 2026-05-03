@@ -7,7 +7,6 @@ export const NICHES = [
   "Gaming",
   "Tutorial",
   "Finance",
-  "Music",
   "Lifestyle",
   "Tech",
   "Vlog",
