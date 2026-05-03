@@ -22,7 +22,10 @@ let bootTimer: NodeJS.Timeout | null = null;
 
 async function runYoutubeSync() {
   try {
-    const result = await syncTrendingVideos();
+    const result = await syncTrendingVideos({
+      regions: ["NL", "US", "GB", "DE"],
+      maxResults: 50,
+    });
     if (!result.ok && result.reason === "missing_api_key") {
       // Already logged inside syncTrendingVideos.
       return;
