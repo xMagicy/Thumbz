@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { db, thumbnailsTable, ratingHistoryTable } from "@workspace/db";
 import { sql, desc, asc, eq, and, type SQL } from "drizzle-orm";
+import { z } from "zod/v4";
 import { UploadThumbnailBody } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
+import { auth } from "../lib/auth";
 
 const router = Router();
 
@@ -217,6 +220,9 @@ router.get("/:id/rating-history", async (req, res) => {
 });
 
 // POST /api/thumbnails — user-submitted thumbnail. Saved as status="pending" until admin approval.
+// If a Better Auth session cookie is present, tag the row with the uploader's
+// userId so it surfaces in their dashboard. Anonymous uploads are still
+// allowed (userId stays NULL).
 router.post("/", async (req, res) => {
   const parsed = UploadThumbnailBody.safeParse(req.body);
   if (!parsed.success) {
@@ -226,6 +232,19 @@ router.post("/", async (req, res) => {
   const { title, channelName, niche, imageUrl, ctr, youtubeUrl } = parsed.data;
   if (!NICHES.includes(niche as Niche)) {
     return res.status(400).json({ error: "Invalid niche" });
+  }
+
+  // Best-effort session resolution — never blocks the upload.
+  let userId: string | null = null;
+  try {
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (typeof value === "string") headers.set(key, value);
+    }
+    const session = await auth.api.getSession({ headers });
+    userId = session?.user.id ?? null;
+  } catch {
+    // Anonymous upload — fine.
   }
 
   try {
@@ -239,15 +258,73 @@ router.post("/", async (req, res) => {
         ctr: ctr ?? null,
         youtubeUrl: youtubeUrl?.trim() || null,
         status: "pending",
+        userId,
       })
       .returning();
 
-    req.log.info({ thumbnailId: row.id, niche, status: row.status }, "Thumbnail submitted");
+    req.log.info(
+      { thumbnailId: row.id, niche, status: row.status, hasUser: !!userId },
+      "Thumbnail submitted",
+    );
 
     return res.status(201).json(toDto(row));
   } catch (err) {
     req.log.error({ err }, "Failed to submit thumbnail");
     return res.status(500).json({ error: "Failed to submit thumbnail" });
+  }
+});
+
+// GET /api/thumbnails/mine — the signed-in user's uploads, newest first.
+// Includes pending + active + rejected so the uploader sees the full state.
+router.get("/mine", requireAuth, async (req, res) => {
+  try {
+    const rows = await db
+      .select()
+      .from(thumbnailsTable)
+      .where(eq(thumbnailsTable.userId, req.user!.id))
+      .orderBy(desc(thumbnailsTable.createdAt));
+    const histories = await fetchRecentRatingsByThumbnail(rows.map((r) => r.id));
+    res.json(rows.map((r) => toDto(r, histories.get(r.id) ?? [])));
+  } catch (err) {
+    req.log.error({ err }, "Failed to list user thumbnails");
+    res.status(500).json({ error: "Failed to list thumbnails" });
+  }
+});
+
+// PATCH /api/thumbnails/:id/ctr — owner-only update to the thumbnail's CTR.
+const ctrBodySchema = z.object({
+  ctr: z.union([z.number().min(0).max(100), z.null()]),
+});
+
+router.patch("/:id/ctr", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid thumbnail id" });
+  }
+  const parsed = ctrBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "ctr must be a number 0-100 or null" });
+  }
+  try {
+    const [existing] = await db
+      .select({ userId: thumbnailsTable.userId })
+      .from(thumbnailsTable)
+      .where(eq(thumbnailsTable.id, id));
+    if (!existing) {
+      return res.status(404).json({ error: "Thumbnail not found" });
+    }
+    if (existing.userId !== req.user!.id) {
+      return res.status(403).json({ error: "Not your thumbnail" });
+    }
+    const [updated] = await db
+      .update(thumbnailsTable)
+      .set({ ctr: parsed.data.ctr })
+      .where(eq(thumbnailsTable.id, id))
+      .returning();
+    return res.json(toDto(updated));
+  } catch (err) {
+    req.log.error({ err, thumbnailId: id }, "Failed to update CTR");
+    return res.status(500).json({ error: "Failed to update CTR" });
   }
 });
 

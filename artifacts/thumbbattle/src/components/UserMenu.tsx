@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { LogOut, Loader2 } from "lucide-react";
+import { Link } from "wouter";
+import { LayoutDashboard, LogOut, Loader2 } from "lucide-react";
 import { signOut } from "../lib/auth-client";
 
 const inter = "'Inter', system-ui, sans-serif";
@@ -64,6 +65,25 @@ export function UserMenu({ name, email }: UserMenuProps) {
       >
         {name || email}
       </span>
+
+      <Link
+        href="/dashboard"
+        aria-label="Dashboard"
+        className="flex items-center gap-1.5 rounded-full transition-colors hover:bg-white/10"
+        style={{
+          fontFamily: inter,
+          fontWeight: 500,
+          fontSize: "0.78rem",
+          color: "rgba(255,255,255,0.78)",
+          padding: "6px 10px",
+          background: "rgba(168,85,247,0.10)",
+          border: "1px solid rgba(168,85,247,0.28)",
+          letterSpacing: "0.01em",
+        }}
+      >
+        <LayoutDashboard className="w-3.5 h-3.5" />
+        Dashboard
+      </Link>
 
       <button
         type="button"
