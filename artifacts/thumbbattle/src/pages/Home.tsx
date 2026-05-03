@@ -912,39 +912,50 @@ export default function Home() {
               exit={{ opacity: 0, transition: { duration: 0.35, ease: [0.4, 0, 0.2, 1] } }}
               transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
             >
+              {/* Heavy backdrop scrim — kills the visual competition with the
+                  blurred thumbnails behind so the card is the only thing the
+                  eye latches onto. Radial darkness from center outward. */}
+              <div
+                aria-hidden
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at 50% 50%, rgba(8,5,20,0.78), rgba(8,5,20,0.92) 70%)",
+                }}
+              />
+
               <motion.div
-                initial={{ opacity: 0, y: 14, scale: 0.96 }}
+                initial={{ opacity: 0, y: 18, scale: 0.94 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                exit={{ opacity: 0, y: -10, scale: 0.96 }}
+                transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
                 className="relative flex flex-col items-center text-center pointer-events-auto"
                 style={{
-                  maxWidth: 480,
+                  maxWidth: 540,
                   width: "calc(100% - 32px)",
-                  padding: "32px 28px 28px",
-                  borderRadius: 24,
+                  padding: "36px 32px 30px",
+                  borderRadius: 28,
                   background:
-                    "linear-gradient(180deg, rgba(20,16,32,0.92), rgba(14,10,24,0.92))",
-                  border: "1px solid rgba(168,85,247,0.32)",
+                    "linear-gradient(180deg, rgba(22,17,38,0.96), rgba(12,8,22,0.96))",
+                  border: "1px solid rgba(168,85,247,0.38)",
                   boxShadow:
-                    "0 30px 80px -20px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 60px -10px rgba(217,70,239,0.35)",
-                  backdropFilter: "blur(14px)",
-                  WebkitBackdropFilter: "blur(14px)",
+                    "0 40px 100px -20px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 80px -10px rgba(217,70,239,0.4)",
+                  backdropFilter: "blur(18px)",
+                  WebkitBackdropFilter: "blur(18px)",
                 }}
               >
-                {/* Outer breathing glow halo — keeps the card feeling alive
-                    without animating any text or layout. */}
+                {/* Outer breathing glow halo */}
                 <motion.div
                   aria-hidden
-                  className="absolute -inset-[1px] rounded-[25px] pointer-events-none"
+                  className="absolute -inset-[1px] rounded-[29px] pointer-events-none"
                   style={{
                     background:
-                      "linear-gradient(135deg, rgba(139,92,246,0.55), rgba(217,70,239,0.55))",
-                    opacity: 0.25,
-                    filter: "blur(14px)",
+                      "linear-gradient(135deg, rgba(139,92,246,0.6), rgba(217,70,239,0.6))",
+                    opacity: 0.3,
+                    filter: "blur(18px)",
                     zIndex: -1,
                   }}
-                  animate={{ opacity: [0.18, 0.32, 0.18] }}
+                  animate={{ opacity: [0.22, 0.38, 0.22] }}
                   transition={{
                     duration: 4,
                     repeat: Infinity,
@@ -952,13 +963,13 @@ export default function Home() {
                   }}
                 />
 
-                {/* Top corner accent gradient — subtle Linear-style sheen */}
+                {/* Top corner accent */}
                 <div
                   aria-hidden
-                  className="absolute inset-x-0 top-0 h-24 rounded-t-[24px] pointer-events-none"
+                  className="absolute inset-x-0 top-0 h-28 rounded-t-[28px] pointer-events-none"
                   style={{
                     background:
-                      "radial-gradient(ellipse at 50% 0%, rgba(217,70,239,0.20), rgba(0,0,0,0) 70%)",
+                      "radial-gradient(ellipse at 50% 0%, rgba(217,70,239,0.25), rgba(0,0,0,0) 70%)",
                   }}
                 />
 
@@ -975,7 +986,7 @@ export default function Home() {
                     textTransform: "uppercase",
                   }}
                 >
-                  <span
+                  <motion.span
                     aria-hidden
                     style={{
                       width: 6,
@@ -984,8 +995,10 @@ export default function Home() {
                       background: "#d946ef",
                       boxShadow: "0 0 8px rgba(217,70,239,0.9)",
                     }}
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
                   />
-                  The challenge
+                  Live battle · ready
                 </div>
 
                 <h3
@@ -993,16 +1006,140 @@ export default function Home() {
                   style={{
                     fontFamily: inter,
                     fontWeight: 800,
-                    fontSize: "clamp(1.5rem, 3vw, 2.1rem)",
-                    letterSpacing: "-0.025em",
-                    lineHeight: 1.15,
-                    marginBottom: 10,
+                    fontSize: "clamp(1.6rem, 3vw, 2.25rem)",
+                    letterSpacing: "-0.028em",
+                    lineHeight: 1.12,
+                    marginBottom: 22,
                   }}
                 >
-                  Pick the better thumbnail.
+                  Two thumbnails enter.
                   <br />
-                  Vote, repeat, climb.
+                  Only one wins.
                 </h3>
+
+                {/* MINI BATTLE PREVIEW — instantly telegraphs "this is the
+                    game". Two thumbnail-shaped tiles with a tiny VS badge
+                    between them. Tilts gently like Tinder cards. */}
+                <div
+                  aria-hidden
+                  className="relative w-full flex items-center justify-center mb-6"
+                  style={{ height: 96 }}
+                >
+                  <motion.div
+                    className="relative rounded-lg overflow-hidden"
+                    style={{
+                      width: 148,
+                      height: 84,
+                      background:
+                        "linear-gradient(135deg, #1f2937, #374151)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      boxShadow:
+                        "0 10px 24px -8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
+                      transformOrigin: "center right",
+                    }}
+                    initial={{ rotate: -7, x: 16 }}
+                    animate={{ rotate: [-7, -5, -7] }}
+                    transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, rgba(139,92,246,0.4), rgba(217,70,239,0.2))",
+                      }}
+                    />
+                    {/* Skeleton-like horizontal lines */}
+                    <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1">
+                      <div
+                        style={{
+                          height: 4,
+                          width: "75%",
+                          background: "rgba(255,255,255,0.35)",
+                          borderRadius: 2,
+                        }}
+                      />
+                      <div
+                        style={{
+                          height: 3,
+                          width: "45%",
+                          background: "rgba(255,255,255,0.18)",
+                          borderRadius: 2,
+                        }}
+                      />
+                    </div>
+                  </motion.div>
+
+                  {/* Mini VS badge between the two cards */}
+                  <motion.div
+                    className="relative mx-2 rounded-full flex items-center justify-center z-10"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      background:
+                        "radial-gradient(circle at 30% 30%, #a855f7, #7e22ce 60%, #4c1d95)",
+                      border: "1px solid rgba(255,255,255,0.25)",
+                      boxShadow:
+                        "0 6px 18px rgba(217,70,239,0.55), inset 0 1px 0 rgba(255,255,255,0.3)",
+                      fontFamily: inter,
+                      fontWeight: 800,
+                      fontSize: "0.7rem",
+                      color: "#fff",
+                      letterSpacing: "0.04em",
+                    }}
+                    animate={{ scale: [1, 1.08, 1] }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    VS
+                  </motion.div>
+
+                  <motion.div
+                    className="relative rounded-lg overflow-hidden"
+                    style={{
+                      width: 148,
+                      height: 84,
+                      background:
+                        "linear-gradient(135deg, #1f2937, #374151)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      boxShadow:
+                        "0 10px 24px -8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
+                      transformOrigin: "center left",
+                    }}
+                    initial={{ rotate: 7, x: -16 }}
+                    animate={{ rotate: [7, 5, 7] }}
+                    transition={{
+                      duration: 3.2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      delay: 0.4,
+                    }}
+                  >
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, rgba(217,70,239,0.4), rgba(251,146,60,0.25))",
+                      }}
+                    />
+                    <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1">
+                      <div
+                        style={{
+                          height: 4,
+                          width: "70%",
+                          background: "rgba(255,255,255,0.35)",
+                          borderRadius: 2,
+                        }}
+                      />
+                      <div
+                        style={{
+                          height: 3,
+                          width: "50%",
+                          background: "rgba(255,255,255,0.18)",
+                          borderRadius: 2,
+                        }}
+                      />
+                    </div>
+                  </motion.div>
+                </div>
 
                 <p
                   className="relative"
@@ -1015,7 +1152,8 @@ export default function Home() {
                     marginBottom: 22,
                   }}
                 >
-                  Two thumbnails go head-to-head. You decide which one wins.
+                  Click the one you'd actually click on YouTube. Watch the
+                  rankings shift in real-time.
                 </p>
 
                 <motion.button
