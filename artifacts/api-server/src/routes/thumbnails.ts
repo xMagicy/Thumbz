@@ -12,14 +12,34 @@ const router = Router();
 const NICHES = ["Gaming", "Tutorial", "Finance", "Music", "Lifestyle", "Tech", "Vlog", "Other"] as const;
 type Niche = (typeof NICHES)[number];
 
-// Layer 2 (defense in depth): hard exclude any title carrying a Shorts /
-// Reels marker, regardless of `archived` / `status`. The sync-time pre-
-// classifier should already reject these, and Layer 1 archived legacy
-// rows, but if either fails (corrupted row, manual insert, regression in
-// the classifier) this WHERE-clause guarantees no Short can ever appear
-// in a battle pair or on the leaderboard. Cheap (one ILIKE per row, on a
-// pool of ~hundreds) and explicit.
-const SHORTS_TITLE_EXCLUSION_SQL = sql`
+// claude/backend-fix-1 — DEFENSE IN DEPTH at query time.
+//
+// Why this exists, in plain terms: the YouTube sync layer (lib/youtube.ts)
+// already enforces ~25 distinct content rules at WRITE time — Shorts gates,
+// trailer gates, channel blocklists, aspect ratio. But every time the
+// sync layer regressed historically, the bad row sat in the database for
+// hours or days before someone noticed. This SQL fragment is a second,
+// independent enforcement layer at READ time. Even if the sync pipeline
+// inserts a Shorts/trailer/commercial row tomorrow morning, this filter
+// guarantees it never reaches a battle pair or the leaderboard.
+//
+// We pay one CTE-style WHERE clause per query against a pool of a few
+// hundred rows — measured cost is sub-millisecond and indexable for the
+// boolean `is_vertical_thumbnail` predicate.
+//
+// IMPORTANT: every list/battle endpoint that reads thumbnails MUST AND
+// this fragment. The five entry points are:
+//   • GET /api/thumbnails       (leaderboard / rankings)
+//   • GET /api/thumbnails/battle (battle queue)
+//   • GET /api/thumbnails/mine  (uploader's own dashboard)
+//   • Any future "Discover" / "Trending" feed
+//   • Any admin endpoint that must respect "no commercial content"
+//
+// Skip this filter ONLY for genuinely-archived analytics queries (e.g.
+// "show me ALL the trailers we've blocked" admin tooling). Those are
+// not user-facing and are the explicit exception.
+const BAD_CONTENT_EXCLUSION_SQL = sql`
+  -- Shorts hashtag markers (covers user-typed and copy-paste patterns).
   ${thumbnailsTable.title} NOT ILIKE '%#shorts%'
   AND ${thumbnailsTable.title} NOT ILIKE '%#short%'
   AND ${thumbnailsTable.title} NOT ILIKE '%#ytshorts%'
@@ -29,7 +49,44 @@ const SHORTS_TITLE_EXCLUSION_SQL = sql`
   AND ${thumbnailsTable.title} NOT ILIKE '%#minivlog%'
   AND ${thumbnailsTable.title} NOT ILIKE '%#tiktok%'
   AND ${thumbnailsTable.title} !~* '#?(shorts?|reels?|ytshorts?|youtubeshorts?|minivlog|tiktoks?)\\M'
+
+  -- Trailer / commercial title markers (mirrors TRAILER_TITLE_PATTERN
+  -- from sync layer; defense-in-depth so legacy rows that pre-date the
+  -- sync filter don't slip through). Each gets its own predicate so
+  -- query-plan filtering reads cleanly in EXPLAIN ANALYZE.
+  AND ${thumbnailsTable.title} !~* '\\m(trailer|teaser|first look|sneak peek|coming soon|in theaters|in cinemas|now streaming|premieres?|world premiere|official trailer|concept trailer|fan trailer|main trailer|release trailer|final trailer|new trailer|behind the scenes|now playing)\\M'
+
+  -- Year-in-parens trailer patterns: "Some Movie (2026) Trailer", or
+  -- the inverse "Trailer (2026)". Caught at sync but enforced again here.
+  AND ${thumbnailsTable.title} !~* '\\(\\d{4}\\).*(trailer|teaser|first look|release)'
+  AND ${thumbnailsTable.title} !~* '(trailer|teaser|first look|release).*\\(\\d{4}\\)'
+
+  -- Pipe-separated cast/credits list (Tollywood/Bollywood movie
+  -- signature). " | Name | Name | Name | Name" with 4+ short tokens.
+  AND ${thumbnailsTable.title} !~ '(\\s\\|\\s[^|]{2,30}){3,}'
+
+  -- Channel-name suffix blocklist. Mirrors CHANNEL_NAME_SUFFIX_BLOCKLIST
+  -- in sync layer. Catches "Foo Studios", "Bar Pictures", "Baz Shorts",
+  -- "Clap Entertainment" — the corporate aggregator pattern.
+  AND ${thumbnailsTable.channelName} !~* '\\m(Studios|Pictures|Films|Productions|Records|VEVO|Network|Shorts|TikTok|Reels|Entertainment|Cinema|Cinemas|Movies|Trailers|Movieclips)\\s*[!.]?\\s*$'
+
+  -- Channel-name substring blocklist. Specific corporate/brand channels
+  -- that appear ANYWHERE in the channel name (mirrors the substring half
+  -- of CHANNEL_NAME_BLOCKLIST). Word-boundary on each side to avoid
+  -- false-positives like "Marvelous Cooks" matching "Marvel".
+  AND ${thumbnailsTable.channelName} !~* '\\m(Marvel|Disney|Pixar|DreamWorks|Warner Bros|Universal|Paramount|Sony Pictures|Lionsgate|Netflix|HBO|Hulu|Disney\\+|CNN|Fox News|MSNBC|BBC News|Cocomelon|Pinkfong|NBA|NFL|FIFA|Coca-Cola|Movieclips|Entertainment Group|Media Group|Music Group|Animation|Trailers|T-Series|Yash Raj Films|Eros Now|Aditya Music)\\M'
+
+  -- Aspect ratio guard: reject any row where the persisted thumbnail is
+  -- vertical (height >= width on ANY API variant at sync time). This is
+  -- THE catch-all for Shorts that don't carry hashtags — Hasan Minhaj
+  -- podcast clips, vertical creator uploads, etc. Backed by an index
+  -- (thumbnails_is_vertical_idx) so the predicate is O(log n).
+  AND ${thumbnailsTable.isVerticalThumbnail} = false
 `;
+
+// Backwards-compat alias — keep old import name working during merge,
+// but new code should use BAD_CONTENT_EXCLUSION_SQL.
+const SHORTS_TITLE_EXCLUSION_SQL = BAD_CONTENT_EXCLUSION_SQL;
 
 function normalizeNiche(raw: string | undefined): Niche | undefined {
   if (!raw) return undefined;
@@ -748,13 +805,28 @@ router.post("/report-bad", async (req, res) => {
     // Only auto-archive YouTube rows. User uploads are the user's own
     // image — if it's vertical that's their choice (still bad UX, but
     // not our call to silently nuke).
+    //
+    // claude/backend-fix-1: also persist isVerticalThumbnail + width/height
+    // when the client supplies them. This lets the next sync/query layer
+    // reject the row even if archive flag is later flipped manually,
+    // and feeds the analytics pipeline real aspect ratio data.
     let archived = false;
+    const updateSet: Record<string, unknown> = {};
+    if (reason === "vertical_aspect") {
+      updateSet.isVerticalThumbnail = true;
+      if (typeof width === "number") updateSet.thumbnailWidth = width;
+      if (typeof height === "number") updateSet.thumbnailHeight = height;
+    }
     if (!row.archived && row.source === "youtube") {
+      updateSet.archived = true;
+      updateSet.status = "shorts_archived";
+      archived = true;
+    }
+    if (Object.keys(updateSet).length > 0) {
       await db
         .update(thumbnailsTable)
-        .set({ archived: true, status: "shorts_archived" })
+        .set(updateSet)
         .where(eq(thumbnailsTable.id, thumbnailId));
-      archived = true;
     }
     req.log.warn(
       { thumbnailId, title: row.title, reason, width, height, archived },

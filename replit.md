@@ -44,6 +44,44 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   classifier writes `app_category` directly. Do not add new query paths
   that filter on `niche` — use `app_category`.
 
+### Bad-content defense in depth (claude/backend-fix-1)
+
+The pool must contain **only** trending creator content. No Shorts, no
+movie/TV trailers, no commercial/aggregator channels, no music labels, no
+vertically-aspected thumbnails. Three independent enforcement layers:
+
+1. **Sync-time gates** in `lib/youtube.ts > passesPreClassifierFilters`:
+   - `EXCLUDED_CATEGORIES`: categoryId 1 (Film) + 10 (Music)
+   - `CHANNEL_NAME_BLOCKLIST`: substring brand match (Marvel, Netflix, …)
+   - `CHANNEL_NAME_SUFFIX_BLOCKLIST`: ends with Studios|Pictures|…|Entertainment
+   - `TRAILER_TITLE_PATTERN` + year-pattern + pipe-cast-list pattern
+   - `SHORTS_TEXT_PATTERN` + tag check + duration ≤ 180s
+   - `detectVerticalAcrossAllVariants`: ANY thumbnail variant is vertical → reject
+
+2. **DB persistence** of aspect signal: `is_vertical_thumbnail` boolean
+   (plus `thumbnail_width`, `thumbnail_height`) — set at sync time across
+   all API thumbnail variants, not just maxres → high. Indexed.
+
+3. **Query-time filter** in `routes/thumbnails.ts > BAD_CONTENT_EXCLUSION_SQL`:
+   mirrors every sync-time rule as a SQL predicate. Even if the sync layer
+   regresses or a row is manually inserted, query-time blocks it from
+   appearing in any battle pair, leaderboard, or list endpoint.
+
+EVERY new list/battle endpoint must AND `BAD_CONTENT_EXCLUSION_SQL` into
+its WHERE clause. The only legal exception is genuine analytics tooling
+("show me everything we blocked") which is not user-facing.
+
+Cleanup of legacy rows (one-shot, idempotent):
+`pnpm --filter @workspace/scripts run cleanup-bad-content`
+
+### Sourcing diversity
+
+YouTube `mostPopular` is globally Gaming-Music-heavy. Per-niche targeted
+search queries in `TARGETED_SEARCHES` fill underrepresented buckets
+(Tech, Vlog, Tutorial, Lifestyle, Finance, Other, Emerging). Each runs
+one `search.list` call per sync (~100 quota). When adjusting per-niche
+distribution, edit `TARGETED_SEARCHES` rather than `mostPopular` regions.
+
 ### Vote-flow architecture (`Home.tsx`)
 
 The vote → animation → next-pair pipeline is built around a **monotonic

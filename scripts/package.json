@@ -9,6 +9,7 @@
     "backfill-channel-logos": "tsx ./src/backfillChannelLogos.ts",
     "archive-shorts": "tsx ./src/archiveShorts.ts",
     "archive-trailers": "tsx ./src/archiveTrailers.ts",
+    "cleanup-bad-content": "tsx ./src/cleanupBadContent.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

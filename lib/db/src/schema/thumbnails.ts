@@ -141,6 +141,26 @@ export const thumbnailsTable = pgTable(
     // + 10·(engagement_rate * 100)
     // Used as a tiebreaker in matchmaking and as the future Discover sort.
     breakoutScore: real("breakout_score"),
+
+    // ── Aspect-ratio guard (claude/backend-fix-1) ──────────────────────
+    // Persisted dimensions of the saved imageUrl so query-time filters
+    // can reject vertical thumbnails (Shorts and Shorts-like uploads)
+    // without re-fetching the image. The sync layer fills these from the
+    // YouTube API response; user uploads can populate them via the
+    // optional /report-bad endpoint. NULL is treated as "unknown — pass"
+    // so legacy rows aren't silently archived; the cleanup script handles
+    // those explicitly.
+    thumbnailWidth: integer("thumbnail_width"),
+    thumbnailHeight: integer("thumbnail_height"),
+    // Convenience flag: any thumbnail variant from the API was vertical
+    // (h >= w). Set at sync time across ALL variants — not just maxres —
+    // so a 16:9-cropped maxres can't hide a Short with a 9:16 medium or
+    // default thumbnail. Defense-in-depth: thumbnails.ts also filters on
+    // this at query time so even if the sync layer ever regresses, no
+    // vertical thumbnail reaches a battle pair.
+    isVerticalThumbnail: boolean("is_vertical_thumbnail")
+      .notNull()
+      .default(false),
   },
   (t) => [
     index("thumbnails_user_id_idx").on(t.userId),
@@ -149,6 +169,7 @@ export const thumbnailsTable = pgTable(
     index("thumbnails_view_velocity_idx").on(t.viewVelocity),
     index("thumbnails_archived_idx").on(t.archived),
     index("thumbnails_elo_idx").on(t.eloRating),
+    index("thumbnails_is_vertical_idx").on(t.isVerticalThumbnail),
   ],
 );
 

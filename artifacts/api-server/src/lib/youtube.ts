@@ -41,16 +41,90 @@ const REGIONS = [
 ] as const;
 
 // Targeted search queries to fill structurally under-represented buckets.
-// Each entry is one search.list call (100 quota units). Keep the list
-// short — the most expensive part of the sync.
+// Each entry is one search.list call (100 quota units).
+//
+// claude/backend-fix-1: expanded from 3 to 8 buckets so every UI tab
+// (Tech, Vlog, Tutorial, Finance, Lifestyle, Gaming, Other) gets at
+// least one dedicated search per sync run. mostPopular is dominated by
+// Gaming + Music globally, which is exactly why Tech/Tutorial/Vlog were
+// underrepresented (4 active in Vlog, 0 in Tech). Per-niche queries fix
+// the structural skew. Each query is tuned to surface trending breakouts
+// rather than evergreen content — short freshness windows + viral
+// vocabulary ("review", "vs", "this week") instead of dictionary terms.
+//
+// Quota math: 8 targeted * 100 + 5 trending * 100 + 12 mostPopular * 1
+// ≈ 1300 units per sync run × 4 syncs/day ≈ 5200/day under the 10K cap.
 const TARGETED_SEARCHES: Array<{
   category: string;
   q: string;
   videoCategoryId?: string;
+  minDays?: number;
 }> = [
-  { category: "Finance", q: "investing OR stocks OR money OR crypto" },
-  { category: "Lifestyle", q: "morning routine OR aesthetic OR day in my life" },
-  { category: "Tutorial", q: "how to OR tutorial", videoCategoryId: "26" },
+  // Finance — expanded vocabulary catches both crypto-cycle and personal-
+  // finance creators. minDays=7 prefers fresh angle takes over evergreen.
+  {
+    category: "Finance",
+    q: "investing OR stocks OR money OR crypto OR bitcoin OR \"financial freedom\" OR \"personal finance\"",
+    minDays: 7,
+  },
+  // Lifestyle — daily/aesthetic vocabulary that consistently outranks
+  // generic Lifestyle in YouTube's algo. Higher freshness window because
+  // routine content stays relevant longer.
+  {
+    category: "Lifestyle",
+    q: "\"morning routine\" OR aesthetic OR \"day in my life\" OR \"that girl\" OR \"clean girl\"",
+    minDays: 14,
+  },
+  // Tutorial — categoryId=26 (Howto & Style) on top of the keyword filter
+  // for double-coverage. Short freshness so we get currently-relevant
+  // problem solving, not 5-year-old tutorials.
+  {
+    category: "Tutorial",
+    q: "\"how to\" OR tutorial OR guide OR explained",
+    videoCategoryId: "26",
+    minDays: 7,
+  },
+  // Tech — the biggest gap in current pool (0 active rows). categoryId=28
+  // (Science & Tech) plus topical product+commentary keywords. Tech moves
+  // FAST so 7-day freshness keeps the pool relevant.
+  {
+    category: "Tech",
+    q: "iphone OR macbook OR \"ai tools\" OR chatgpt OR \"tech review\" OR vs",
+    videoCategoryId: "28",
+    minDays: 7,
+  },
+  // Vlog — categoryId=22 (People & Blogs) plus vlog-specific phrasing.
+  // 14-day window because vlogs are routine content that stays relevant.
+  {
+    category: "Vlog",
+    q: "vlog OR \"q&a\" OR \"life update\" OR \"week in my life\" OR \"story time\"",
+    videoCategoryId: "22",
+    minDays: 14,
+  },
+  // Gaming — already over-represented but we want trending titles, not
+  // catalog. Short freshness window biases toward this-week launches and
+  // patch reactions.
+  {
+    category: "Gaming",
+    q: "gameplay OR speedrun OR \"this update\" OR \"new patch\" OR review",
+    videoCategoryId: "20",
+    minDays: 5,
+  },
+  // Other / catch-all for niches our classifier doesn't have a dedicated
+  // bucket for (true crime, news, comedy, science deep-dives).
+  {
+    category: "Other",
+    q: "documentary OR \"true story\" OR \"explained\" OR analysis",
+    minDays: 14,
+  },
+  // Emerging-creator focused query — small channels with viral content.
+  // Not category-specific because breakouts happen everywhere.
+  // Low minDays = catch breakouts in the first few days they go viral.
+  {
+    category: "Emerging",
+    q: "\"i tried\" OR \"the truth about\" OR \"i spent\" OR \"i bought\"",
+    minDays: 5,
+  },
 ];
 
 // Ronde 3 Blok 3: trend-spotting search queries. Each is a separate
@@ -105,6 +179,13 @@ const CHANNEL_BLOCKLIST_TERMS = [
   // Trailer-channel signals — multi-word phrases unlikely to false-positive.
   "Entertainment Group", "Media Group", "Music Group", "Animation",
   "Concept", "Trailers", "Movieclips", "Movie Network", "Movies",
+  // claude/backend-fix-1: targeted aggregators we've seen leak through.
+  // "Clap Entertainment" was the trigger — Indian/Tollywood movie
+  // aggregator pushing trailers under "Finance" via crypto/money-themed
+  // movie clips. Multi-word matches don't false-positive on legit
+  // creators ("Daily Entertainment Vlogs" stays in).
+  "Clap Entertainment", "Hombale Films", "Pen Studios", "T-Series",
+  "Yash Raj Films", "Eros Now", "Aditya Music", "Lahari Music",
 ];
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -118,8 +199,14 @@ const CHANNEL_NAME_BLOCKLIST = new RegExp(
 // Shorts" while letting channels with these tokens earlier in the name
 // (e.g. "Studios Quarter Reviews") through. Trailing punctuation/space
 // tolerated.
+//
+// claude/backend-fix-1: added Entertainment, Cinema, Cinemas, Movies,
+// Trailers as suffix-only matches. "Clap Entertainment" → blocked.
+// "Daily Entertainment" stays — most aggregators end the name on these
+// suffixes; if a creator does the same we accept the false-positive
+// trade-off (aligns with the user's "no commercial content" mandate).
 const CHANNEL_NAME_SUFFIX_BLOCKLIST =
-  /\b(Studios|Pictures|Films|Productions|Records|VEVO|Network|Shorts|TikTok|Reels)\s*[!.]?\s*$/i;
+  /\b(Studios|Pictures|Films|Productions|Records|VEVO|Network|Shorts|TikTok|Reels|Entertainment|Cinema|Cinemas|Movies|Trailers|Movieclips)\s*[!.]?\s*$/i;
 
 // Excluded YouTube category IDs.
 //   1  = Film & Animation (movie trailers, studio-driven)
@@ -287,19 +374,70 @@ function pickAspectThumbnail(v: YtVideo): YtThumbnail | null {
   );
 }
 
+// claude/backend-fix-1: aspect detection across ALL thumbnail variants.
+// YouTube sometimes returns a 16:9-cropped maxres for vertical content
+// while the medium / default / high variants stay 9:16 (the original
+// aspect). pickAspectThumbnail uses maxres → high which can miss this.
+// detectVerticalAcrossAllVariants flags the row as soon as ANY variant
+// has h ≥ w. Used as the persisted is_vertical_thumbnail signal so the
+// query-time filter can defend against vertical Shorts that the aspect
+// gate at sync time wouldn't have caught on maxres alone.
+function detectVerticalAcrossAllVariants(v: YtVideo): {
+  isVertical: boolean;
+  width: number | null;
+  height: number | null;
+} {
+  const variants = [
+    v.snippet?.thumbnails?.maxres,
+    v.snippet?.thumbnails?.standard,
+    v.snippet?.thumbnails?.high,
+    v.snippet?.thumbnails?.medium,
+    v.snippet?.thumbnails?.default,
+  ].filter((t): t is YtThumbnail => Boolean(t));
+
+  // Width/height from maxres if available (best resolution we'll save
+  // alongside the imageUrl); fall back to the largest variant.
+  let storedWidth: number | null = null;
+  let storedHeight: number | null = null;
+  const primary = variants[0];
+  if (primary && typeof primary.width === "number" && typeof primary.height === "number") {
+    storedWidth = primary.width;
+    storedHeight = primary.height;
+  }
+
+  let isVertical = false;
+  for (const t of variants) {
+    if (
+      typeof t.width === "number" &&
+      typeof t.height === "number" &&
+      t.width > 0 &&
+      t.height >= t.width
+    ) {
+      isVertical = true;
+      break;
+    }
+  }
+  return { isVertical, width: storedWidth, height: storedHeight };
+}
+
 // ─── Trailer / commercial content detection (urgent patch) ────────────
 // Six independent signals; a single match rejects the video. Same
 // zero-tolerance posture as the Shorts gate — we'd rather over-reject a
 // few legit creator videos than ship one movie-trailer thumbnail.
+//
+// claude/backend-fix-1 expansion: more keywords (release, official
+// trailer variants, cinemas, world premiere, etc) — caught the JETLEE
+// "Release Trailer" leak case where the title had "Release Trailer"
+// without matching the existing keyword set strongly enough.
 const TRAILER_TITLE_PATTERN =
-  /\b(trailer|teaser|first look|sneak peek|coming soon|in theaters|now streaming|premieres?|official trailer|concept trailer|fan trailer|behind the scenes)\b/i;
+  /\b(trailer|teaser|first look|sneak peek|coming soon|in theaters|in cinemas|now streaming|premieres?|world premiere|official trailer|concept trailer|fan trailer|main trailer|release trailer|final trailer|new trailer|behind the scenes|releasing|now playing)\b/i;
 // Year-in-parens patterns: catches "Knight Rider Rebirth (2026) | Concept
 // Trailer", "Concept Trailer (2026)", etc. Two regexes because the year
 // can sit on either side of the trailer keyword.
 const TRAILER_YEAR_BEFORE_PATTERN =
-  /\(\d{4}\).*(trailer|teaser|first look)/i;
+  /\(\d{4}\).*(trailer|teaser|first look|release)/i;
 const TRAILER_YEAR_AFTER_PATTERN =
-  /(trailer|teaser|first look).*\(\d{4}\)/i;
+  /(trailer|teaser|first look|release).*\(\d{4}\)/i;
 // Cast-list pattern: "Jensen Ackles, Mads Mikkelsen, Scarlett Johansson"
 // — two consecutive Capitalized two-word names separated by a comma.
 // Almost exclusively a movie/show cast announcement.
@@ -308,7 +446,13 @@ const CAST_LIST_PATTERN =
 // Description markers — copyright/distribution language that virtually
 // only appears on commercial content.
 const COMMERCIAL_DESCRIPTION_PATTERN =
-  /\b(in theaters|streaming on|now playing|available now|releases on|premieres on|catch (it|him|her) on|presented by|sponsored by|in association with|all rights reserved)\b/i;
+  /\b(in theaters|in cinemas|streaming on|now playing|available now|releases on|premieres on|catch (it|him|her) on|presented by|sponsored by|in association with|all rights reserved|©\s?\d{4}|all rights reserved)\b/i;
+// claude/backend-fix-1: pipe-separated cast/credits list — e.g.
+// "JETLEE Release Trailer | Satya | Ritesh Rana | Rhea Singha | …" — is
+// a near-universal Tollywood/Bollywood trailer signature even when no
+// year or "trailer" keyword leaks through. 4+ pipe-separated tokens of
+// 2-25 chars each is the heuristic.
+const PIPE_CAST_LIST_PATTERN = /(\s\|\s[^|]{2,30}){3,}/;
 
 // Filter 7 thresholds (logging only, not auto-skip): movie/trailer
 // channels have low subs but viral single-video views.
@@ -534,6 +678,14 @@ function passesPreClassifierFilters(
   // category-1 exclusion + channel blocklist, which together already cover
   // every confirmed trailer regression we've shipped.
   void CAST_LIST_PATTERN;
+  // claude/backend-fix-1: pipe-cast list signature catches Tollywood-style
+  // trailer titles that don't carry an English trailer keyword and don't
+  // year-tag in parens. "JETLEE Release Trailer | Satya | Ritesh Rana | …"
+  // form. Four pipes is the threshold — legit creators almost never list
+  // 4+ collaborators in a title.
+  if (PIPE_CAST_LIST_PATTERN.test(title)) {
+    return "trailer_pipe_cast_list";
+  }
   if (
     snippet.description &&
     COMMERCIAL_DESCRIPTION_PATTERN.test(snippet.description)
@@ -604,20 +756,20 @@ function passesPreClassifierFilters(
     return "shorts_description_marker";
   }
 
-  // Aspect ratio: reject if portrait/square. Uses maxres → high fallback
-  // because maxres is sometimes missing on borderline videos. Done before
-  // the generic no_maxres rejection so the `high` fallback can actually
-  // do its job for no-maxres-but-still-clearly-vertical videos.
-  const aspectThumb = pickAspectThumbnail(v);
-  if (
-    aspectThumb &&
-    typeof aspectThumb.width === "number" &&
-    typeof aspectThumb.height === "number" &&
-    aspectThumb.width > 0 &&
-    aspectThumb.height >= aspectThumb.width
-  ) {
+  // Aspect ratio across ALL variants (maxres, standard, high, medium,
+  // default). claude/backend-fix-1: previously this only checked
+  // maxres → high which let through Hasan-Minhaj-style vertical podcast
+  // clips where YouTube returns a 16:9-cropped maxres while medium and
+  // default stayed 9:16. detectVerticalAcrossAllVariants flags the row
+  // if ANY variant is vertical — so a 9:16 in default alone already
+  // rejects the video.
+  const aspectInfo = detectVerticalAcrossAllVariants(v);
+  if (aspectInfo.isVertical) {
     return "shorts_vertical_thumbnail";
   }
+  // Keep original signal too for any future telemetry that depends on
+  // the maxres-specific detection. No-op functionally.
+  void pickAspectThumbnail;
 
   // Tag array check. snippet.tags can be undefined or empty — both fine.
   if (snippet.tags && snippet.tags.length > 0) {
@@ -884,9 +1036,16 @@ export async function syncTrendingVideos(opts?: {
   }
 
   // Targeted search for under-served buckets.
+  // claude/backend-fix-1: pass `minDays` per search so per-niche queries
+  // can have their own freshness window (Tech 7d, Lifestyle 14d, etc).
   for (const search of TARGETED_SEARCHES) {
     try {
-      const ids = await fetchSearchVideoIds(apiKey, search.q, search.videoCategoryId);
+      const ids = await fetchSearchVideoIds(
+        apiKey,
+        search.q,
+        search.videoCategoryId,
+        search.minDays ?? 14,
+      );
       const newIds = ids.filter((id) => !candidates.has(id));
       if (newIds.length === 0) continue;
       const enriched = await fetchVideosByIds(apiKey, newIds);
@@ -900,7 +1059,7 @@ export async function syncTrendingVideos(opts?: {
         });
       }
     } catch (err) {
-      logger.error({ err, q: search.q }, "Targeted search failed");
+      logger.error({ err, q: search.q, category: search.category }, "Targeted search failed");
     }
   }
 
@@ -1107,6 +1266,13 @@ export async function syncTrendingVideos(opts?: {
       const trendingArr = Array.from(a.meta.trendingRegions);
       const ratio = a.subscriberCount > 0 ? a.viewCount / a.subscriberCount : null;
       const categoryIdInt = snippet.categoryId ? Number(snippet.categoryId) : null;
+      // claude/backend-fix-1: persist aspect signal so the query layer
+      // can reject vertical thumbnails even if the sync-time gate ever
+      // misses one (no-API-dimensions case, future regression). At this
+      // point in the pipeline the aspect gate has already passed, so
+      // isVertical SHOULD always be false here — but we still persist
+      // the dimensions for analytics + the query-time defense.
+      const aspect = detectVerticalAcrossAllVariants(v);
 
       const [existing] = await db
         .select()
@@ -1159,6 +1325,10 @@ export async function syncTrendingVideos(opts?: {
             channelAgeDays: a.channelAgeDays,
             isEmergingChannel: a.isEmergingChannel,
             breakoutScore: a.breakoutScore,
+            // claude/backend-fix-1 aspect-ratio guard.
+            thumbnailWidth: aspect.width,
+            thumbnailHeight: aspect.height,
+            isVerticalThumbnail: aspect.isVertical,
           })
           .returning({ id: thumbnailsTable.id });
         if (!ins) continue;
@@ -1203,6 +1373,12 @@ export async function syncTrendingVideos(opts?: {
             channelAgeDays: a.channelAgeDays,
             isEmergingChannel: a.isEmergingChannel,
             breakoutScore: a.breakoutScore,
+            // claude/backend-fix-1 aspect-ratio guard. Recomputed every
+            // sync — YouTube can re-encode the maxres thumbnail and
+            // change aspect during the video's lifecycle.
+            thumbnailWidth: aspect.width,
+            thumbnailHeight: aspect.height,
+            isVerticalThumbnail: aspect.isVertical,
           })
           .where(eq(thumbnailsTable.id, thumbnailId));
         updated += 1;
