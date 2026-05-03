@@ -522,7 +522,11 @@ export default function Home() {
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
       {/* Upload waitlist dialog */}
-      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      <UploadDialog
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onRequireSignIn={() => setSignInOpen(true)}
+      />
 
       {/* Sign in dialog (visual placeholder until accounts ship) */}
       <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
@@ -1245,7 +1249,18 @@ export default function Home() {
             the call-to-action immediately, instead of after the leaderboard
             divider gap. */}
         <div className="w-full mt-8 md:mt-10">
-          <UploadPromo onUploadClick={() => setUploadOpen(true)} />
+          <UploadPromo
+            onUploadClick={() => {
+              // Uploads now require an account. Send anonymous visitors
+              // straight to the sign-in flow instead of opening a dialog
+              // they'd just bounce out of with a 401.
+              if (!sessionPending && !sessionUser) {
+                setSignInOpen(true);
+                return;
+              }
+              setUploadOpen(true);
+            }}
+          />
         </div>
 
         {/* Daily progress */}

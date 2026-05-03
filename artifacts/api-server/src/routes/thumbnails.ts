@@ -504,12 +504,26 @@ router.post("/", uploadRateLimiter, async (req, res) => {
     return res.status(400).json({ error: "Invalid request body" });
   }
 
-  const { title, channelName, niche, imageUrl, ctr, youtubeUrl } = parsed.data;
+  const { title, channelName, niche, imageUrl, youtubeUrl } = parsed.data;
   if (!NICHES.includes(niche as Niche)) {
     return res.status(400).json({ error: "Invalid niche" });
   }
 
-  // Best-effort session resolution — never blocks the upload.
+  // Lightweight YouTube URL sanity check so we don't store random
+  // links. Accepts youtu.be/<id>, youtube.com/watch?v=<id>, /shorts/<id>,
+  // /embed/<id>. Full validation (does the video exist?) is out of scope.
+  const ytPattern =
+    /^https?:\/\/(www\.|m\.)?(youtube\.com\/(watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)[\w-]{6,}|youtu\.be\/[\w-]{6,})/i;
+  if (!ytPattern.test(youtubeUrl)) {
+    return res.status(400).json({
+      error: "Invalid YouTube URL — please paste the full link to the video.",
+    });
+  }
+
+  // Auth is REQUIRED for uploads. Anonymous uploads are no longer
+  // accepted: the cap, dashboard, and per-creator analytics all lean on
+  // a stable user_id, and tying uploads to an account is the easiest
+  // way to keep the pool clean.
   let userId: string | null = null;
   try {
     const headers = new Headers();
@@ -519,8 +533,14 @@ router.post("/", uploadRateLimiter, async (req, res) => {
     const session = await auth.api.getSession({ headers });
     userId = session?.user.id ?? null;
   } catch {
-    // Anonymous upload — fine.
+    // fall through to the auth check below
   }
+  if (!userId) {
+    return res.status(401).json({
+      error: "You need to sign in before uploading a thumbnail.",
+    });
+  }
+  const ctr: number | null = null;
 
   try {
     // ─── Anti-abuse cap: max 5 active uploads per user ─────────────────

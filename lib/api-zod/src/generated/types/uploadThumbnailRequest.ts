@@ -26,16 +26,9 @@ export interface UploadThumbnailRequest {
    */
   imageUrl: string;
   /**
-   * Optional CTR percentage (0-100)
-   * @minimum 0
-   * @maximum 100
-   * @nullable
-   */
-  ctr?: number | null;
-  /**
-   * Optional public YouTube URL for verification
+   * Public YouTube URL the thumbnail belongs to (required).
+   * @minLength 1
    * @maxLength 500
-   * @nullable
    */
-  youtubeUrl?: string | null;
+  youtubeUrl: string;
 }

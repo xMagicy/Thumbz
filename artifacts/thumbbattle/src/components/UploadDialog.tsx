@@ -13,6 +13,8 @@ import {
   getListThumbnailsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { LogIn } from "lucide-react";
+import { useSession } from "../lib/auth-client";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -34,17 +36,31 @@ const MAX_BYTES = 10 * 1024 * 1024;
 interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Called when an unauthenticated visitor tries to open the upload
+   * dialog. Home wires this to `setSignInOpen(true)` so the user lands
+   * straight in the auth flow instead of seeing the form locked behind
+   * an inline gate.
+   */
+  onRequireSignIn?: () => void;
 }
 
-export function UploadDialog({ open, onClose }: UploadDialogProps) {
+// Same lightweight check the API does. Kept in sync intentionally —
+// a stricter client-side check just means clearer feedback before the
+// network round-trip; the server is still the source of truth.
+const YT_PATTERN =
+  /^https?:\/\/(www\.|m\.)?(youtube\.com\/(watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)[\w-]{6,}|youtu\.be\/[\w-]{6,})/i;
+
+export function UploadDialog({ open, onClose, onRequireSignIn }: UploadDialogProps) {
   const queryClient = useQueryClient();
+  const { data: sessionData, isPending: sessionPending } = useSession();
+  const isSignedIn = !!sessionData?.user;
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [channelName, setChannelName] = useState("");
   const [niche, setNiche] = useState<NicheOption>("Gaming");
-  const [ctr, setCtr] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -66,7 +82,6 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     setTitle("");
     setChannelName("");
     setNiche("Gaming");
-    setCtr("");
     setYoutubeUrl("");
     setIsDragging(false);
     setSubmitted(false);
@@ -93,6 +108,16 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // Auth gate: uploads now require an account. If a logged-out visitor
+  // somehow gets here (e.g. they had the dialog open and signed out in
+  // another tab), close the dialog and surface the sign-in flow instead
+  // of letting them fill out a form that the server will reject.
+  useEffect(() => {
+    if (!open || sessionPending || isSignedIn) return;
+    onClose();
+    onRequireSignIn?.();
+  }, [open, sessionPending, isSignedIn, onClose, onRequireSignIn]);
 
   const handleFile = (f: File) => {
     if (!f.type.startsWith("image/")) {
@@ -127,14 +152,8 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
   const trimmedTitle = title.trim();
   const trimmedChannel = channelName.trim();
   const trimmedYoutube = youtubeUrl.trim();
-  const trimmedCtr = ctr.trim();
-  const ctrNumber = trimmedCtr ? Number(trimmedCtr) : null;
-  const ctrInvalid =
-    trimmedCtr !== "" &&
-    (ctrNumber === null ||
-      Number.isNaN(ctrNumber) ||
-      ctrNumber < 0 ||
-      ctrNumber > 100);
+  const youtubeInvalid =
+    trimmedYoutube.length > 0 && !YT_PATTERN.test(trimmedYoutube);
 
   const canSubmit =
     !!file &&
@@ -142,8 +161,9 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     trimmedTitle.length <= 200 &&
     trimmedChannel.length > 0 &&
     trimmedChannel.length <= 120 &&
-    !ctrInvalid &&
+    trimmedYoutube.length > 0 &&
     trimmedYoutube.length <= 500 &&
+    !youtubeInvalid &&
     !isUploading;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -176,8 +196,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
           channelName: trimmedChannel,
           niche,
           imageUrl: presigned.objectPath,
-          ctr: ctrNumber !== null && !Number.isNaN(ctrNumber) ? ctrNumber : null,
-          youtubeUrl: trimmedYoutube ? trimmedYoutube : null,
+          youtubeUrl: trimmedYoutube,
         },
       });
 
@@ -429,33 +448,31 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                       ))}
                     </select>
                   </Field>
-                  <Field label="CTR (optional)">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      inputMode="decimal"
-                      value={ctr}
-                      onChange={(e) => setCtr(e.target.value)}
-                      placeholder="e.g. 8.4"
-                      className="upload-input"
-                    />
-                  </Field>
                 </div>
 
-                <Field label="YouTube URL (optional)">
+                <Field label="YouTube URL" required>
                   <input
                     type="url"
+                    required
                     maxLength={500}
                     value={youtubeUrl}
                     onChange={(e) => setYoutubeUrl(e.target.value)}
                     placeholder="https://youtube.com/watch?v=…"
                     className="upload-input"
+                    aria-invalid={youtubeInvalid || undefined}
                   />
+                  <span
+                    style={{
+                      fontSize: "0.72rem",
+                      color: "rgba(255,255,255,0.45)",
+                      marginTop: 2,
+                    }}
+                  >
+                    The link to the video this thumbnail belongs to.
+                  </span>
                 </Field>
 
-                {ctrInvalid && (
+                {youtubeInvalid && (
                   <div
                     className="flex items-center gap-2 rounded-lg px-3 py-2"
                     style={{
@@ -466,7 +483,10 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                     }}
                   >
                     <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>CTR must be a number between 0 and 100.</span>
+                    <span>
+                      That doesn't look like a YouTube URL. Paste the full link, e.g.
+                      https://youtube.com/watch?v=…
+                    </span>
                   </div>
                 )}
 

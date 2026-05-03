@@ -132,9 +132,6 @@ export const uploadThumbnailBodyChannelNameMax = 120;
 
 export const uploadThumbnailBodyImageUrlMax = 1000;
 
-export const uploadThumbnailBodyCtrMin = 0;
-export const uploadThumbnailBodyCtrMax = 100;
-
 export const uploadThumbnailBodyYoutubeUrlMax = 500;
 
 export const UploadThumbnailBody = zod.object({
@@ -157,17 +154,11 @@ export const UploadThumbnailBody = zod.object({
     .describe(
       "Object path returned from \/storage\/uploads\/request-url, or a remote https URL.",
     ),
-  ctr: zod
-    .number()
-    .min(uploadThumbnailBodyCtrMin)
-    .max(uploadThumbnailBodyCtrMax)
-    .nullish()
-    .describe("Optional CTR percentage (0-100)"),
   youtubeUrl: zod
     .string()
+    .min(1)
     .max(uploadThumbnailBodyYoutubeUrlMax)
-    .nullish()
-    .describe("Optional public YouTube URL for verification"),
+    .describe("Public YouTube URL the thumbnail belongs to (required)."),
 });
 
 /**

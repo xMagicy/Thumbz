@@ -1,0 +1,46 @@
+CRITICAL: Shorts moeten 100% uit de pool. Geen tolerantie.
+
+Huidige filter is te zwak. Implementeer ALLE onderstaande checks. Een video wordt geweigerd als één check faalt:
+
+Filter 1: Duration nuclear option
+Minimum duration: 180 seconden (3 minuten, exact gelijk aan YouTube's max Shorts duur).
+
+if (duration_seconds <= 180) → SKIP
+Ja dit verliest legitieme korte content. Geen probleem. Trade-off is bewust: zero Shorts > sommige korte tutorials.
+
+Filter 2: Hashtag check (title EN description)
+Skip als title OF description bevat (case-insensitive, regex):
+
+/#?(shorts|short|ytshorts|youtubeshorts|yshort|reel|reels|tiktok)\b/i
+Filter 3: Aspect ratio (zwakker signaal, maar toevoegen)
+Pak thumbnails.maxres of thumbnails.high:
+
+if (thumbnail.height >= thumbnail.width) → SKIP
+Filter 4: Tags array
+Snippet.tags array (case-insensitive substring match):
+
+if any tag contains "short" or "reel" → SKIP
+Filter 5: Thumbnail availability check
+if (thumbnails.maxres is missing AND duration_seconds < 240) → SKIP
+Verklaring: Shorts hebben vaak geen maxres, en duration onder 4 min met deze combinatie = vrijwel zeker een Short.
+
+Aggressive cleanup van bestaande data
+-- Markeer alle waarschijnlijke Shorts als archived
+UPDATE thumbnails 
+SET archived = true 
+WHERE archived IS NOT true 
+  AND (
+    title ~* '#?(shorts|short|ytshorts|youtubeshorts|reel|reels)\b'
+    OR (published_at IS NOT NULL AND view_count > 0 
+        AND view_count / GREATEST(EXTRACT(EPOCH FROM (NOW() - published_at))/3600, 1) > 5000)
+  );
+Tweede conditie pakt Shorts die door ongelooflijk hoge views/uur te verraden zijn (Shorts gaan vaak super viral op een manier die normale videos niet doen).
+
+Verificatie (verplicht na implementatie)
+-- Mag 0 zijn
+SELECT COUNT(*) FROM thumbnails 
+WHERE archived IS NOT true 
+  AND (title ~* '#?(shorts|short|reel)\b' 
+       OR title ILIKE '%youtube short%');
+Plus: handmatig 10 random thumbnails uit Tutorial tab checken in de UI. Geen vertical thumbnails toegestaan.
+

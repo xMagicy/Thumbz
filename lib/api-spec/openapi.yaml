@@ -412,20 +412,17 @@ components:
           minLength: 1
           maxLength: 1000
           description: Object path returned from /storage/uploads/request-url, or a remote https URL.
-        ctr:
-          type: ["number", "null"]
-          minimum: 0
-          maximum: 100
-          description: Optional CTR percentage (0-100)
         youtubeUrl:
-          type: ["string", "null"]
+          type: string
+          minLength: 1
           maxLength: 500
-          description: Optional public YouTube URL for verification
+          description: Public YouTube URL the thumbnail belongs to (required).
       required:
         - title
         - channelName
         - niche
         - imageUrl
+        - youtubeUrl
 
     BattlePair:
       type: object
