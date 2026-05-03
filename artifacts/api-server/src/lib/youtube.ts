@@ -72,6 +72,10 @@ interface YtVideo {
   };
   statistics?: {
     viewCount?: string;
+    likeCount?: string;
+  };
+  contentDetails?: {
+    duration?: string;
   };
 }
 
@@ -80,19 +84,82 @@ interface YtListResponse {
   error?: { code: number; message: string };
 }
 
-function pickBestThumbnail(v: YtVideo): string | null {
+/**
+ * Quality thumbnail picker — only maxres (1280×720) or high (480×360).
+ * Returns null if neither is present, signalling that the caller should
+ * skip this video (default 120×90 thumbs are usually low-effort uploads).
+ */
+function pickQualityThumbnail(v: YtVideo): string | null {
   const t = v.snippet?.thumbnails;
   if (!t) return null;
-  // Prefer maxres (1280×720) → standard → high → medium → default.
-  // YouTube doesn't always generate maxres for older/smaller videos.
-  return (
-    t.maxres?.url ??
-    t.standard?.url ??
-    t.high?.url ??
-    t.medium?.url ??
-    t.default?.url ??
-    null
-  );
+  return t.maxres?.url ?? t.high?.url ?? null;
+}
+
+/**
+ * Parse ISO 8601 duration (PT#H#M#S) into seconds.
+ * Examples: "PT45S" → 45, "PT2M30S" → 150, "PT1H5M" → 3900.
+ * Returns null on invalid input.
+ */
+function parseIsoDuration(iso: string | undefined): number | null {
+  if (!iso) return null;
+  const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso);
+  if (!m) return null;
+  const h = m[1] ? Number(m[1]) : 0;
+  const min = m[2] ? Number(m[2]) : 0;
+  const s = m[3] ? Number(m[3]) : 0;
+  return h * 3600 + min * 60 + s;
+}
+
+/**
+ * Quality gate. Returns null if the video passes, or a string reason
+ * for logging/debugging if it should be skipped.
+ *
+ * Filters (all must pass):
+ *  - Category != 10 (Music) — lyric videos & auto-generated thumbs
+ *  - Published within last 14 days
+ *  - Duration ≥ 60s (excludes most Shorts)
+ *  - viewCount ≥ 100k AND happened within 7d of publish (proven viral)
+ *  - likes/views ≥ 2% (strong engagement signal)
+ *  - Has maxres or high-res thumbnail (handled by caller)
+ */
+const NOW_TS = () => Date.now();
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function qualityCheck(v: YtVideo): string | null {
+  const snippet = v.snippet;
+  const stats = v.statistics;
+  if (!snippet || !stats) return "missing_metadata";
+
+  if (snippet.categoryId === "10") return "music_excluded";
+
+  const publishedAt = new Date(snippet.publishedAt).getTime();
+  if (!Number.isFinite(publishedAt)) return "bad_publish_date";
+
+  const ageMs = NOW_TS() - publishedAt;
+  if (ageMs > 14 * DAY_MS) return "too_old";
+  if (ageMs < 0) return "future_publish_date";
+
+  const durationSec = parseIsoDuration(v.contentDetails?.duration);
+  if (durationSec === null) return "no_duration";
+  if (durationSec < 60) return "short_form";
+
+  const views = Number(stats.viewCount);
+  const likes = Number(stats.likeCount);
+  if (!Number.isFinite(views) || views <= 0) return "no_views";
+
+  // 100k views, prorated against the 7-day window.
+  // If the video is 3 days old we require ≥ 100k * (3/7) ≈ 43k.
+  // Older than 7 days uses the full 100k threshold.
+  const ageDays = ageMs / DAY_MS;
+  const windowDays = Math.min(7, Math.max(0.5, ageDays));
+  const minViewsForAge = (100_000 * windowDays) / 7;
+  if (views < minViewsForAge) return "below_view_velocity";
+
+  if (!Number.isFinite(likes)) return "no_like_count";
+  const engagement = likes / views;
+  if (engagement < 0.02) return "low_engagement";
+
+  return null;
 }
 
 interface SyncResult {
@@ -131,7 +198,7 @@ async function syncRegion(
   };
 
   const url = new URL(`${YT_BASE}/videos`);
-  url.searchParams.set("part", "snippet,statistics");
+  url.searchParams.set("part", "snippet,statistics,contentDetails");
   url.searchParams.set("chart", "mostPopular");
   url.searchParams.set("regionCode", regionCode);
   url.searchParams.set("maxResults", String(maxResults));
@@ -161,16 +228,26 @@ async function syncRegion(
       const videoId = v.id;
       const snippet = v.snippet;
       const stats = v.statistics;
-      const imageUrl = pickBestThumbnail(v);
+      const imageUrl = pickQualityThumbnail(v);
       const viewCountStr = stats?.viewCount;
 
-      if (!videoId || !snippet || !imageUrl || !viewCountStr) {
+      if (!videoId || !snippet || !viewCountStr) {
+        result.skipped += 1;
+        continue;
+      }
+      if (!imageUrl) {
         result.skipped += 1;
         continue;
       }
 
       const viewCount = Number(viewCountStr);
       if (!Number.isFinite(viewCount)) {
+        result.skipped += 1;
+        continue;
+      }
+
+      const failReason = qualityCheck(v);
+      if (failReason) {
         result.skipped += 1;
         continue;
       }
