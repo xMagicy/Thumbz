@@ -1,0 +1,134 @@
+Volledige systeem-audit verzoek
+Geef me een uitgebreide, eerlijke inventaris van het complete YouTube sync + battle systeem zoals het NU in de codebase staat. Niet wat de plannen zijn, niet wat de comments beweren — wat er werkelijk gebeurt als ik het systeem run.
+
+Volg deze structuur exact. Geen samenvatting, alle details. Wees brutaal eerlijk over bugs, half-af features, en delen die afwijken van wat ik je heb gevraagd.
+
+1. Sourcing pipeline
+1.1 API endpoints
+Per call: endpoint, exact parameters, aantal calls per sync run, totaal quota per dag.
+
+1.2 Filter chain (volledig en in volgorde)
+Lijst alle filter rules met exacte threshold values. Per filter:
+
+Naam
+Conditie (in code-stijl)
+Welke videos het uitsluit
+Inclusief: duration, viewCount, views/uur, engagement rate, view-to-sub ratio (alle tiers), category exclusions, channel name blacklist (volledige lijst), thumbnail quality checks, Shorts detection (alle signalen), trailer detection, language detection.
+
+1.3 Schedule
+Hoe vaak draait de sync werkelijk?
+In-process timer of Replit Scheduled Deployment?
+Wat gebeurt bij restart?
+Anti-overlap mechanisme?
+2. Category classification
+Per category (Gaming, Tech, Tutorial, Finance, Lifestyle, Vlog, Other):
+
+Volledige match rules (categoryIds, keywords, channel patterns)
+Negative signals (must NOT match)
+Evaluation order
+Confidence scoring logic
+Plus: is niche of app_category de bron van waarheid voor matchmaking? Zijn die nog uit sync of is dat opgelost?
+
+3. Matchmaking / pairing
+3.1 Pool selection
+Welke filters worden toegepast bij /api/thumbnails/battle?
+Wordt archived = false ook echt uitgesloten?
+3.2 Pairing algoritme (pickPair)
+Stap voor stap wat er gebeurt:
+
+Bucketing (op welke velden)
+View tier ranges (exact)
+ELO proximity range — geïmplementeerd of nog steeds in comments?
+Cold-start calibratie (battle_count < 5) — geïmplementeerd?
+Decaying upload boost (3x → 1.5x → 1x) — geïmplementeerd?
+Channel deduplication
+Fallback chains
+3.3 "All" tab gedrag
+Hoe rotate je categories? Random? Round-robin?
+
+4. ELO + voting
+ELO formula (base, division)
+K-factor logic
+Update flow per battle
+Schrijven naar rating_history?
+Vote anti-spam: rate limit per IP/sessie? Idempotency keys? Anti-cheat?
+5. Pool curation
+5.1 Auto-archive triggers
+enforceCategoryBalance: criteria, frequency, hoeveel rows per run
+archiveUnderperformers: criteria, frequency
+Andere archive triggers?
+5.2 Hard data integrity
+image_url validatie bij sync (HEAD request? Niet-leeg constraint?)
+duplicate prevention (UNIQUE constraint op video_id?)
+Mismatched data detection
+6. Database schema
+6.1 Tabellen (volledig)
+Voor elke relevante tabel: alle kolommen, types, defaults, NOT NULL, foreign keys, indexen.
+
+6.2 Welke kolommen worden NIET gevuld?
+Lijst kolommen die in schema bestaan maar nooit door de sync worden geschreven (zoals views_per_hour, breakout_score, channel_age_days). Geef voor elk aan: bedoeld voor wat, en waarom nog niet geïmplementeerd.
+
+6.3 Onbeperkt groeiende tabellen
+Welke tabellen hebben geen TTL/cleanup? Hoeveel rows per dag? Wanneer wordt dit een probleem?
+
+7. User upload flow
+Upload validatie (size, content-type, dimensions, virus scan?)
+Auth/rate limit op upload?
+Auto-classifier voor upload categorie?
+Instant battle redirect: geïmplementeerd?
+Decaying boost (3x in eerste 10 battles): geïmplementeerd?
+Moderation/review queue: bestaat?
+Per-user upload limit (max actieve uploads)?
+8. Recente fixes — wat er WERKELIJK live is
+Voor elk van deze recent gevraagde fixes: status (live / WIP / niet gestart), geïmplementeerd zoals gevraagd of afgeweken?
+
+P0: archived bug in matchmaking (battle query filter)
+P0: persist berekende velden (views_per_hour, breakout_score, etc.)
+P0: ELO proximity in pickPair
+P0: cold-start calibratie
+P0: niche → app_category migratie
+Shorts filter (aspect ratio + hashtag check)
+Strenge Shorts filter v2 (180s minimum + multiple signals)
+Trailer/commercial filter
+Decaying upload boost
+Intro-scherm reset bij refresh
+9. Bekende bugs en quirks
+Welke bugs ken je nu nog?
+Welke features zijn half-af?
+Welke quick fixes heb je gemaakt die "tijdelijk" zijn maar nog niet vervangen?
+Welke tests/edge cases zijn niet gedekt?
+10. Pool gezondheid metrics
+Run deze queries en geef output:
+
+-- Aantal actieve thumbnails per category
+SELECT app_category, COUNT(*) FROM thumbnails WHERE archived IS NOT true GROUP BY 1 ORDER BY 2 DESC;
+
+-- Aantal Shorts/trailers nog in pool (mag 0 zijn)
+SELECT COUNT(*) FROM thumbnails 
+WHERE archived IS NOT true 
+  AND (title ~* '\b(short|trailer|teaser)s?\b' OR channel_name ~* '\b(studios|pictures|films)\b');
+
+-- Channel diversity check
+SELECT channel_name, COUNT(*) FROM thumbnails 
+WHERE archived IS NOT true 
+GROUP BY 1 HAVING COUNT(*) > 2;
+
+-- ELO distributie sanity
+SELECT 
+  COUNT(*) total,
+  ROUND(AVG(elo_rating)) avg_elo,
+  MIN(elo_rating), MAX(elo_rating),
+  COUNT(*) FILTER (WHERE battle_count = 0) untested,
+  COUNT(*) FILTER (WHERE is_user_upload = true) user_uploads
+FROM thumbnails WHERE archived IS NOT true;
+
+-- Top 10 op breakout_score (test of het veld nu werkt)
+SELECT title, channel_name, breakout_score, view_count, subscriber_count
+FROM thumbnails 
+WHERE archived IS NOT true AND breakout_score IS NOT NULL
+ORDER BY breakout_score DESC LIMIT 10;
+11. Wat zou JIJ veranderen?
+Vrije tekst: gegeven de huidige codebase en wat ik je heb gevraagd te bouwen — wat zou jij prioriteren als jij in mijn schoenen stond? Welke 3 verbeteringen geven de grootste impact?
+
+Belangrijk: wees eerlijk. Als iets niet werkt, zeg het. Als je een fix hebt overgeslagen omdat je dacht dat hij niet belangrijk was, zeg het. Als je iets anders hebt gedaan dan ik vroeg, zeg het en leg uit waarom. Geen marketing-versie.
+

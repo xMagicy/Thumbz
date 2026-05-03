@@ -85,6 +85,15 @@ const CHANNEL_BLOCKLIST_TERMS = [
   // Brand channels
   "Apple", "Samsung", "Google", "Microsoft", "Coca-Cola", "Pepsi",
   "Nike", "Adidas", "McDonald's", "Tesla",
+  // Trailer / commercial channel suffixes (urgent patch — Ultimate
+  // Studios + JoBlo Movie Network + similar slipped through). Matches
+  // \b…\b so "Vsauce" is safe but "Foo TV" / "Bar Movies" / "Baz Concept
+  // Trailers" all hit. "TV" and "Media" intentionally aggressive — the
+  // zero-tolerance brief says we'd rather lose a few legit creators
+  // than ship one trailer pair to a creator.
+  "Productions", "Entertainment Group", "Media Group", "Media", "TV",
+  "Channel", "Official", "Music Group", "Animation", "Concept",
+  "Trailers", "Movies", "Movieclips", "Movie Network",
 ];
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -259,6 +268,34 @@ function pickAspectThumbnail(v: YtVideo): YtThumbnail | null {
     v.snippet?.thumbnails?.maxres ?? v.snippet?.thumbnails?.high ?? null
   );
 }
+
+// ─── Trailer / commercial content detection (urgent patch) ────────────
+// Six independent signals; a single match rejects the video. Same
+// zero-tolerance posture as the Shorts gate — we'd rather over-reject a
+// few legit creator videos than ship one movie-trailer thumbnail.
+const TRAILER_TITLE_PATTERN =
+  /\b(trailer|teaser|first look|sneak peek|coming soon|in theaters|now streaming|premieres?|official trailer|concept trailer|fan trailer|behind the scenes)\b/i;
+// Year-in-parens patterns: catches "Knight Rider Rebirth (2026) | Concept
+// Trailer", "Concept Trailer (2026)", etc. Two regexes because the year
+// can sit on either side of the trailer keyword.
+const TRAILER_YEAR_BEFORE_PATTERN =
+  /\(\d{4}\).*(trailer|teaser|first look)/i;
+const TRAILER_YEAR_AFTER_PATTERN =
+  /(trailer|teaser|first look).*\(\d{4}\)/i;
+// Cast-list pattern: "Jensen Ackles, Mads Mikkelsen, Scarlett Johansson"
+// — two consecutive Capitalized two-word names separated by a comma.
+// Almost exclusively a movie/show cast announcement.
+const CAST_LIST_PATTERN =
+  /[A-Z][a-z]+ [A-Z][a-z]+,\s*[A-Z][a-z]+ [A-Z][a-z]+/;
+// Description markers — copyright/distribution language that virtually
+// only appears on commercial content.
+const COMMERCIAL_DESCRIPTION_PATTERN =
+  /\b(in theaters|streaming on|now playing|available now|releases on|premieres on|catch (it|him|her) on|presented by|sponsored by|in association with|all rights reserved)\b/i;
+
+// Filter 7 thresholds (logging only, not auto-skip): movie/trailer
+// channels have low subs but viral single-video views.
+const SUSPECT_VIEW_THRESHOLD = 10_000_000;
+const SUSPECT_SUB_THRESHOLD = 1_000_000;
 
 interface YtListResponse {
   items?: YtVideo[];
@@ -455,6 +492,62 @@ function passesPreClassifierFilters(
   if (snippet.channelTitle && CHANNEL_NAME_BLOCKLIST.test(snippet.channelTitle)) {
     return "channel_blocklist";
   }
+
+  // ─── Zero-tolerance trailer / commercial gate (urgent patch) ─────────
+  // Same posture as the Shorts gate: each signal gets its own skip-reason
+  // so per-reason telemetry stays useful, and the cheapest text checks
+  // run first. Placed before the duration/view/velocity gates so even a
+  // viral trailer with great velocity still gets cleanly attributed.
+  const title = snippet.title;
+  if (TRAILER_TITLE_PATTERN.test(title)) return "trailer_title_keyword";
+  if (
+    TRAILER_YEAR_BEFORE_PATTERN.test(title) ||
+    TRAILER_YEAR_AFTER_PATTERN.test(title)
+  ) {
+    return "trailer_year_pattern";
+  }
+  if (CAST_LIST_PATTERN.test(title)) return "trailer_cast_list";
+  if (
+    snippet.description &&
+    COMMERCIAL_DESCRIPTION_PATTERN.test(snippet.description)
+  ) {
+    return "trailer_commercial_description";
+  }
+  // CategoryId 1 (Film & Animation) is already in EXCLUDED_CATEGORIES
+  // above. Filter 6 extension: also reject categoryId 24 (Entertainment)
+  // when the title carries a trailer keyword — keeps regular Entertainment
+  // creators in the pool but kills the "uploaded under Entertainment to
+  // dodge the Film&Animation block" workaround that movie channels use.
+  if (
+    snippet.categoryId === "24" &&
+    TRAILER_TITLE_PATTERN.test(title)
+  ) {
+    return "trailer_entertainment_category";
+  }
+  // Filter 7 (logging only — not a skip). Channels with <1M subs but a
+  // single video over 10M views are a textbook trailer/aggregator
+  // pattern. We don't auto-skip because legit creator breakouts hit the
+  // same shape (which is exactly the signal this product is designed to
+  // surface), but we want a paper trail when it happens.
+  const viewsForCheck = Number(stats.viewCount);
+  if (
+    Number.isFinite(viewsForCheck) &&
+    viewsForCheck > SUSPECT_VIEW_THRESHOLD &&
+    subscriberCount !== null &&
+    subscriberCount < SUSPECT_SUB_THRESHOLD
+  ) {
+    logger.warn(
+      {
+        videoId: v.id,
+        title,
+        channelTitle: snippet.channelTitle,
+        viewCount: viewsForCheck,
+        subscriberCount,
+      },
+      "Suspect trailer/aggregator pattern (low subs, viral single video)",
+    );
+  }
+
   const publishedAt = new Date(snippet.publishedAt).getTime();
   if (!Number.isFinite(publishedAt)) return "bad_publish_date";
   const ageMs = NOW_TS() - publishedAt;
