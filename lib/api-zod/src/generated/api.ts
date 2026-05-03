@@ -208,6 +208,27 @@ export const GetBattlePairResponse = zod.object({
 });
 
 /**
+ * Returns the recorded ELO rating points for a thumbnail in chronological
+order (oldest first). Each point is a snapshot recorded after a battle.
+
+ * @summary Get a thumbnail's rating history
+ */
+export const GetThumbnailRatingHistoryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetThumbnailRatingHistoryResponse = zod.object({
+  thumbnailId: zod.number(),
+  currentRating: zod.number(),
+  points: zod.array(
+    zod.object({
+      rating: zod.number(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
+
+/**
  * Returns total vote count and recent battle history
  * @summary Get battle stats
  */

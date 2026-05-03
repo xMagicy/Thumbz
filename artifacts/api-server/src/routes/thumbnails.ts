@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, thumbnailsTable } from "@workspace/db";
+import { db, thumbnailsTable, ratingHistoryTable } from "@workspace/db";
 import { sql, desc, asc, eq, and, type SQL } from "drizzle-orm";
 import { UploadThumbnailBody } from "@workspace/api-zod";
 
@@ -115,6 +115,57 @@ router.get("/battle", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to get battle pair");
     return res.status(500).json({ error: "Failed to get battle pair" });
+  }
+});
+
+// GET /api/thumbnails/:id/rating-history — recorded ELO snapshots, oldest first.
+// Capped server-side to the most recent 50 points so the chart payload stays
+// small even after a thumbnail accumulates thousands of battles.
+router.get("/:id/rating-history", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid thumbnail id" });
+  }
+
+  try {
+    const [thumb] = await db
+      .select({ id: thumbnailsTable.id, eloRating: thumbnailsTable.eloRating })
+      .from(thumbnailsTable)
+      .where(eq(thumbnailsTable.id, id));
+
+    if (!thumb) {
+      return res.status(404).json({ error: `Thumbnail ${id} not found` });
+    }
+
+    // Pull the most recent N points DESC, then reverse to chronological order
+    // for the client. We do not have a single SQL `ORDER BY ... LIMIT` followed
+    // by a re-sort in one statement here; reversing in JS is fine for N<=50.
+    const recent = await db
+      .select({
+        rating: ratingHistoryTable.rating,
+        createdAt: ratingHistoryTable.createdAt,
+      })
+      .from(ratingHistoryTable)
+      .where(eq(ratingHistoryTable.thumbnailId, id))
+      .orderBy(desc(ratingHistoryTable.createdAt))
+      .limit(50);
+
+    const points = recent
+      .slice()
+      .reverse()
+      .map((p) => ({
+        rating: p.rating,
+        createdAt: p.createdAt.toISOString(),
+      }));
+
+    return res.json({
+      thumbnailId: thumb.id,
+      currentRating: thumb.eloRating,
+      points,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to load rating history");
+    return res.status(500).json({ error: "Failed to load rating history" });
   }
 });
 

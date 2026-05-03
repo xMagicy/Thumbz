@@ -132,6 +132,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /thumbnails/{id}/rating-history:
+    get:
+      operationId: getThumbnailRatingHistory
+      tags: [thumbnails]
+      summary: Get a thumbnail's rating history
+      description: |
+        Returns the recorded ELO rating points for a thumbnail in chronological
+        order (oldest first). Each point is a snapshot recorded after a battle.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rating history points
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RatingHistoryResponse"
+        "404":
+          description: Thumbnail not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /battles:
     get:
       operationId: listBattles
@@ -521,6 +549,33 @@ components:
         - uploadURL
         - objectPath
         - metadata
+
+    RatingHistoryPoint:
+      type: object
+      properties:
+        rating:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - rating
+        - createdAt
+
+    RatingHistoryResponse:
+      type: object
+      properties:
+        thumbnailId:
+          type: integer
+        currentRating:
+          type: integer
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/RatingHistoryPoint"
+      required:
+        - thumbnailId
+        - currentRating
+        - points
 
     ErrorResponse:
       type: object

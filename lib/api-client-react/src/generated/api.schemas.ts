@@ -188,6 +188,17 @@ export interface UploadUrlInfo {
   metadata: UploadUrlInfoMetadata;
 }
 
+export interface RatingHistoryPoint {
+  rating: number;
+  createdAt: string;
+}
+
+export interface RatingHistoryResponse {
+  thumbnailId: number;
+  currentRating: number;
+  points: RatingHistoryPoint[];
+}
+
 export interface ErrorResponse {
   error: string;
 }

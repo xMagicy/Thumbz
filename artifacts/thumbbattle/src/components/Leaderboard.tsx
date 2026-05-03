@@ -404,7 +404,7 @@ export function Leaderboard({
                         </span>
                         <div className="flex items-center gap-2">
                           <EloSparkline
-                            seed={thumb.id}
+                            thumbnailId={thumb.id}
                             currentElo={Math.round(thumb.eloRating)}
                           />
                           <div

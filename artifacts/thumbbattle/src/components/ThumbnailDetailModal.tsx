@@ -236,7 +236,7 @@ export function ThumbnailDetailModal({
               </div>
 
               <EloTrendChart
-                seed={thumbnail.id}
+                thumbnailId={thumbnail.id}
                 currentElo={Math.round(thumbnail.eloRating)}
               />
 

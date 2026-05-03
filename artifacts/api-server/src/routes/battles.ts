@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, battlesTable, thumbnailsTable } from "@workspace/db";
+import { db, battlesTable, thumbnailsTable, ratingHistoryTable } from "@workspace/db";
 import { eq, count, desc, inArray } from "drizzle-orm";
 import { CastVoteBody } from "@workspace/api-zod";
 
@@ -118,6 +118,11 @@ router.post("/vote", async (req, res) => {
       .returning();
 
     await db.insert(battlesTable).values({ winnerId, loserId });
+
+    await db.insert(ratingHistoryTable).values([
+      { thumbnailId: winnerId, rating: newWinnerElo },
+      { thumbnailId: loserId, rating: newLoserElo },
+    ]);
 
     const [{ total }] = await db.select({ total: count() }).from(battlesTable);
 

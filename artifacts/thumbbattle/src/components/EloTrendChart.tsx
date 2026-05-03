@@ -7,36 +7,50 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { useGetThumbnailRatingHistory } from "@workspace/api-client-react";
 
 const inter = "'Inter', system-ui, sans-serif";
-
-const POINT_COUNT = 10;
 
 export interface EloTrendPoint {
   index: number;
   rating: number;
+  createdAt?: string;
 }
 
 /**
- * Deterministic placeholder Elo trend used by both the inline sparkline and
- * the larger modal chart. Pure visual filler — never reads from the DB. The
- * trend always lands on the thumbnail's current Elo so the last point matches
- * the row's displayed rating.
+ * Hook that loads a thumbnail's recorded ELO history from the server and
+ * normalizes it into chart-ready points (1-indexed `index` + `rating`).
+ *
+ * Fallback: if there are fewer than 2 recorded points (a brand-new thumbnail
+ * or one that hasn't fought yet) we synthesize a flat 2-point line at the
+ * thumbnail's current rating so the chart still has something to render
+ * instead of collapsing to a single dot.
  */
-export function useEloTrendData(seed: number, currentElo: number): EloTrendPoint[] {
-  return useMemo(() => {
-    const pts: EloTrendPoint[] = [];
-    let v = currentElo - 28;
-    let s = (seed * 9301 + 49297) % 233280;
-    for (let i = 0; i < POINT_COUNT - 1; i++) {
-      s = (s * 9301 + 49297) % 233280;
-      const r = s / 233280 - 0.5;
-      v += r * 18;
-      pts.push({ index: i + 1, rating: Math.round(v) });
+export function useRealEloTrend(thumbnailId: number, currentElo: number) {
+  const query = useGetThumbnailRatingHistory(thumbnailId, {
+    query: {
+      // Cache briefly — history only changes after a vote on this thumbnail.
+      staleTime: 30_000,
+    },
+  });
+
+  const points = useMemo<EloTrendPoint[]>(() => {
+    const raw = query.data?.points ?? [];
+    if (raw.length >= 2) {
+      return raw.map((p, i) => ({
+        index: i + 1,
+        rating: p.rating,
+        createdAt: p.createdAt,
+      }));
     }
-    pts.push({ index: POINT_COUNT, rating: currentElo });
-    return pts;
-  }, [seed, currentElo]);
+    // Fallback flat line at the current rating.
+    return [
+      { index: 1, rating: currentElo },
+      { index: 2, rating: currentElo },
+    ];
+  }, [query.data, currentElo]);
+
+  return { points, isLoading: query.isLoading, isFallback: (query.data?.points.length ?? 0) < 2 };
 }
 
 function trendColors(points: EloTrendPoint[]) {
@@ -50,19 +64,18 @@ function trendColors(points: EloTrendPoint[]) {
 }
 
 /**
- * Compact inline SVG sparkline shown in leaderboard rows. Adds a hover
- * tooltip showing the rating value at the hovered point. Mouse events bubble
- * up normally so the surrounding row's click-to-open behavior still fires
- * when the user clicks the sparkline area.
+ * Compact inline SVG sparkline shown in leaderboard rows. Reads real history
+ * from the API; falls back to a flat line at `currentElo` when the thumbnail
+ * has fewer than 2 recorded points.
  */
 export function EloSparkline({
-  seed,
+  thumbnailId,
   currentElo,
 }: {
-  seed: number;
+  thumbnailId: number;
   currentElo: number;
 }) {
-  const points = useEloTrendData(seed, currentElo);
+  const { points } = useRealEloTrend(thumbnailId, currentElo);
   const { trendUp, stroke, fill } = trendColors(points);
 
   const ratings = points.map((p) => p.rating);
@@ -175,27 +188,32 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 /**
- * Larger interactive Recharts version used in the detail modal. Uses the same
- * deterministic seeded data as the inline sparkline so the trend visually
- * matches between the row and the modal.
+ * Larger interactive Recharts version used in the detail modal. Reads the
+ * thumbnail's real recorded rating history; flat-lines at `currentElo` if
+ * fewer than 2 points have been recorded yet.
  */
 export function EloTrendChart({
-  seed,
+  thumbnailId,
   currentElo,
   height = 160,
 }: {
-  seed: number;
+  thumbnailId: number;
   currentElo: number;
   height?: number;
 }) {
-  const data = useEloTrendData(seed, currentElo);
+  const { points: data, isFallback } = useRealEloTrend(thumbnailId, currentElo);
   const { stroke, fillSolid } = trendColors(data);
-  const gradientId = `elo-grad-${seed}`;
+  const gradientId = `elo-grad-${thumbnailId}`;
 
   const ratings = data.map((p) => p.rating);
   const min = Math.min(...ratings);
   const max = Math.max(...ratings);
   const pad = Math.max(6, Math.round((max - min) * 0.18));
+
+  const totalPoints = data.length;
+  const subtitle = isFallback
+    ? "No battles yet"
+    : `Last ${totalPoints} ${totalPoints === 1 ? "battle" : "battles"}`;
 
   return (
     <div
@@ -228,7 +246,7 @@ export function EloTrendChart({
             color: "rgba(255,255,255,0.4)",
           }}
         >
-          Last {POINT_COUNT} battles
+          {subtitle}
         </span>
       </div>
       <ChartContainer
@@ -282,7 +300,9 @@ export function EloTrendChart({
               <ChartTooltipContent
                 indicator="dot"
                 labelFormatter={(label) =>
-                  `Battle ${label} of ${POINT_COUNT}`
+                  isFallback
+                    ? "Current rating"
+                    : `Battle ${label} of ${totalPoints}`
                 }
               />
             }

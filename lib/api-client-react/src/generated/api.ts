@@ -25,6 +25,7 @@ import type {
   GetBattlePairParams,
   HealthStatus,
   ListThumbnailsParams,
+  RatingHistoryResponse,
   Thumbnail,
   UploadThumbnailRequest,
   UploadUrlInfo,
@@ -393,6 +394,101 @@ export function useGetBattlePair<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetBattlePairQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns the recorded ELO rating points for a thumbnail in chronological
+order (oldest first). Each point is a snapshot recorded after a battle.
+
+ * @summary Get a thumbnail's rating history
+ */
+export const getGetThumbnailRatingHistoryUrl = (id: number) => {
+  return `/api/thumbnails/${id}/rating-history`;
+};
+
+export const getThumbnailRatingHistory = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RatingHistoryResponse> => {
+  return customFetch<RatingHistoryResponse>(
+    getGetThumbnailRatingHistoryUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetThumbnailRatingHistoryQueryKey = (id: number) => {
+  return [`/api/thumbnails/${id}/rating-history`] as const;
+};
+
+export const getGetThumbnailRatingHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getThumbnailRatingHistory>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getThumbnailRatingHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetThumbnailRatingHistoryQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getThumbnailRatingHistory>>
+  > = ({ signal }) =>
+    getThumbnailRatingHistory(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getThumbnailRatingHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetThumbnailRatingHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getThumbnailRatingHistory>>
+>;
+export type GetThumbnailRatingHistoryQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get a thumbnail's rating history
+ */
+
+export function useGetThumbnailRatingHistory<
+  TData = Awaited<ReturnType<typeof getThumbnailRatingHistory>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getThumbnailRatingHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetThumbnailRatingHistoryQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

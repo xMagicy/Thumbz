@@ -16,6 +16,8 @@ export * from "./getBattlePairParams";
 export * from "./healthStatus";
 export * from "./listThumbnailsParams";
 export * from "./listThumbnailsSort";
+export * from "./ratingHistoryPoint";
+export * from "./ratingHistoryResponse";
 export * from "./recentBattle";
 export * from "./thumbnail";
 export * from "./uploadThumbnailRequest";
