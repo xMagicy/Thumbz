@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, battlesTable, thumbnailsTable } from "@workspace/db";
-import { eq, count, desc } from "drizzle-orm";
+import { eq, count, desc, inArray } from "drizzle-orm";
 import { CastVoteBody } from "@workspace/api-zod";
 
 const router = Router();
@@ -37,23 +37,29 @@ router.get("/", async (req, res) => {
       .orderBy(desc(battlesTable.createdAt))
       .limit(10);
 
-    const recentBattles = await Promise.all(
-      recentRows.map(async (row) => {
-        const [loser] = await db
-          .select({ title: thumbnailsTable.title })
-          .from(thumbnailsTable)
-          .where(eq(thumbnailsTable.id, row.loserId));
+    // Fetch all loser titles in a single IN(...) query and build a lookup map.
+    // The previous version did one query per battle (N+1), which inflated this
+    // endpoint to ~11 queries for the standard 10-row response.
+    const loserIds = Array.from(new Set(recentRows.map((r) => r.loserId)));
+    const loserTitleById = new Map<number, string>();
+    if (loserIds.length > 0) {
+      const loserRows = await db
+        .select({ id: thumbnailsTable.id, title: thumbnailsTable.title })
+        .from(thumbnailsTable)
+        .where(inArray(thumbnailsTable.id, loserIds));
+      for (const row of loserRows) {
+        loserTitleById.set(row.id, row.title);
+      }
+    }
 
-        return {
-          id: row.id,
-          winnerId: row.winnerId,
-          loserId: row.loserId,
-          winnerTitle: row.winnerTitle ?? "Unknown",
-          loserTitle: loser?.title ?? "Unknown",
-          createdAt: row.createdAt.toISOString(),
-        };
-      })
-    );
+    const recentBattles = recentRows.map((row) => ({
+      id: row.id,
+      winnerId: row.winnerId,
+      loserId: row.loserId,
+      winnerTitle: row.winnerTitle ?? "Unknown",
+      loserTitle: loserTitleById.get(row.loserId) ?? "Unknown",
+      createdAt: row.createdAt.toISOString(),
+    }));
 
     res.json({
       totalVotes: Number(total),
