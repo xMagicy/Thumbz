@@ -12,6 +12,7 @@
     "cleanup-bad-content": "tsx ./src/cleanupBadContent.ts",
     "backfill-thumbnail-dimensions": "tsx ./src/backfillThumbnailDimensions.ts",
     "restore-broken-backfill": "tsx ./src/restoreBrokenBackfill.ts",
+    "diagnose-shorts": "tsx ./src/diagnoseShorts.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
