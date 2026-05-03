@@ -203,40 +203,19 @@ export function EloSparkline({
   const lastCoord = coords[coords.length - 1];
   const delta = points[points.length - 1].rating - points[0].rating;
 
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-
-  const handleMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
-    const idx = Math.round(ratio * (coords.length - 1));
-    const clamped = Math.max(0, Math.min(coords.length - 1, idx));
-    setHoverIdx(clamped);
-  };
-
-  const hovered = hoverIdx !== null ? coords[hoverIdx] : null;
-  const hoveredDelta =
-    hovered !== null ? hovered.rating - points[0].rating : 0;
-
+  // Pure visual — no hover. The user reads direction with their eyes,
+  // and clicks the row to open the big chart for the full breakdown.
   return (
-    <span
-      className="relative inline-block"
-      style={{ lineHeight: 0 }}
-      onMouseLeave={() => setHoverIdx(null)}
-    >
+    <span className="relative inline-block" style={{ lineHeight: 0 }}>
       <svg
-        ref={svgRef}
         width={W}
         height={H}
         viewBox={`0 0 ${W} ${H}`}
-        className="shrink-0 cursor-crosshair"
+        className="shrink-0 pointer-events-none"
         role="img"
         aria-label={`ELO trend: ${
           isFlat ? "flat" : trendUp ? "up" : "down"
         }, ${delta >= 0 ? "+" : ""}${delta}`}
-        onMouseMove={handleMove}
       >
         <defs>
           {/* Soft glow that bleeds the line color into the area below — the
@@ -280,7 +259,7 @@ export function EloSparkline({
         />
         {/* Endpoint anchor — the eye lands here and immediately reads the
             direction relative to the start of the line. */}
-        {!isFlat && hoverIdx === null && (
+        {!isFlat && (
           <>
             <circle
               cx={lastCoord.x}
@@ -299,90 +278,9 @@ export function EloSparkline({
             />
           </>
         )}
-        {hovered && (
-          <>
-            <line
-              x1={hovered.x}
-              x2={hovered.x}
-              y1={0}
-              y2={H}
-              stroke={stroke}
-              strokeOpacity={0.55}
-              strokeWidth={1}
-              strokeDasharray="2 2"
-            />
-            <circle
-              cx={hovered.x}
-              cy={hovered.y}
-              r={4}
-              fill={stroke}
-              fillOpacity={0.25}
-            />
-            <circle
-              cx={hovered.x}
-              cy={hovered.y}
-              r={2.4}
-              fill={stroke}
-              stroke="#0c0c16"
-              strokeWidth={1}
-            />
-          </>
-        )}
       </svg>
-      {hovered && (
-        <span
-          className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1"
-          style={{
-            left: `${(hovered.x / W) * 100}%`,
-            bottom: "calc(100% + 6px)",
-            fontFamily: inter,
-            fontSize: "0.65rem",
-            color: "#fff",
-            background: "rgba(12,12,22,0.96)",
-            border: "1px solid rgba(168,85,247,0.45)",
-            boxShadow: "0 4px 14px rgba(0,0,0,0.55)",
-            display: "inline-flex",
-            alignItems: "baseline",
-            gap: 6,
-          }}
-        >
-          <span style={{ fontWeight: 700, letterSpacing: "-0.01em" }}>
-            {hovered.rating}
-          </span>
-          {!isFlat && hoveredDelta !== 0 && (
-            <span
-              style={{
-                fontWeight: 600,
-                fontSize: "0.58rem",
-                color: hoveredDelta > 0 ? "#4ade80" : "#f87171",
-              }}
-            >
-              {hoveredDelta > 0 ? "+" : ""}
-              {hoveredDelta}
-            </span>
-          )}
-        </span>
-      )}
     </span>
   );
-}
-
-function formatRelative(iso?: string): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const diffMs = Date.now() - d.getTime();
-  const sec = Math.round(diffMs / 1000);
-  if (sec < 60) return "just now";
-  const min = Math.round(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const day = Math.round(hr / 24);
-  if (day < 30) return `${day}d ago`;
-  const mo = Math.round(day / 30);
-  if (mo < 12) return `${mo}mo ago`;
-  return d.toLocaleDateString();
 }
 
 /**
