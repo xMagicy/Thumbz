@@ -534,7 +534,7 @@ export default function Home() {
       />
 
       {/* Header */}
-      <header className="w-full max-w-7xl mx-auto px-8 py-6 flex flex-row items-center justify-between gap-6 z-20 relative">
+      <header className="w-full max-w-7xl mx-auto px-8 py-6 flex flex-row items-center justify-between gap-6 z-50 relative">
         {/* Logo: thumbz wordmark — DO NOT CHANGE */}
         <div className="flex items-baseline gap-2">
           <div className="flex items-baseline">
