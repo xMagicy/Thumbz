@@ -126,12 +126,27 @@ async function main() {
 
   // 7. Vertical thumbnails (the persisted flag — only matches rows where
   // sync wrote thumbnail_width/height already; legacy rows pass through
-  // here because is_vertical_thumbnail defaults false).
+  // here because is_vertical_thumbnail defaults false. Run
+  // backfill-thumbnail-dimensions FIRST to populate the column on
+  // legacy rows, then this rule will catch them).
   counts.push({
     rule: "vertical_thumbnail",
     archived: await archiveByRule(
       "vertical_thumbnail",
       sql`is_vertical_thumbnail = TRUE`,
+    ),
+  });
+
+  // 7b. Hashtag soup detector. Three-or-more hashtags in a title is a
+  // near-universal Shorts/TikTok cross-post signature. Tamil motivation
+  // ("Money is Important 💯 #ajayrajendran #facts #lifelessons #…"),
+  // beauty/fitness re-uploads, viral meme accounts — all share this
+  // shape. Catches the entire pattern in one rule.
+  counts.push({
+    rule: "hashtag_soup",
+    archived: await archiveByRule(
+      "hashtag_soup",
+      sql`title ~ '(#[A-Za-z0-9_]+\\s*){3,}'`,
     ),
   });
 
@@ -165,6 +180,7 @@ async function main() {
           OR title ~* '\\(\\d{4}\\).*(trailer|teaser|first look|release)'
           OR title ~* '(trailer|teaser|first look|release).*\\(\\d{4}\\)'
           OR title ~ '(\\s\\|\\s[^|]{2,30}){3,}'
+          OR title ~ '(#[A-Za-z0-9_]+\\s*){3,}'
           OR channel_name ~* '\\m(Studios|Pictures|Films|Productions|Records|VEVO|Network|Shorts|TikTok|Reels|Entertainment|Cinema|Cinemas|Movies|Trailers|Movieclips)\\s*[!.]?\\s*$'
           OR is_vertical_thumbnail = TRUE
         )

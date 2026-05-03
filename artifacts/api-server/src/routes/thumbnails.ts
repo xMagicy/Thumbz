@@ -76,11 +76,24 @@ const BAD_CONTENT_EXCLUSION_SQL = sql`
   -- false-positives like "Marvelous Cooks" matching "Marvel".
   AND ${thumbnailsTable.channelName} !~* '\\m(Marvel|Disney|Pixar|DreamWorks|Warner Bros|Universal|Paramount|Sony Pictures|Lionsgate|Netflix|HBO|Hulu|Disney\\+|CNN|Fox News|MSNBC|BBC News|Cocomelon|Pinkfong|NBA|NFL|FIFA|Coca-Cola|Movieclips|Entertainment Group|Media Group|Music Group|Animation|Trailers|T-Series|Yash Raj Films|Eros Now|Aditya Music)\\M'
 
+  -- Hashtag soup detector: 3+ hashtags in title is a near-universal
+  -- TikTok/Shorts cross-post signature. "Money is Important 💯
+  -- #ajayrajendran #facts #lifelessons #tamilmotivation #motivation"
+  -- — none of those individual hashtags are in our Shorts vocab, but
+  -- the density itself is the signal. claude/backend-fix-1 follow-up
+  -- after this exact case slipped through.
+  AND ${thumbnailsTable.title} !~ '(#[A-Za-z0-9_]+\\s*){3,}'
+
   -- Aspect ratio guard: reject any row where the persisted thumbnail is
   -- vertical (height >= width on ANY API variant at sync time). This is
   -- THE catch-all for Shorts that don't carry hashtags — Hasan Minhaj
   -- podcast clips, vertical creator uploads, etc. Backed by an index
   -- (thumbnails_is_vertical_idx) so the predicate is O(log n).
+  --
+  -- IMPORTANT: legacy rows where this column hasn't been backfilled
+  -- still default to false and pass this check. Run the backfill
+  -- script (scripts/src/backfillThumbnailDimensions.ts) to populate
+  -- existing rows from the YouTube API.
   AND ${thumbnailsTable.isVerticalThumbnail} = false
 `;
 
