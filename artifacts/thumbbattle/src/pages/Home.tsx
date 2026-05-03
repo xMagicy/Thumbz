@@ -22,9 +22,11 @@ import { Leaderboard } from "../components/Leaderboard";
 import { FeedbackDialog } from "../components/FeedbackDialog";
 import { UploadDialog } from "../components/UploadDialog";
 import { SignInDialog } from "../components/SignInDialog";
+import { UserMenu } from "../components/UserMenu";
 import { UploadPromo } from "../components/UploadPromo";
 import { NicheFilterBar, type Niche } from "../components/NicheFilterBar";
 import { ThumbnailDetailModal } from "../components/ThumbnailDetailModal";
+import { useSession } from "../lib/auth-client";
 
 type Sort = (typeof ListThumbnailsSort)[keyof typeof ListThumbnailsSort];
 
@@ -146,6 +148,9 @@ export default function Home() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
+
+  const { data: sessionData, isPending: sessionPending } = useSession();
+  const sessionUser = sessionData?.user ?? null;
 
   // Filter / sort / detail state
   const [niche, setNiche] = useState<Niche>("All");
@@ -422,26 +427,32 @@ export default function Home() {
             Send feedback
           </button>
 
-          {/* Sign in (visual-only — opens dialog with coming-soon banner) */}
-          <button
-            type="button"
-            onClick={() => setSignInOpen(true)}
-            className="hidden sm:flex items-center gap-1.5 rounded-full transition-all hover:scale-[1.03] active:scale-[0.98]"
-            style={{
-              fontFamily: inter,
-              fontWeight: 600,
-              fontSize: "0.78rem",
-              color: "#fff",
-              padding: "6px 14px",
-              background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              boxShadow: "0 6px 18px -4px rgba(217,70,239,0.4)",
-              letterSpacing: "0.01em",
-            }}
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            Sign in
-          </button>
+          {/* Auth header slot — UserMenu when signed in, Sign in button otherwise.
+              While the session is still resolving we render nothing to avoid a
+              flash of the wrong state on first paint. */}
+          {sessionPending ? null : sessionUser ? (
+            <UserMenu name={sessionUser.name ?? ""} email={sessionUser.email} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSignInOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 rounded-full transition-all hover:scale-[1.03] active:scale-[0.98]"
+              style={{
+                fontFamily: inter,
+                fontWeight: 600,
+                fontSize: "0.78rem",
+                color: "#fff",
+                padding: "6px 14px",
+                background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                boxShadow: "0 6px 18px -4px rgba(217,70,239,0.4)",
+                letterSpacing: "0.01em",
+              }}
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Sign in
+            </button>
+          )}
 
         {/* Refined live indicator: green pulsing dot, LIVE small caps, N matches today secondary */}
         <div
