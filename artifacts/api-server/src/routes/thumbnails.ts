@@ -115,14 +115,13 @@ router.get("/", async (req, res) => {
       eq(thumbnailsTable.status, "active"),
       eq(thumbnailsTable.archived, false),
     ];
-    // Single source of truth (Blok 5): filter on app_category as the primary
-    // bucket, falling back to legacy `niche` for rows where app_category is
-    // still NULL (older user uploads pre-backfill). New uploads write
-    // app_category at insert time so this fallback gradually empties.
+    // Single source of truth (Blok 5, post task #16 backfill): filter on
+    // app_category directly. All legacy NULL rows have been backfilled from
+    // `niche`, and new uploads write app_category at insert time, so the
+    // previous COALESCE fallback is no longer needed. `niche` is now purely
+    // legacy upload-input — see thumbnails schema for details.
     if (niche) {
-      conditions.push(
-        sql`COALESCE(${thumbnailsTable.appCategory}, ${thumbnailsTable.niche}) = ${niche}`,
-      );
+      conditions.push(eq(thumbnailsTable.appCategory, niche));
     }
     const where = and(...conditions);
 
@@ -226,13 +225,11 @@ router.get("/battle", async (req, res) => {
       eq(thumbnailsTable.status, "active"),
       eq(thumbnailsTable.archived, false),
     ];
-    // Same single-source-of-truth filter as the leaderboard list endpoint:
-    // primary bucket is app_category, with niche as legacy fallback for old
-    // user uploads where app_category is still NULL.
+    // Same single-source-of-truth filter as the leaderboard list endpoint
+    // (post task #16 backfill): app_category is the only bucket. Legacy
+    // NULL rows have been backfilled and new uploads set it on insert.
     if (niche) {
-      conditions.push(
-        sql`COALESCE(${thumbnailsTable.appCategory}, ${thumbnailsTable.niche}) = ${niche}`,
-      );
+      conditions.push(eq(thumbnailsTable.appCategory, niche));
     }
     const where = and(...conditions);
 
@@ -242,11 +239,14 @@ router.get("/battle", async (req, res) => {
       return res.status(400).json({ error: "Not enough thumbnails for a battle" });
     }
 
-    // Bucket by app_category (with niche fallback for legacy/user rows).
-    // The cat key is what the matchmaker locks each pair to. When the UI
-    // is on "All", we rotate by picking a random cat per pair.
+    // Bucket by app_category. The cat key is what the matchmaker locks
+    // each pair to. When the UI is on "All", we rotate by picking a
+    // random cat per pair. app_category is the single source of truth
+    // post task #16 backfill — the "Other" coalesce is just a defensive
+    // fallback for the unlikely case that a future write path lands a
+    // row before classification.
     type Row = typeof pool[number];
-    const catKey = (r: Row): string => r.appCategory ?? r.niche ?? "Other";
+    const catKey = (r: Row): string => r.appCategory ?? "Other";
     const byCat = new Map<string, Row[]>();
     for (const row of pool) {
       const k = catKey(row);

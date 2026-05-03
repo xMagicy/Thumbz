@@ -33,6 +33,17 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - Feedback is stored in the `feedback` table (`lib/db/src/schema/feedback.ts`)
   with optional email + page URL + user-agent for context.
 
+### Category model (`niche` vs `app_category`)
+
+- `app_category` is the **single source of truth** for matchmaking and
+  leaderboard filtering. All thumbnail rows have it populated (legacy NULLs
+  were backfilled from `niche` in task #16).
+- `niche` is **legacy upload-input only**: it captures what the uploader
+  picked at upload time and what early seed/YouTube rows were tagged with.
+  New user uploads mirror it into `app_category` on insert; the YouTube
+  classifier writes `app_category` directly. Do not add new query paths
+  that filter on `niche` — use `app_category`.
+
 ### Vote-flow architecture (`Home.tsx`)
 
 The vote → animation → next-pair pipeline is built around a **monotonic

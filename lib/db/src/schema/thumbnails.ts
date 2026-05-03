@@ -21,6 +21,12 @@ export const thumbnailsTable = pgTable(
     title: text("title").notNull(),
     imageUrl: text("image_url").notNull(),
     channelName: text("channel_name").notNull(),
+    // Legacy upload-input field. Captures what the uploader picked at
+    // upload time (and what early seed/YouTube rows were tagged with).
+    // Post task #16 backfill, `app_category` below is the single source of
+    // truth for matchmaking and leaderboard filtering — do not query on
+    // `niche` directly. New uploads mirror this into `app_category` on
+    // insert so both stay in sync at write time.
     niche: text("niche").notNull().default("Other"),
     ctr: real("ctr"),
     youtubeUrl: text("youtube_url"),
@@ -97,7 +103,11 @@ export const thumbnailsTable = pgTable(
     // YouTube's raw categoryId because one categoryId can map to several
     // niches (e.g. categoryId=22 People&Blogs → could be Lifestyle, Vlog,
     // or Finance depending on title). Matchmaking and leaderboard tabs
-    // both read this. NULL for user uploads (they keep `niche`).
+    // both read this — it is the single source of truth for category
+    // filtering (see replit.md "Category model"). User uploads mirror
+    // their picked `niche` into this column on insert; legacy NULL rows
+    // were backfilled from `niche` in task #16. Still nullable in the
+    // schema as a safety net, but list/battle queries assume populated.
     appCategory: text("app_category"),
 
     // ── Blok G velocity + emerging channel signals ─────────────────────
