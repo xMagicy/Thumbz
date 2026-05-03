@@ -8,7 +8,7 @@ interface UploadPromoProps {
 
 export function UploadPromo({ onUploadClick }: UploadPromoProps) {
   return (
-    <section className="w-full max-w-3xl mx-auto px-6 mt-16 z-20 relative">
+    <section className="w-full max-w-3xl mx-auto px-6 mt-6 md:mt-8 z-20 relative">
       <div
         className="rounded-3xl px-8 py-10 md:px-12 md:py-12 relative overflow-hidden"
         style={{
