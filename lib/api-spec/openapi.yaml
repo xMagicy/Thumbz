@@ -67,8 +67,8 @@ paths:
     post:
       operationId: uploadThumbnail
       tags: [thumbnails]
-      summary: Submit a user-uploaded thumbnail for review
-      description: Records a thumbnail with status="pending" — admin approval required before it appears in battles.
+      summary: Submit a user-uploaded thumbnail
+      description: Records a thumbnail with status="active" so it enters the battle pool immediately. Returns the created row so the client can route the user straight into a battle that includes it.
       requestBody:
         required: true
         content:

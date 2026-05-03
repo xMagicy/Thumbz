@@ -217,8 +217,8 @@ export function useListThumbnails<
 }
 
 /**
- * Records a thumbnail with status="pending" — admin approval required before it appears in battles.
- * @summary Submit a user-uploaded thumbnail for review
+ * Records a thumbnail with status="active" so it enters the battle pool immediately. Returns the created row so the client can route the user straight into a battle that includes it.
+ * @summary Submit a user-uploaded thumbnail
  */
 export const getUploadThumbnailUrl = () => {
   return `/api/thumbnails`;
@@ -281,7 +281,7 @@ export type UploadThumbnailMutationBody = BodyType<UploadThumbnailRequest>;
 export type UploadThumbnailMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Submit a user-uploaded thumbnail for review
+ * @summary Submit a user-uploaded thumbnail
  */
 export const useUploadThumbnail = <
   TError = ErrorType<ErrorResponse>,

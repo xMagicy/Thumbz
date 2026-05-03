@@ -258,7 +258,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                     letterSpacing: "-0.01em",
                   }}
                 >
-                  Thumbnail submitted
+                  Your thumbnail is live
                 </h2>
                 <p
                   style={{
@@ -268,8 +268,8 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                     maxWidth: 360,
                   }}
                 >
-                  We'll review it shortly. Once it's approved, it'll start
-                  showing up in the arena.
+                  It's already in the battle pool. Keep voting and watch its
+                  rating climb (or fall) on your dashboard.
                 </p>
                 <button
                   type="button"
@@ -306,8 +306,8 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                       lineHeight: 1.5,
                     }}
                   >
-                    Drop in the thumbnail image and a few details. Submissions
-                    are reviewed before they appear in battles.
+                    Drop in the thumbnail image and a few details. It joins
+                    the battle pool immediately.
                   </p>
                 </div>
 

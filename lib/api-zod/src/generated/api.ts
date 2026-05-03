@@ -70,8 +70,8 @@ export const ListThumbnailsResponseItem = zod.object({
 export const ListThumbnailsResponse = zod.array(ListThumbnailsResponseItem);
 
 /**
- * Records a thumbnail with status="pending" — admin approval required before it appears in battles.
- * @summary Submit a user-uploaded thumbnail for review
+ * Records a thumbnail with status="active" so it enters the battle pool immediately. Returns the created row so the client can route the user straight into a battle that includes it.
+ * @summary Submit a user-uploaded thumbnail
  */
 export const uploadThumbnailBodyTitleMax = 200;
 

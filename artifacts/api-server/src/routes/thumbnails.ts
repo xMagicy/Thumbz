@@ -219,7 +219,12 @@ router.get("/:id/rating-history", async (req, res) => {
   }
 });
 
-// POST /api/thumbnails — user-submitted thumbnail. Saved as status="pending" until admin approval.
+// POST /api/thumbnails — user-submitted thumbnail. Saved as status="active"
+// so the upload immediately enters the battle pool — the user instantly
+// sees their thumbnail show up in real battles, which is a core part of
+// the product feel ("upload → see it live"). Trust + moderation can be
+// layered on later via report flagging or a soft-shadow status, but for
+// now uploads are first-class.
 // If a Better Auth session cookie is present, tag the row with the uploader's
 // userId so it surfaces in their dashboard. Anonymous uploads are still
 // allowed (userId stays NULL).
@@ -257,7 +262,7 @@ router.post("/", async (req, res) => {
         imageUrl,
         ctr: ctr ?? null,
         youtubeUrl: youtubeUrl?.trim() || null,
-        status: "pending",
+        status: "active",
         userId,
       })
       .returning();

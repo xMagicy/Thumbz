@@ -14,83 +14,16 @@ export interface EloTrendPoint {
 }
 
 /**
- * Tiny deterministic PRNG (mulberry32). Seeded by thumbnailId so the
- * synthesized "sample trend" stays stable across renders for the same
- * thumbnail instead of wiggling on every mount.
- */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return function () {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/**
- * Generate a realistic-looking ELO sample trend ending at `currentElo`.
- * Uses a mean-reverting random walk (Ornstein-Uhlenbeck-ish) so the line
- * shows genuine wave movement instead of looking like a synthetic zigzag,
- * then anchors the LAST point to `currentElo` exactly so the chart's
- * endpoint always matches the headline rating.
- *
- * NOT real history — used only when the thumbnail has fewer than 2
- * recorded points so the chart isn't a flat dead line.
- */
-function synthesizeSampleTrend(
-  thumbnailId: number,
-  currentElo: number,
-  count = 22,
-): EloTrendPoint[] {
-  const rand = mulberry32(thumbnailId * 9301 + 49297);
-  // Start ~30-60 points away from the current rating in a random direction
-  // so we get a nice arc TOWARDS the present value.
-  const dir = rand() < 0.5 ? -1 : 1;
-  const startOffset = (30 + rand() * 30) * dir;
-  const startElo = currentElo - startOffset;
-
-  // Mean-reverting walk: each step pulls slightly back toward the linear
-  // path between start and current, plus normal-ish noise. This produces
-  // organic local waves without ever drifting absurdly far off course.
-  const values: number[] = [];
-  let v = startElo;
-  for (let i = 0; i < count; i++) {
-    const t = i / (count - 1);
-    // Linear baseline from start → current.
-    const baseline = startElo + (currentElo - startElo) * t;
-    // Pull-back strength toward baseline (0..1). Higher = tighter to line.
-    const pull = 0.18;
-    // Noise with a slight tail — Box-Muller-ish without sqrt-log cost.
-    const noise = (rand() + rand() + rand() - 1.5) * 14;
-    v = v + (baseline - v) * pull + noise;
-    values.push(v);
-  }
-  // Anchor exactly to currentElo at the end so the chart never visually
-  // contradicts the displayed "current" number.
-  values[values.length - 1] = currentElo;
-
-  // Force a round-number start as well so the first tick reads cleanly.
-  values[0] = Math.round(values[0]);
-
-  return values.map((rating, i) => ({
-    index: i + 1,
-    rating: Math.round(rating),
-  }));
-}
-
-/**
  * Hook that loads a thumbnail's recorded ELO history from the server and
  * normalizes it into chart-ready points (1-indexed `index` + `rating`).
  *
- * Fallback: if there are fewer than 2 recorded points (a brand-new thumbnail
- * or one that hasn't fought yet) we synthesize a richer sample trend with
- * realistic wave movement that ends exactly at the current rating — so the
- * chart actually communicates "here's how this kind of rating evolves"
- * instead of collapsing to a flat dead line.
+ * IMPORTANT: this hook returns ONLY real recorded data points. We never
+ * synthesize or interpolate values — Thumbz is a measurement platform and
+ * showing made-up trend lines would destroy user trust. When there are
+ * fewer than 2 recorded points the caller renders an empty state instead
+ * of a chart.
  */
-export function useRealEloTrend(thumbnailId: number, currentElo: number) {
+export function useRealEloTrend(thumbnailId: number) {
   const query = useGetThumbnailRatingHistory(thumbnailId, {
     query: {
       queryKey: getGetThumbnailRatingHistoryQueryKey(thumbnailId),
@@ -101,20 +34,17 @@ export function useRealEloTrend(thumbnailId: number, currentElo: number) {
 
   const points = useMemo<EloTrendPoint[]>(() => {
     const raw = query.data?.points ?? [];
-    if (raw.length >= 2) {
-      return raw.map((p, i) => ({
-        index: i + 1,
-        rating: p.rating,
-        createdAt: p.createdAt,
-      }));
-    }
-    return synthesizeSampleTrend(thumbnailId, currentElo);
-  }, [query.data, currentElo, thumbnailId]);
+    return raw.map((p, i) => ({
+      index: i + 1,
+      rating: p.rating,
+      createdAt: p.createdAt,
+    }));
+  }, [query.data]);
 
   return {
     points,
     isLoading: query.isLoading,
-    isFallback: (query.data?.points.length ?? 0) < 2,
+    hasData: points.length >= 2,
   };
 }
 
@@ -154,27 +84,48 @@ export function EloSparkline({
   /**
    * Chronological rating snapshots (oldest first) embedded in the thumbnail
    * list response. Pass the empty array for never-battled thumbnails — we
-   * fall back to a flat 2-point line at `currentElo`. CRITICAL: this prop
-   * replaces the previous per-row fetch that caused N+1 network saturation
-   * on the leaderboard.
+   * render a muted dash placeholder so it's visually obvious there's no
+   * trend yet (instead of faking a flat line that could be mistaken for
+   * real "no movement" data). CRITICAL: this prop replaces the previous
+   * per-row fetch that caused N+1 network saturation on the leaderboard.
    */
   recentRatings: number[];
   currentElo: number;
 }) {
-  const points = useMemo<EloTrendPoint[]>(() => {
-    if (recentRatings.length >= 2) {
-      return recentRatings.map((rating, i) => ({ index: i + 1, rating }));
-    }
-    return [
-      { index: 1, rating: currentElo },
-      { index: 2, rating: currentElo },
-    ];
-  }, [recentRatings, currentElo]);
-  const { trendUp, isFlat, stroke, fillSolid } = trendColors(points);
-
+  void currentElo;
+  // All hooks must run unconditionally — empty-state branch comes after.
+  const points = useMemo<EloTrendPoint[]>(
+    () => recentRatings.map((rating, i) => ({ index: i + 1, rating })),
+    [recentRatings],
+  );
   // Per-instance ids so the SVG <defs> for glow/gradient don't collide
   // across the dozens of sparklines rendered on the leaderboard.
   const reactId = useId();
+
+  // Honest empty-state: fewer than 2 real points means no trend exists.
+  // Render a small muted dash rather than a misleading flat line.
+  if (recentRatings.length < 2) {
+    return (
+      <span
+        className="inline-flex items-center justify-center"
+        style={{
+          width: 76,
+          height: 28,
+          color: "rgba(255,255,255,0.25)",
+          fontSize: "0.85rem",
+          fontWeight: 600,
+          letterSpacing: "0.2em",
+          fontFamily: inter,
+        }}
+        aria-label="No rating history yet"
+        title="No battles yet"
+      >
+        — — —
+      </span>
+    );
+  }
+  const { trendUp, isFlat, stroke, fillSolid } = trendColors(points);
+
   const safeId = reactId.replace(/[:]/g, "");
   const filterId = `spark-glow-${safeId}`;
   const gradId = `spark-grad-${safeId}`;
@@ -333,7 +284,71 @@ export function EloTrendChart({
   currentElo: number;
   height?: number;
 }) {
-  const { points: data, isFallback } = useRealEloTrend(thumbnailId, currentElo);
+  const { points: data, hasData, isLoading } = useRealEloTrend(thumbnailId);
+
+  // Honest empty state: when we don't have at least 2 real recorded points
+  // we render a calm placeholder card with the current rating instead of
+  // drawing a chart. This is a measurement platform — fake trends would
+  // destroy trust. The card matches the chart's chrome so the modal layout
+  // stays stable.
+  if (!hasData) {
+    return (
+      <div
+        className="rounded-xl relative flex flex-col items-center justify-center text-center"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015))",
+          border: "1px solid rgba(255,255,255,0.08)",
+          padding: "20px 14px",
+          minHeight: Math.max(160, height),
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 28px -16px rgba(0,0,0,0.6)",
+          fontFamily: inter,
+        }}
+      >
+        <span
+          className="uppercase mb-2"
+          style={{
+            fontWeight: 600,
+            fontSize: "0.62rem",
+            letterSpacing: "0.14em",
+            color: "rgba(255,255,255,0.55)",
+          }}
+        >
+          Rating trend
+        </span>
+        <span
+          className="tabular-nums"
+          style={{
+            fontWeight: 800,
+            fontSize: "2.1rem",
+            letterSpacing: "-0.03em",
+            color: "#fff",
+            lineHeight: 1,
+            marginBottom: 10,
+          }}
+        >
+          {currentElo}
+        </span>
+        <span
+          style={{
+            fontWeight: 500,
+            fontSize: "0.78rem",
+            color: "rgba(255,255,255,0.5)",
+            maxWidth: 320,
+            lineHeight: 1.5,
+          }}
+        >
+          {isLoading
+            ? "Loading history…"
+            : data.length === 0
+            ? "No battles yet. Vote on this thumbnail to start its rating trend."
+            : "Only one battle recorded. One more vote and the trend line appears."}
+        </span>
+      </div>
+    );
+  }
+
   const { stroke, fillSolid, isFlat, trendUp } = trendColors(data);
 
   const reactId = useId();
@@ -358,8 +373,8 @@ export function EloTrendChart({
   const max = Math.max(...ratings);
   const swing = max - min;
   const yPad = Math.max(2, Math.round(swing * 0.12));
-  const yMin = isFallback ? min - 20 : min - yPad;
-  const yMax = isFallback ? max + 20 : max + yPad;
+  const yMin = min - yPad;
+  const yMax = max + yPad;
   const yRange = yMax - yMin || 1;
 
   const coords = useMemo(
@@ -386,15 +401,15 @@ export function EloTrendChart({
     ).toFixed(2)} Z`;
   }, [coords, linePath, padT, plotH]);
 
-  // Min/max anchor coords (skip if flat or fallback).
+  // Min/max anchor coords (skip if flat).
   const minCoord = useMemo(() => {
-    if (isFlat || isFallback) return null;
+    if (isFlat) return null;
     return coords.reduce((acc, c) => (c.rating < acc.rating ? c : acc), coords[0]);
-  }, [coords, isFlat, isFallback]);
+  }, [coords, isFlat]);
   const maxCoord = useMemo(() => {
-    if (isFlat || isFallback) return null;
+    if (isFlat) return null;
     return coords.reduce((acc, c) => (c.rating > acc.rating ? c : acc), coords[0]);
-  }, [coords, isFlat, isFallback]);
+  }, [coords, isFlat]);
 
   // Y-axis ticks — 4 evenly spaced rounded values.
   const yTicks = useMemo(() => {
@@ -436,9 +451,7 @@ export function EloTrendChart({
 
   const totalPoints = data.length;
   const delta = data[data.length - 1].rating - data[0].rating;
-  const subtitle = isFallback
-    ? "No battles yet"
-    : `Last ${totalPoints} ${totalPoints === 1 ? "battle" : "battles"}`;
+  const subtitle = `Last ${totalPoints} ${totalPoints === 1 ? "battle" : "battles"}`;
 
   return (
     <div
@@ -481,7 +494,7 @@ export function EloTrendChart({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {!isFlat && !isFallback && delta !== 0 && (
+          {!isFlat && delta !== 0 && (
             <span
               className="px-1.5 py-0.5 rounded-md tabular-nums"
               style={{
@@ -660,7 +673,7 @@ export function EloTrendChart({
           )}
 
           {/* X-axis end labels — first / last battle # */}
-          {!isFallback && data.length >= 2 && (
+          {data.length >= 2 && (
             <>
               <text
                 x={padL}
