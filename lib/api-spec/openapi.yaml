@@ -466,12 +466,16 @@ components:
       properties:
         totalVotes:
           type: integer
+        totalUploads:
+          type: integer
+          description: All-time count of user-submitted thumbnails (source='user').
         recentBattles:
           type: array
           items:
             $ref: "#/components/schemas/RecentBattle"
       required:
         - totalVotes
+        - totalUploads
         - recentBattles
 
     RecentBattle:

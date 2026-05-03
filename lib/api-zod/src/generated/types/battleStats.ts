@@ -9,5 +9,7 @@ import type { RecentBattle } from "./recentBattle";
 
 export interface BattleStats {
   totalVotes: number;
+  /** All-time count of user-submitted thumbnails (source='user'). */
+  totalUploads: number;
   recentBattles: RecentBattle[];
 }

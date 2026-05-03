@@ -10,7 +10,7 @@ import {
   ListThumbnailsSort,
 } from "@workspace/api-client-react";
 import type { Thumbnail } from "@workspace/api-client-react";
-import { AlertCircle, RefreshCw, MessageSquarePlus, LogIn } from "lucide-react";
+import { AlertCircle, RefreshCw, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 
@@ -566,24 +566,10 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Right-side header cluster: feedback link + live indicator */}
+        {/* Right-side header cluster: auth + live indicator.
+            "Send feedback" is intentionally NOT here — it lives in the
+            footer to keep the header clean and signal-focused. */}
         <div className="flex items-center gap-3" style={{ fontFamily: inter }}>
-          <button
-            type="button"
-            onClick={() => setFeedbackOpen(true)}
-            className="feedback-link hidden sm:flex items-center gap-1.5 rounded-full transition-colors"
-            style={{
-              fontWeight: 500,
-              fontSize: "0.78rem",
-              color: "rgba(255,255,255,0.55)",
-              padding: "6px 10px",
-              letterSpacing: "0.01em",
-            }}
-          >
-            <MessageSquarePlus className="w-3.5 h-3.5" />
-            Send feedback
-          </button>
-
           {/* Auth header slot — UserMenu when signed in, Sign in button otherwise.
               While the session is still resolving we render nothing to avoid a
               flash of the wrong state on first paint. */}
@@ -631,6 +617,13 @@ export default function Home() {
               {stats?.totalVotes ? stats.totalVotes.toLocaleString() : 0}
             </span>{" "}
             matches today
+          </span>
+          <div className="w-px h-3 bg-white/15" />
+          <span style={{ fontWeight: 500, fontSize: "0.72rem", color: "rgba(255,255,255,0.55)" }}>
+            <span style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>
+              {stats?.totalUploads ? stats.totalUploads.toLocaleString() : 0}
+            </span>{" "}
+            uploads
           </span>
         </div>
         </div>
@@ -1260,7 +1253,7 @@ export default function Home() {
         niche={niche}
       />
 
-      <footer className="w-full max-w-7xl mx-auto px-8 mt-16 mb-8 z-20 relative flex justify-center">
+      <footer className="w-full max-w-7xl mx-auto px-8 mt-16 mb-8 z-20 relative flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5">
         <p
           style={{
             fontFamily: inter,
@@ -1285,6 +1278,27 @@ export default function Home() {
             xMagicy
           </a>
         </p>
+        <span className="hidden sm:inline" style={{ color: "rgba(255,255,255,0.2)" }}>·</span>
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          className="feedback-link transition-colors"
+          style={{
+            fontFamily: inter,
+            fontWeight: 400,
+            fontSize: "14px",
+            color: "#888",
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            textDecoration: "underline",
+            textUnderlineOffset: "3px",
+            textDecorationColor: "rgba(255,255,255,0.2)",
+          }}
+        >
+          Send feedback
+        </button>
       </footer>
     </div>
   );

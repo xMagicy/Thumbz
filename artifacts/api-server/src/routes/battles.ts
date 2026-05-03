@@ -28,6 +28,14 @@ router.get("/", async (req, res) => {
   try {
     const [{ total }] = await db.select({ total: count() }).from(battlesTable);
 
+    // All-time count of user-submitted thumbnails (source='user'). Surfaced
+    // alongside totalVotes in the live indicator so creators can see momentum
+    // ("X uploads") next to "Y matches today".
+    const [{ uploads }] = await db
+      .select({ uploads: count() })
+      .from(thumbnailsTable)
+      .where(eq(thumbnailsTable.source, "user"));
+
     const recentRows = await db
       .select({
         id: battlesTable.id,
@@ -67,6 +75,7 @@ router.get("/", async (req, res) => {
 
     res.json({
       totalVotes: Number(total),
+      totalUploads: Number(uploads),
       recentBattles,
     });
   } catch (err) {

@@ -381,6 +381,9 @@ export const GetThumbnailRatingHistoryResponse = zod.object({
  */
 export const ListBattlesResponse = zod.object({
   totalVotes: zod.number(),
+  totalUploads: zod
+    .number()
+    .describe("All-time count of user-submitted thumbnails (source='user')."),
   recentBattles: zod.array(
     zod.object({
       id: zod.number(),
