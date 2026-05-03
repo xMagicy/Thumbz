@@ -60,17 +60,108 @@ const CHANNEL_NAME_BLOCKLIST = /\b(VEVO|Records|Films|Studios|Pictures|Network)\
 // Excluded YouTube category IDs. cat 1 = Film & Animation (movie trailers).
 const EXCLUDED_CATEGORIES = new Set(["1"]);
 
-// Finance channels that classify as Finance regardless of title keywords.
+// ─── Blok E classifier dictionaries ──────────────────────────────────
+// Order: Gaming → Music → Finance → Tech → Tutorial → Lifestyle → Vlog → Other.
+// First match wins. Keywords are lowercased; the title we compare against
+// is also lowercased. Use ` term ` with leading/trailing spaces if you
+// need a strict word boundary (e.g. " vs " to avoid matching "advert").
+
+const GAMING_TITLE_KEYWORDS = [
+  // Game titles
+  "minecraft", "fortnite", "roblox", "brookhaven", "gta", "valorant",
+  "league of legends", "lol", "dota", "brawl stars", "brawler",
+  "clash royale", "clash of clans", "pokemon", "zelda", "mario", "sonic",
+  "fifa", "nba 2k", "madden", "call of duty", "cod", "warzone",
+  "apex legends", "overwatch", "counter-strike", "csgo", "cs2",
+  "rocket league", "fall guys", "among us", "the sims", "animal crossing",
+  "smash bros", "splatoon", "terraria", "stardew valley", "hollow knight",
+  "elden ring", "dark souls", "baldur's gate", "cyberpunk", "witcher",
+  // Gaming verbs
+  "gameplay", "speedrun", "let's play", "playthrough", "boss fight",
+  "walkthrough", "no commentary", "hardcore mode", "raid", "pvp", "ranked",
+  "esports", "tournament", "battle pass", "season pass", "mod showcase",
+  "devlog", "twitch highlights",
+];
+const GAMING_CHANNEL_SUFFIXES = ["plays", "gaming", "gamer", "gg", "esports", "tft"];
+const GAMING_CHANNEL_CONTAINS = ["plays", "gaming", "gamer"];
+
+const MUSIC_AUDIO_EXCLUSIONS = [
+  "lyric", "lyrics", "official audio", "audio only", "slowed", "reverb",
+  "8d audio", "1 hour", "hours of", "sleep music", "study music",
+  "lo-fi to study", "lofi study", "white noise",
+];
+const MUSIC_POSITIVE_KEYWORDS = [
+  "official music video", "official mv", "music video", "official video",
+  "vevo presents", "ft.", "feat.", "remix", "cover", "acoustic",
+  "live performance", "tiny desk", "npr music", "kexp",
+];
+
+const FINANCE_TITLE_KEYWORDS = [
+  "stocks", "stock market", "investing", "invest", "dividend", "dividends",
+  "s&p 500", "nasdaq", "dow jones", "bitcoin", "btc", "crypto", "ethereum",
+  "eth", "etf", "index fund", "mutual fund", "bonds", "treasury",
+  "real estate", "reit", "passive income", "wealth", "wealthy",
+  "millionaire", "broke", "salary", "paycheck", "rent", "mortgage", "debt",
+  "student loan", "credit score", "retirement", "401k", "ira", "roth",
+  "fire movement", "financial freedom", "financial independence", "frugal",
+  "saving money", "budget", "budgeting",
+];
 const FINANCE_CHANNELS = new Set(
   [
-    "Graham Stephan",
-    "Andrei Jikh",
-    "Coffeezilla",
-    "How Money Works",
-    "The Plain Bagel",
-    "Patrick Boyle",
+    "Graham Stephan", "Andrei Jikh", "Coffeezilla", "How Money Works",
+    "The Plain Bagel", "Patrick Boyle", "Ben Felix", "The Money Guy",
+    "Humphrey Yang", "Nate O'Brien", "Erika Kullberg", "Money With Katie",
+    "Two Cents", "Caleb Hammer", "Dave Ramsey", "Robert Kiyosaki",
   ].map((s) => s.toLowerCase()),
 );
+
+const TECH_TITLE_KEYWORDS = [
+  "iphone", "android", "samsung galaxy", "google pixel", "macbook", "ipad",
+  "apple watch", "m1 chip", "m2 chip", "m3 chip", "m4 chip", "intel core",
+  "amd ryzen", "nvidia rtx", "gpu", "custom pc", "gaming pc", "build pc",
+  "review", "unboxing", "hands-on", "ai chatbot", "gpt", "chatgpt", "openai",
+  "claude", "gemini", "copilot", "llm", "machine learning", "javascript",
+  "python", "react", "swift", "kubernetes", "docker", "aws", "gcp", "azure",
+  "devops", "programming tutorial", "coding interview",
+];
+const TECH_CHANNEL_SUFFIXES = ["tech", "reviews"];
+const TECH_CHANNEL_CONTAINS = [
+  "mkbhd", "linus tech", "marques brownlee", "dave2d", "jerryrigeverything",
+];
+
+const TUTORIAL_TITLE_KEYWORDS = [
+  "how to", "tutorial", "guide", "learn", "step by step", "explained",
+  "beginner's guide", "masterclass", "course", "lesson", "fundamentals",
+  "the basics of", "deep dive", "introduction to", "complete guide",
+  "ultimate guide", "in 10 minutes", "in 5 minutes",
+];
+
+const LIFESTYLE_TITLE_KEYWORDS = [
+  "morning routine", "night routine", "day in my life", "day in the life",
+  "ditl", "week in my life", "outfit", "ootd", "fashion", "skincare",
+  "makeup", "beauty", "fitness", "workout", "gym", "home gym", "diet",
+  "what i eat", "meal prep", "recipe", "cooking", "baking", "minimalism",
+  "declutter", "organize", "clean with me", "productivity", "journaling",
+  "self care", "wellness", "aesthetic", "cottagecore", "dark academia",
+  "room tour", "apartment tour", "house tour", "garden", "plants",
+  "sustainable", "slow living",
+];
+
+const VLOG_TITLE_KEYWORDS = [
+  "vlog", "daily vlog", "weekly vlog", "trip to", "travel vlog",
+  "traveling to", "moving to", "moved out", "life update", "came back",
+  "story time", "storytime", "draw my life", "q&a", "qna",
+  "behind the scenes", "last week", "last month", "my first time",
+];
+
+function anyContains(haystack: string, needles: string[]): boolean {
+  for (const n of needles) if (haystack.includes(n)) return true;
+  return false;
+}
+function anyEndsWith(haystack: string, suffixes: string[]): boolean {
+  for (const s of suffixes) if (haystack.endsWith(s)) return true;
+  return false;
+}
 
 interface YtThumbnail {
   url: string;
@@ -163,87 +254,114 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   return union === 0 ? 0 : inter / union;
 }
 
-// ─── Hybrid classifier (Blok E) ───────────────────────────────────────
+// ─── Hybrid classifier (Blok E v2) ───────────────────────────────────
 //
-// Order matters: Gaming → Music → Tech → Finance → Tutorial → Lifestyle
-// → Vlog → Other. First match wins.
-function classify(v: YtVideo): string {
+// Order: Gaming → Music → Finance → Tech → Tutorial → Lifestyle → Vlog
+// → Other. First match wins. Returns app_category + confidence.
+//
+// Confidence:
+//   high   = categoryId match + at least one keyword/channel signal
+//   medium = keyword match without supporting categoryId
+//   low    = channel-pattern match only, OR catchall (Other)
+type Confidence = "high" | "medium" | "low";
+
+function classify(v: YtVideo): { category: string; confidence: Confidence } {
   const snippet = v.snippet;
-  if (!snippet) return "Other";
-  const title = snippet.title?.toLowerCase() ?? "";
-  const channel = snippet.channelTitle?.toLowerCase() ?? "";
+  if (!snippet) return { category: "Other", confidence: "low" };
+  const title = (snippet.title ?? "").toLowerCase();
+  const channel = (snippet.channelTitle ?? "").toLowerCase();
   const cat = snippet.categoryId;
 
-  const hasAny = (...terms: string[]) => terms.some((t) => title.includes(t));
-
-  if (
-    cat === "20" ||
-    hasAny(
-      "minecraft", "fortnite", "gameplay", "speedrun", "let's play",
-      "playthrough", "boss fight",
-    )
-  ) {
-    return "Gaming";
-  }
-
-  if (cat === "10") {
-    if (title.includes("lyric")) return "Other"; // auto-generated thumbs
-    return "Music";
-  }
-
-  if (
-    cat === "28" ||
-    hasAny(
-      "iphone", "android", "macbook", "review", "unboxing", " vs ",
-      "tech", " ai ", "gpu", "cpu",
-    )
-  ) {
-    return "Tech";
-  }
-
-  if (
-    FINANCE_CHANNELS.has(channel) ||
-    hasAny(
-      "stocks", "investing", "money", "dividend", "s&p", "bitcoin", "crypto",
-      "etf", "passive income", "wealth", "millionaire", "broke", "salary",
-      "rent", "mortgage",
-    )
-  ) {
-    return "Finance";
-  }
-
-  if (
-    cat === "26" || cat === "27" ||
-    hasAny("how to", "tutorial", "guide", "learn", "step by step", "explained")
-  ) {
-    return "Tutorial";
-  }
-
-  if (
-    cat === "22" ||
-    hasAny(
-      "morning routine", "day in my life", "outfit", "skincare", "fitness",
-      "diet", "minimalism", "decluttering",
-    )
-  ) {
-    if (
-      cat === "22" &&
-      hasAny("vlog", "trip", "moving", "life update")
-    ) {
-      // Falls through to Vlog branch below.
-    } else {
-      return "Lifestyle";
+  // 1. Gaming
+  {
+    const catMatch = cat === "20";
+    const kwMatch = anyContains(title, GAMING_TITLE_KEYWORDS);
+    const chSuffix = anyEndsWith(channel, GAMING_CHANNEL_SUFFIXES);
+    const chContain = anyContains(channel, GAMING_CHANNEL_CONTAINS);
+    if (catMatch || kwMatch || chSuffix || chContain) {
+      const conf: Confidence = catMatch && (kwMatch || chSuffix || chContain)
+        ? "high"
+        : catMatch
+          ? "high" // category 20 alone is strong evidence
+          : kwMatch
+            ? "medium"
+            : "low";
+      return { category: "Gaming", confidence: conf };
     }
   }
 
-  if (
-    (cat === "22" || cat === "24") &&
-    hasAny("vlog", "day", "trip", "moving", "life update")
-  ) {
-    return "Vlog";
+  // 2. Music
+  {
+    if (cat === "10") {
+      const isAudioVariant = anyContains(title, MUSIC_AUDIO_EXCLUSIONS);
+      if (!isAudioVariant) {
+        return { category: "Music", confidence: "high" };
+      }
+      // Falls through — auto-generated lyric / sleep music thumbnails are
+      // not real music videos, evaluate against later categories.
+    } else if (anyContains(title, MUSIC_POSITIVE_KEYWORDS)) {
+      return { category: "Music", confidence: "medium" };
+    }
   }
 
-  return "Other";
+  // 3. Finance
+  {
+    const kwMatch = anyContains(title, FINANCE_TITLE_KEYWORDS);
+    const chMatch = FINANCE_CHANNELS.has(channel);
+    if (kwMatch || chMatch) {
+      const conf: Confidence = kwMatch ? "medium" : "low";
+      return { category: "Finance", confidence: conf };
+    }
+  }
+
+  // 4. Tech
+  {
+    const catMatch = cat === "28";
+    const kwMatch = anyContains(title, TECH_TITLE_KEYWORDS);
+    const chSuffix = anyEndsWith(channel, TECH_CHANNEL_SUFFIXES);
+    const chContain = anyContains(channel, TECH_CHANNEL_CONTAINS);
+    if (catMatch || kwMatch || chSuffix || chContain) {
+      const conf: Confidence = catMatch && (kwMatch || chSuffix || chContain)
+        ? "high"
+        : catMatch
+          ? "high"
+          : kwMatch
+            ? "medium"
+            : "low";
+      return { category: "Tech", confidence: conf };
+    }
+  }
+
+  // 5. Tutorial
+  {
+    const catMatch = cat === "26" || cat === "27";
+    const kwMatch = anyContains(title, TUTORIAL_TITLE_KEYWORDS);
+    if (catMatch || kwMatch) {
+      const conf: Confidence = catMatch && kwMatch
+        ? "high"
+        : catMatch
+          ? "high"
+          : "medium";
+      return { category: "Tutorial", confidence: conf };
+    }
+  }
+
+  // 6. Lifestyle (must be People & Blogs AND lifestyle keyword)
+  {
+    if (cat === "22" && anyContains(title, LIFESTYLE_TITLE_KEYWORDS)) {
+      return { category: "Lifestyle", confidence: "high" };
+    }
+  }
+
+  // 7. Vlog (People & Blogs OR Entertainment AND vlog keyword)
+  {
+    if ((cat === "22" || cat === "24") && anyContains(title, VLOG_TITLE_KEYWORDS)) {
+      return { category: "Vlog", confidence: "high" };
+    }
+  }
+
+  // 8. Other (catchall)
+  return { category: "Other", confidence: "low" };
 }
 
 // ─── Quality gate (Blok A) ────────────────────────────────────────────
@@ -494,6 +612,7 @@ export async function syncTrendingVideos(opts?: {
     subscriberCount: number;
     viewCount: number;
     appCategory: string;
+    confidence: Confidence;
     titleTokens: Set<string>;
   }
   const totalCandidates = candidates.size;
@@ -508,14 +627,34 @@ export async function syncTrendingVideos(opts?: {
       skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1);
       continue;
     }
-    const appCategory = classify(meta.video);
+    const { category: appCategory, confidence } = classify(meta.video);
     accepted.push({
       meta,
       subscriberCount: subscriberCount ?? 0,
       viewCount: Number(meta.video.statistics?.viewCount ?? 0),
       appCategory,
+      confidence,
       titleTokens: tokenize(meta.video.snippet?.title ?? ""),
     });
+  }
+
+  // Per-category × confidence breakdown for monitoring (Blok E spec).
+  const classifierStats: Record<string, { high: number; medium: number; low: number; total: number }> = {};
+  for (const a of accepted) {
+    const bucket = (classifierStats[a.appCategory] ??= {
+      high: 0, medium: 0, low: 0, total: 0,
+    });
+    bucket[a.confidence] += 1;
+    bucket.total += 1;
+  }
+  const otherPct = accepted.length > 0
+    ? Math.round((100 * (classifierStats["Other"]?.total ?? 0)) / accepted.length)
+    : 0;
+  if (otherPct > 30) {
+    logger.warn(
+      { otherPct, classifierStats },
+      "Classifier 'Other' bucket > 30% — keyword rules may be too strict",
+    );
   }
 
   // ── Phase 4: Topic diversity (Jaccard < 0.4 cluster cap = 5) ─────
@@ -714,6 +853,7 @@ export async function syncTrendingVideos(opts?: {
       updated,
       archivedByBalance: totalArchivedByBalance,
       skipReasons: Object.fromEntries(skipReasons),
+      classifierStats,
     },
     "YouTube sync v2 completed",
   );

@@ -46,6 +46,13 @@ const toDto = (
   viewCount: t.viewCount,
   viewVelocity: t.viewVelocity,
   publishedAt: t.publishedAt ? t.publishedAt.toISOString() : null,
+  // Sourcing v2 (Blok A/E/F).
+  appCategory: t.appCategory,
+  archived: t.archived,
+  battleCount: t.battleCount,
+  categoryId: t.categoryId,
+  subscriberCount: t.subscriberCount,
+  viewToSubRatio: t.viewToSubRatio,
 });
 
 // Batched fetch of the most-recent N rating snapshots for a set of thumbnail
@@ -95,10 +102,15 @@ router.get("/", async (req, res) => {
       ? (sortRaw as "elo" | "winRate" | "ctr" | "battles" | "rising")
       : "elo";
 
-    // Always restrict to active rows; pending uploads await admin review.
-    const conditions: SQL[] = [eq(thumbnailsTable.status, "active")];
+    // Always restrict to active, non-archived rows. Pending uploads await
+    // admin review; archived rows are pool-curation casualties (chronic
+    // underperformers or category overflow) and shouldn't show on the board.
+    const conditions: SQL[] = [
+      eq(thumbnailsTable.status, "active"),
+      eq(thumbnailsTable.archived, false),
+    ];
     if (niche) conditions.push(eq(thumbnailsTable.niche, niche));
-    const where = conditions.length === 1 ? conditions[0] : and(...conditions);
+    const where = and(...conditions);
 
     // ORDER BY clause per sort. NULLS LAST so missing CTRs sink to the bottom on a CTR sort.
     let orderBy;
@@ -140,32 +152,45 @@ router.get("/", async (req, res) => {
 // (default 1, max 10). Client uses count>1 to maintain a prefetched queue so
 // swipes feel instant — no network on the critical path between votes.
 //
-// Matchmaking rules (in priority order, falls back per-pair):
-//   1. Same niche + same view-tier + different channel  (ideal)
-//   2. Same niche + different channel                    (relax tier)
-//   3. Same niche                                        (relax channel)
-//   4. Any active thumbnail                              (last-resort fallback)
+// Matchmaking (Blok C/F):
+//   • Category lock — battles are always within ONE category. When the UI
+//     asks for "All", we rotate: pick a random non-empty app_category per
+//     pair (so the user sees variety across battles, but each individual
+//     battle is fair).
+//   • Tier match — within category, prefer same view-tier first.
+//   • ELO proximity — within tier, prefer opponents with |ΔELO|≤150,
+//     fall back to ≤300, then any.
+//   • Different channel — never pair two videos from the same channel.
+//   • Cold-start calibration — if either side has battle_count<5, lock the
+//     opponent to the 1150-1250 ELO mid-tier of the same category. Prevents
+//     a brand-new thumbnail from being thrown straight at a 1500 champion.
+//   • Archived rows are excluded entirely.
 //
-// View tiers (bucket by total view count, log-ish):
+// View tiers (Blok C, recalibrated to brief):
 //   user   – source='user' (no view_count, judged on design only)
-//   micro  – 100k – 500k
-//   mid    – 500k – 2M
-//   macro  – 2M  – 10M
-//   mega   – 10M+
+//   micro  – 25K – 250K
+//   mid    – 250K – 1M
+//   macro  – 1M – 5M
+//   mega   – 5M+
 //
 // We fetch the candidate pool in one query (~hundreds of rows, cheap) and
-// pair entirely in memory. Keeps the database hot path simple and lets the
-// fallback chain run without N extra round-trips.
+// pair entirely in memory.
 type Tier = "user" | "micro" | "mid" | "macro" | "mega";
 
 function viewTier(row: { source: string | null; viewCount: number | null }): Tier {
   if (row.source !== "youtube" || row.viewCount === null) return "user";
   const v = row.viewCount;
-  if (v >= 10_000_000) return "mega";
-  if (v >= 2_000_000) return "macro";
-  if (v >= 500_000) return "mid";
+  if (v >= 5_000_000) return "mega";
+  if (v >= 1_000_000) return "macro";
+  if (v >= 250_000) return "mid";
   return "micro";
 }
+
+const CALIBRATION_BATTLES = 5;
+const CALIBRATION_ELO_LO = 1150;
+const CALIBRATION_ELO_HI = 1250;
+const ELO_NEAR = 150;
+const ELO_FAR = 300;
 
 router.get("/battle", async (req, res) => {
   try {

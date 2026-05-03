@@ -1,0 +1,68 @@
+Blok G — Velocity + emerging channel signals
+Bovenop Blok A's filters, voeg deze tracking + ranking signals toe. Doel: trends spotten voor ze mainstream worden.
+
+Schema additions (ALTER TABLE thumbnails)
+published_at (timestamp) — al in Blok A
+views_per_hour (numeric) — gecached
+channel_created_at (timestamp)
+channel_age_days (int) — gecached
+is_emerging_channel (boolean) — flag voor < 6 maanden oude channels
+breakout_score (numeric) — composite ranking signal
+Velocity berekening
+hours_since_publish = (now() - published_at) in uren
+views_per_hour = view_count / hours_since_publish
+Min threshold: views_per_hour >= 500 (= 12K views/dag minimum)
+
+Emerging channel detection
+Tijdens sync, fetch channels.list?part=snippet,statistics&id={channelId}:
+
+channel_created_at = snippet.publishedAt van het channel
+channel_age_days = (now() - channel_created_at) in dagen
+is_emerging_channel = channel_age_days < 180
+Tiered overperformer ratio (vervangt simpele ratio uit Blok A)
+Verschillende thresholds gebaseerd op channel grootte. Kleine channels worden anders beoordeeld dan grote.
+
+subs < 1K        → ratio threshold: views >= 10K (geen ratio check, lage drempel)
+subs 1K-10K      → ratio >= 5.0  (5x audience = breakout)
+subs 10K-100K    → ratio >= 2.0
+subs 100K-1M     → ratio >= 1.0
+subs 1M-10M      → ratio >= 0.3
+subs > 10M       → ratio >= 0.1  (mega channels: 10% van subs is al moeilijk)
+Dit zorgt ervoor dat een 2K-sub channel met 50K views (ratio 25) door de filter komt, én een MrBeast video met 30M views (ratio 0.1) als hij echt overperformt.
+
+Breakout score (composite ranking)
+Gewogen score voor sortering en pool prioritering:
+
+breakout_score = 
+    log10(views_per_hour) * 30           // velocity gewicht
+  + log10(view_to_sub_ratio + 1) * 40    // overperform gewicht (zwaarste)
+  + (is_emerging_channel ? 20 : 0)       // emerging bonus
+  + (engagement_rate * 100) * 10         // kwaliteit gewicht
+Sorteer pool op breakout_score DESC. Top entries = trending breakouts. Gebruik dit ook als tiebreaker in matchmaking.
+
+"Discovery" feed (optionele UI later)
+Voeg flag toe op videos waar is_emerging_channel = true AND breakout_score > 80. Dit zijn de "trends in de maak". Toekomstige UI feature: een aparte "Discover" tab waar users alleen emerging breakouts zien.
+
+Niet nu bouwen, maar wel data al klaarzetten.
+
+Quota impact
+Extra channels.list calls voor channel age. Maximaal: 1 call per uniek channel per sync = ~200-400 unieke channels = 200-400 quota units extra.
+
+Free tier: 10K/dag. Totaal nu (12 regions sync × 4/dag + channel calls): ~2K/dag. Geen issue.
+
+Verificatie queries
+-- Top 10 breakouts in pool
+SELECT title, channel_name, view_count, subscriber_count, 
+       ROUND(views_per_hour) vph, channel_age_days, ROUND(breakout_score, 1) score
+FROM thumbnails WHERE archived IS NOT true
+ORDER BY breakout_score DESC LIMIT 10;
+
+-- Emerging channels in pool
+SELECT COUNT(*) FROM thumbnails 
+WHERE is_emerging_channel = true AND archived IS NOT true;
+-- [Expected: minstens 10-30 emerging channels]
+
+-- Velocity check (geen oude videos sluipen erdoor)
+SELECT MIN(views_per_hour), AVG(views_per_hour), MAX(views_per_hour)
+FROM thumbnails WHERE archived IS NOT true;
+-- [Expected: MIN >= 500]
