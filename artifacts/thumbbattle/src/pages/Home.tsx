@@ -339,6 +339,57 @@ export default function Home() {
     void fetchPairs(niche, QUEUE_TARGET, "replace");
   }, [fetchPairs, niche]);
 
+  // Layer 4 safety net handler. FighterCard fires this when an image
+  // loads with a vertical/near-square aspect — almost certainly a Short
+  // that slipped past the backend filters. We:
+  //   1. tell the server (which logs + auto-archives the row),
+  //   2. drop any queued pair that contains this thumbnail so the user
+  //      never sees it again,
+  //   3. trigger a refill so the queue stays warm.
+  // Idempotent: a Set guards against double-reporting the same id from
+  // two cards / two re-mounts within the same session.
+  const reportedBadIdsRef = useRef<Set<number>>(new Set());
+  const handleBadThumbnail = useCallback(
+    (info: {
+      thumbnailId: number;
+      reason: "vertical_aspect";
+      width: number;
+      height: number;
+    }) => {
+      if (reportedBadIdsRef.current.has(info.thumbnailId)) return;
+      reportedBadIdsRef.current.add(info.thumbnailId);
+      // Fire-and-forget. We don't await — the UI swap below is the
+      // user-visible action and shouldn't be gated on a network round-trip.
+      void fetch("/api/thumbnails/report-bad", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(info),
+      }).catch((err) => {
+        console.warn("[thumbz] report-bad failed", err);
+      });
+      // Purge any queued pair across all niches that references this id.
+      setQueues((prev) => {
+        let mutated = false;
+        const next: Record<string, Pair[]> = {};
+        for (const [k, list] of Object.entries(prev)) {
+          const filtered = list.filter(
+            (p) =>
+              p.left.id !== info.thumbnailId &&
+              p.right.id !== info.thumbnailId,
+          );
+          if (filtered.length !== list.length) mutated = true;
+          next[k] = filtered;
+        }
+        if (!mutated) return prev;
+        queuesRef.current = next;
+        return next;
+      });
+      // Refill the active niche so the swap is invisible to the user.
+      void fetchPairs(niche, QUEUE_TARGET, "replace");
+    },
+    [fetchPairs, niche],
+  );
+
   // keepPreviousData unused now — kept import-stable below via the leaderboard
   // query which still benefits from it.
   void keepPreviousData;
@@ -863,6 +914,7 @@ export default function Home() {
                 }
                 onVote={() => handleVote(battlePair.left.id, battlePair.right.id)}
                 onReject={() => handleVote(battlePair.right.id, battlePair.left.id)}
+                onBadThumbnail={handleBadThumbnail}
               />
 
               <VSBadge isVoting={isVoting} />
@@ -880,6 +932,7 @@ export default function Home() {
                 }
                 onVote={() => handleVote(battlePair.right.id, battlePair.left.id)}
                 onReject={() => handleVote(battlePair.left.id, battlePair.right.id)}
+                onBadThumbnail={handleBadThumbnail}
               />
               </motion.div>
             </AnimatePresence>

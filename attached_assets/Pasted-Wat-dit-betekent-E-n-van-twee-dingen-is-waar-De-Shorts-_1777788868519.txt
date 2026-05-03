@@ -1,0 +1,99 @@
+Wat dit betekent
+Eén van twee dingen is waar:
+
+De Shorts filter code is wel gemerged maar de UPDATE/DELETE cleanup query is nooit uitgevoerd → oude data zit nog in pool
+De filter is helemaal niet deployed naar live → live URL draait nog op oude code
+Dit is iets wat we niet meer met "stuur weer een betere prompt" oplossen. We moeten defensie in lagen bouwen, zodat zelfs als één laag faalt, de Shorts er nooit doorkomen.
+
+Plak dit bij Replit Agent — nuclear, vier-laags defense
+STOP MET WAT JE NU DOET. Defensie-in-lagen voor Shorts. Geen excuses meer.
+
+Eén Short in de live pool = bug. Twee = kritiek. Wij hebben er nog steeds. Hier het plan, stap voor stap, en ik wil bewijs van elk stap voor je doorgaat.
+
+Laag 1: Database hard delete (NIET archive)
+Run deze query NU en geef de COUNT output:
+
+-- Voor cleanup: tel
+SELECT COUNT(*) AS shorts_in_pool 
+FROM thumbnails 
+WHERE archived IS NOT true 
+  AND (
+    title ~* '#?(shorts?|ytshorts?|youtubeshorts?|reels?|tiktoks?|minivlog)\b'
+    OR title ILIKE '%#short%'
+    OR title ILIKE '%#reel%'
+  );
+
+-- Hard archive (geen delete, maar zeker uit pool)
+UPDATE thumbnails 
+SET archived = true, status = 'shorts_archived'
+WHERE archived IS NOT true 
+  AND (
+    title ~* '#?(shorts?|ytshorts?|youtubeshorts?|reels?|tiktoks?|minivlog)\b'
+    OR title ILIKE '%#short%'
+    OR title ILIKE '%#reel%'
+    OR title ILIKE '%adult money haul%'
+    OR title ILIKE '%how to make soap with ashes%'
+  );
+
+-- Na cleanup: verifieer
+SELECT COUNT(*) FROM thumbnails 
+WHERE archived IS NOT true 
+  AND title ~* '#?(shorts?|reels?)\b';
+-- MOET 0 ZIJN
+Laag 2: Battle query filter (defense in depth)
+In /api/thumbnails/battle, voeg expliciete uitsluiting toe in de WHERE clause. Niet vertrouwen op alleen archived = false:
+
+WHERE thumbnails.archived = false
+  AND thumbnails.status = 'active'
+  AND thumbnails.title NOT ILIKE '%#shorts%'
+  AND thumbnails.title NOT ILIKE '%#short%'
+  AND thumbnails.title NOT ILIKE '%#ytshorts%'
+  AND thumbnails.title NOT ILIKE '%#reel%'
+  AND thumbnails.title NOT ILIKE '%#minivlog%'
+  AND thumbnails.title !~ '#?(shorts?|reels?)\b'
+Ook al draait sync-tijd filtering, deze laag voorkomt dat ANY Short ooit in een battle verschijnt — zelfs als data corrupt is.
+
+Laag 3: Sync-time minimum duration verhogen
+Verhoog MIN_DURATION_SECONDS van 90 naar 180.
+
+Reden: YouTube Shorts max = 180s. Een video moet langer zijn dan dat om geen Short te kunnen zijn. Periode.
+
+Ja dit verliest 1-3 minuten content. Acceptabel. Doel is zero Shorts, niet maximale pool.
+
+Laag 4: Frontend safety net
+In de battle component, bij image load:
+
+onImageLoad((e) => {
+  const img = e.target;
+  const aspectRatio = img.naturalWidth / img.naturalHeight;
+  if (aspectRatio < 1.2) {
+    // verticaal of bijna-vierkant = waarschijnlijk Short
+    // log naar backend en request nieuwe battle
+    reportBadThumbnail(thumbnailId, 'vertical_aspect');
+    fetchNewBattle();
+  }
+});
+Loggen naar backend zodat we deze leakage kunnen monitoren.
+
+Verplichte verificatie voor je doorgaat
+Run dit, plak het resultaat:
+
+-- 1. Geen Shorts in active pool
+SELECT COUNT(*), array_agg(title) 
+FROM thumbnails 
+WHERE archived = false 
+  AND title ~* '#?(shorts?|reels?|ytshorts?|minivlog)\b';
+
+-- 2. Spot check de twee gevallen die ik live zie
+SELECT id, title, channel_name, archived, status 
+FROM thumbnails 
+WHERE title ILIKE '%adult money haul%' 
+   OR title ILIKE '%soap with ashes%';
+
+-- 3. Pool size sanity (mag NIET drastisch dalen)
+SELECT COUNT(*) FROM thumbnails WHERE archived = false;
+Plus: deploy / republish de live app na de code wijzigingen. Code in dev maakt geen verschil voor thumbzapp.replit.app zonder republish.
+
+Geen feature creep
+Doe alleen dit. Niets anders. Geen pool growth, geen Discover tab, geen legacy cleanup. Eerst Shorts 100% weg.
+

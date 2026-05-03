@@ -1,0 +1,63 @@
+Post-fix verificatie
+Voor we doorgaan: bewijs me met data dat de Shorts fix daadwerkelijk werkt, niet met "het is gefixt".
+
+1. Database state
+Run deze queries in deze exacte volgorde, plak ALLE output:
+
+-- 1.1 Pool gezondheid
+SELECT 
+  COUNT(*) FILTER (WHERE archived = false) AS active_total,
+  COUNT(*) FILTER (WHERE archived = false AND source = 'youtube') AS active_youtube,
+  COUNT(*) FILTER (WHERE archived = false AND source = 'user') AS active_user_uploads,
+  COUNT(*) FILTER (WHERE archived = true) AS archived_total
+FROM thumbnails;
+
+-- 1.2 Shorts leakage check (moet 0 zijn)
+SELECT id, title, channel_name, archived, status
+FROM thumbnails 
+WHERE archived = false 
+  AND title ~* '#?(shorts?|reels?|ytshorts?|minivlog|tiktoks?)\b';
+
+-- 1.3 De twee specifieke cases die ik live zag
+SELECT id, title, channel_name, archived, status, niche, app_category
+FROM thumbnails
+WHERE title ILIKE '%adult money haul%'
+   OR title ILIKE '%soap with ashes%'
+   OR channel_name ILIKE '%creative explained%'
+   OR channel_name ILIKE '%swara singh%';
+
+-- 1.4 Per-category breakdown na cleanup
+SELECT app_category, COUNT(*) FILTER (WHERE archived = false) AS active
+FROM thumbnails 
+WHERE source = 'youtube'
+GROUP BY app_category 
+ORDER BY 2 DESC;
+
+-- 1.5 Hoeveel rijen heeft de cleanup geraakt vandaag
+SELECT COUNT(*) 
+FROM thumbnails 
+WHERE status = 'shorts_archived' 
+   OR (archived = true AND title ~* '#?(shorts?|reels?)\b');
+2. Deployment status
+Wat is de timestamp van de laatste Republish?
+Is de deployed versie identiek aan main branch HEAD?
+Welke versie van de Shorts filter draait er nu live? (geef regel uit passesPreClassifierFilters of equivalent)
+3. Filter logic verificatie
+Plak de exacte huidige code van:
+
+De Shorts detection functie
+De battle query (de WHERE clause)
+De MIN_DURATION_SECONDS waarde
+Dit zodat ik kan zien dat de defense-in-depth lagen daadwerkelijk in code staan, niet alleen in SQL cleanup.
+
+4. Live test
+Open https://thumbzapp.replit.app, klik door 20 battles in random tabs (vooral Tutorial — daar zaten de Shorts). Maak screenshots van:
+
+Het aantal battles waar je Shorts ziet (verwacht: 0)
+Tab "Tutorial" specifiek (4-5 battles)
+Tab "Lifestyle"
+5. Frontend safety net
+Heeft de frontend nu de aspect ratio guard (Laag 4)? Zo ja: heb je de reportBadThumbnail endpoint geïmplementeerd? Welke logging heb je toegevoegd?
+
+6. Eerlijke status
+Eerlijke vraag: ben je 100% zeker dat het nu opgelost is, of is er nog iets waar je twijfelt? Geen marketing-versie. Als er iets is wat nog kan misgaan, zeg het.

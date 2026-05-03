@@ -18,6 +18,14 @@ interface FighterCardProps {
   onVote: () => void;
   /** Called when the user rejects THIS card (swipe-left → other card wins). */
   onReject: () => void;
+  /** Layer 4 safety net: fired when the loaded image is vertical/near-square
+   *  (almost certainly a Short that slipped past the backend filters). */
+  onBadThumbnail?: (info: {
+    thumbnailId: number;
+    reason: "vertical_aspect";
+    width: number;
+    height: number;
+  }) => void;
 }
 
 const SWIPE_THRESHOLD = 100;
@@ -39,6 +47,7 @@ export function FighterCard({
   voteResult,
   onVote,
   onReject,
+  onBadThumbnail,
 }: FighterCardProps) {
   void side;
   const x = useMotionValue(0);
@@ -162,6 +171,25 @@ export function FighterCard({
           alt={thumbnail.title}
           className="w-full h-full object-cover pointer-events-none select-none"
           draggable={false}
+          onLoad={(e) => {
+            // Layer 4 safety net: any image with aspect ratio < 1.2 is
+            // either a Short (9:16 ≈ 0.56) or a near-square repost. Real
+            // YouTube thumbnails are 16:9 ≈ 1.78. We report it so the
+            // backend can archive + log the leakage, then trust the
+            // parent to swap in a fresh battle.
+            const img = e.currentTarget;
+            const w = img.naturalWidth;
+            const h = img.naturalHeight;
+            if (!w || !h) return;
+            if (w / h < 1.2 && onBadThumbnail) {
+              onBadThumbnail({
+                thumbnailId: thumbnail.id,
+                reason: "vertical_aspect",
+                width: w,
+                height: h,
+              });
+            }
+          }}
         />
 
         {/* Bottom dark gradient overlay for text readability */}

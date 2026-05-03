@@ -12,6 +12,25 @@ const router = Router();
 const NICHES = ["Gaming", "Tutorial", "Finance", "Music", "Lifestyle", "Tech", "Vlog", "Other"] as const;
 type Niche = (typeof NICHES)[number];
 
+// Layer 2 (defense in depth): hard exclude any title carrying a Shorts /
+// Reels marker, regardless of `archived` / `status`. The sync-time pre-
+// classifier should already reject these, and Layer 1 archived legacy
+// rows, but if either fails (corrupted row, manual insert, regression in
+// the classifier) this WHERE-clause guarantees no Short can ever appear
+// in a battle pair or on the leaderboard. Cheap (one ILIKE per row, on a
+// pool of ~hundreds) and explicit.
+const SHORTS_TITLE_EXCLUSION_SQL = sql`
+  ${thumbnailsTable.title} NOT ILIKE '%#shorts%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#short%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#ytshorts%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#youtubeshorts%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#reel%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#reels%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#minivlog%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#tiktok%'
+  AND ${thumbnailsTable.title} !~* '#?(shorts?|reels?|ytshorts?|youtubeshorts?|minivlog|tiktoks?)\\M'
+`;
+
 function normalizeNiche(raw: string | undefined): Niche | undefined {
   if (!raw) return undefined;
   const trimmed = raw.trim();
@@ -116,6 +135,7 @@ router.get("/", async (req, res) => {
     const conditions: SQL[] = [
       eq(thumbnailsTable.status, "active"),
       eq(thumbnailsTable.archived, false),
+      SHORTS_TITLE_EXCLUSION_SQL,
     ];
     // Single source of truth (Blok 5, post task #16 backfill): filter on
     // app_category directly. All legacy NULL rows have been backfilled from
@@ -226,6 +246,7 @@ router.get("/battle", async (req, res) => {
     const conditions: SQL[] = [
       eq(thumbnailsTable.status, "active"),
       eq(thumbnailsTable.archived, false),
+      SHORTS_TITLE_EXCLUSION_SQL,
     ];
     // Same single-source-of-truth filter as the leaderboard list endpoint
     // (post task #16 backfill): app_category is the only bucket. Legacy
@@ -674,6 +695,61 @@ router.patch("/:id/ctr", requireAuth, async (req, res) => {
   } catch (err) {
     req.log.error({ err, thumbnailId: id }, "Failed to update CTR");
     return res.status(500).json({ error: "Failed to update CTR" });
+  }
+});
+
+// POST /api/thumbnails/report-bad — Layer 4 safety net.
+// Frontend calls this when an image loads with a vertical/near-square
+// aspect ratio (almost certainly a Short that slipped through the
+// pre-classifier and the SQL exclusion). We log loudly + auto-archive
+// so the next sync/battle can never serve it again. Anonymous-friendly:
+// no auth required — abuse is bounded because we only archive rows whose
+// title or aspect actually matches a Shorts pattern after we re-check.
+const reportBadBodySchema = z.object({
+  thumbnailId: z.number().int().positive(),
+  reason: z.enum(["vertical_aspect", "shorts_marker"]),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+});
+
+router.post("/report-bad", async (req, res) => {
+  const parsed = reportBadBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid report body" });
+  }
+  const { thumbnailId, reason, width, height } = parsed.data;
+  try {
+    const [row] = await db
+      .select({
+        id: thumbnailsTable.id,
+        title: thumbnailsTable.title,
+        archived: thumbnailsTable.archived,
+        source: thumbnailsTable.source,
+      })
+      .from(thumbnailsTable)
+      .where(eq(thumbnailsTable.id, thumbnailId));
+    if (!row) {
+      return res.status(404).json({ error: "Thumbnail not found" });
+    }
+    // Only auto-archive YouTube rows. User uploads are the user's own
+    // image — if it's vertical that's their choice (still bad UX, but
+    // not our call to silently nuke).
+    let archived = false;
+    if (!row.archived && row.source === "youtube") {
+      await db
+        .update(thumbnailsTable)
+        .set({ archived: true, status: "shorts_archived" })
+        .where(eq(thumbnailsTable.id, thumbnailId));
+      archived = true;
+    }
+    req.log.warn(
+      { thumbnailId, title: row.title, reason, width, height, archived },
+      "Bad thumbnail reported by client (Shorts leakage)",
+    );
+    return res.json({ ok: true, archived });
+  } catch (err) {
+    req.log.error({ err, thumbnailId }, "Failed to record bad-thumbnail report");
+    return res.status(500).json({ error: "Failed to record report" });
   }
 });
 
