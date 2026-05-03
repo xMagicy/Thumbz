@@ -9,6 +9,13 @@ import { startScheduler } from "./lib/scheduler";
 
 const app: Express = express();
 
+// We sit behind the Replit reverse proxy. Without trust proxy = 1, req.ip
+// resolves to the proxy address and our per-IP rate limiters would key
+// every request to the same bucket — 429 storm for all users at once.
+// `1` (count one hop) is the safe default; we never expose the API
+// directly. express-rate-limit also requires this for accurate keying.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

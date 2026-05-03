@@ -42,25 +42,32 @@ let retentionTimer: NodeJS.Timeout | null = null;
 let retentionBootTimer: NodeJS.Timeout | null = null;
 
 async function runYoutubeSync() {
-  // withSyncLock prevents the scheduler and the manual /admin/sync-youtube
-  // route from racing each other (both call syncTrendingVideos and would
-  // otherwise duplicate-write view_snapshots and corrupt the per-channel /
-  // region / category balance heuristics).
-  const locked = await withSyncLock(async () => {
-    // Use defaults baked into syncTrendingVideos (12 regions, all targeted
-    // searches). The scheduler intentionally passes no opts so the sync
-    // configuration lives in one place.
-    return syncTrendingVideos();
-  });
-  if (!locked.ok) {
-    logger.warn(
-      { reason: locked.reason },
-      "Scheduled YouTube sync skipped — another run is in flight",
-    );
-    return;
-  }
-  const result = locked.result;
+  // The whole body is wrapped in try/catch because this function is
+  // invoked via `void runYoutubeSync()` from setTimeout/setInterval —
+  // any uncaught rejection would surface as an unhandledRejection event
+  // with no log context. withSyncLock propagates exceptions from
+  // syncTrendingVideos, so the catch must sit on the outside of the
+  // lock acquisition, not inside.
   try {
+    // withSyncLock prevents the scheduler and the manual
+    // /admin/sync-youtube route from racing each other (both call
+    // syncTrendingVideos and would otherwise duplicate-write
+    // view_snapshots and corrupt the per-channel / region / category
+    // balance heuristics).
+    const locked = await withSyncLock(async () => {
+      // Use defaults baked into syncTrendingVideos (12 regions, all targeted
+      // searches). The scheduler intentionally passes no opts so the sync
+      // configuration lives in one place.
+      return syncTrendingVideos();
+    });
+    if (!locked.ok) {
+      logger.warn(
+        { reason: locked.reason },
+        "Scheduled YouTube sync skipped — another run is in flight",
+      );
+      return;
+    }
+    const result = locked.result;
     if (!result.ok && result.reason === "missing_api_key") {
       // Already logged inside syncTrendingVideos.
       return;

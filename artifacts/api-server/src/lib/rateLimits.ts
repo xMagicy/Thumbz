@@ -1,34 +1,45 @@
+import type { Request } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 /**
  * Rate limits for write endpoints (Blok H P1 follow-up).
  *
  * - Vote: bursts are normal (a user can plausibly tap through 60 battles
- *   in a minute on mobile). The limit is set to absorb that without
- *   throttling honest sessions, but reject scripted abuse.
+ *   in a minute on mobile). The limit absorbs that without throttling
+ *   honest sessions, but rejects scripted abuse.
  * - Upload: comparatively rare, much more expensive (image storage,
  *   moderation cost). Tighter ceiling.
  *
- * Keying: prefer the auth user id (forwarded by requireAuth on the
- * upload route — for vote we read it best-effort), fall back to IP. The
- * IPv6-safe ipKeyGenerator from express-rate-limit handles /64 grouping.
+ * Keying: prefer the auth user id when available on the request,
+ * otherwise the client IP. Better Auth attaches no req.user by default
+ * outside requireAuth-protected routes, so on /vote we read it
+ * best-effort and fall back to IP. ipKeyGenerator handles IPv6 /64
+ * grouping correctly.
  *
- * Behavior under proxy: trust proxy is set on the app entry point so
- * req.ip is the real client. If that ever changes these counters would
- * silently collapse to a single key — visible immediately as 429s for
- * everyone behind the proxy.
+ * Behavior under proxy: app.set("trust proxy", 1) is configured in
+ * app.ts so req.ip is the real client (Replit forwards via X-Forwarded-
+ * For). Without that, every request would key to the proxy IP and the
+ * limiter would fire 429 for everyone in seconds.
  */
 
-function clientKey(req: Parameters<Parameters<typeof rateLimit>[0]["keyGenerator"] & ((req: never, res: never) => string)>[0]): string {
-  // Use any auth.user.id the route already attached to req; fall back
-  // to a best-effort header sniff (Better Auth cookies aren't decoded
-  // here — we keep the IP fallback simple and deterministic).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const r = req as any;
-  const uid: string | undefined = r?.user?.id ?? r?.auth?.userId;
+/**
+ * Canonical client identity used by both the rate limiter and the vote
+ * dedupe map. Exported so /vote can produce the exact same key shape
+ * as the limiter — otherwise a client could end up rate-limited on one
+ * key and deduped on a different one, weakening both layers.
+ */
+export function clientKey(req: Request): string {
+  // Routes guarded by requireAuth attach req.user. Anonymous routes
+  // don't, so we fall back to IP. The cast is needed because Express's
+  // base Request type doesn't know about our auth augmentation here
+  // (requireAuth lives in middlewares/ and only widens its protected
+  // routes' Request type).
+  const uid = (req as Request & { user?: { id?: string } }).user?.id;
   if (uid) return `u:${uid}`;
-  // ipKeyGenerator handles IPv6 grouping safely.
-  return `ip:${ipKeyGenerator(r.ip ?? "")}`;
+  // ipKeyGenerator handles IPv6 /64 grouping correctly; using raw
+  // req.ip would let two requests from the same /64 land in different
+  // buckets and bypass both the limiter and the dedupe.
+  return `ip:${ipKeyGenerator(req.ip ?? "")}`;
 }
 
 export const voteRateLimiter = rateLimit({
@@ -36,8 +47,7 @@ export const voteRateLimiter = rateLimit({
   limit: 90, // ≈1.5 votes/sec sustained — comfortable for thumb-spam, hostile to bots.
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  keyGenerator: clientKey as any,
+  keyGenerator: clientKey,
   message: { error: "rate_limited", message: "Too many votes. Slow down a bit." },
 });
 
@@ -46,7 +56,6 @@ export const uploadRateLimiter = rateLimit({
   limit: 20,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  keyGenerator: clientKey as any,
+  keyGenerator: clientKey,
   message: { error: "rate_limited", message: "Too many uploads in the last hour." },
 });

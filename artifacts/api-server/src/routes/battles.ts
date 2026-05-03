@@ -2,6 +2,8 @@ import { Router } from "express";
 import { db, battlesTable, thumbnailsTable, ratingHistoryTable } from "@workspace/db";
 import { eq, count, desc, inArray } from "drizzle-orm";
 import { CastVoteBody } from "@workspace/api-zod";
+import { voteRateLimiter, clientKey } from "../lib/rateLimits";
+import { recordVoteOrReject } from "../lib/voteDedup";
 
 const router = Router();
 
@@ -71,8 +73,17 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/battles/vote — cast a vote
-router.post("/vote", async (req, res) => {
+// POST /api/battles/vote — cast a vote.
+//
+// Two layers of abuse protection (Blok H P1):
+//   1. voteRateLimiter — ~90 votes/min per client (auth user or IP).
+//      Token-bucket style; legitimate thumb-spammers stay under, bots
+//      get 429.
+//   2. recordVoteOrReject — 5s dedupe per (client, unordered pair).
+//      Rapid double-fire of the same battle (network retry, double-tap,
+//      replay) is rejected so a single decision can never be counted
+//      twice.
+router.post("/vote", voteRateLimiter, async (req, res) => {
   const parsed = CastVoteBody.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid request body" });
@@ -82,6 +93,19 @@ router.post("/vote", async (req, res) => {
 
   if (winnerId === loserId) {
     return res.status(400).json({ error: "Winner and loser must be different" });
+  }
+
+  // Anonymous voting is allowed, so dedupe by IP when there's no user.
+  // Reuses the same `clientKey` helper as the limiter so a client can
+  // never be on different identities for the two protections (which
+  // would let them bypass dedupe by exploiting the IP-format mismatch).
+  const dedupe = recordVoteOrReject(clientKey(req), winnerId, loserId);
+  if (!dedupe.ok) {
+    res.setHeader("Retry-After", Math.ceil(dedupe.retryAfterMs / 1000));
+    return res.status(429).json({
+      error: "duplicate_vote",
+      message: "This pair was just voted on. Wait a moment and try again.",
+    });
   }
 
   try {

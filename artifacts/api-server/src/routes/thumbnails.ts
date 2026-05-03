@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { UploadThumbnailBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { auth } from "../lib/auth";
+import { uploadRateLimiter } from "../lib/rateLimits";
 
 const router = Router();
 
@@ -456,7 +457,7 @@ router.get("/:id/rating-history", async (req, res) => {
 // If a Better Auth session cookie is present, tag the row with the uploader's
 // userId so it surfaces in their dashboard. Anonymous uploads are still
 // allowed (userId stays NULL).
-router.post("/", async (req, res) => {
+router.post("/", uploadRateLimiter, async (req, res) => {
   const parsed = UploadThumbnailBody.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid request body" });
