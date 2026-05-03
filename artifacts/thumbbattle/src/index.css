@@ -308,6 +308,14 @@
   50% { transform: scale(1.1); opacity: 1; }
 }
 
+/* Sweep used by the niche-switch loading bar — a magenta-purple beam slides
+   across the bar while a refetch is in flight. Pure CSS so it has no React
+   re-render cost. */
+@keyframes thumbz-loading-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 /* BETA badge as feedback trigger — keeps premium aesthetic, gains hover affordance */
 .beta-badge-trigger {
   font-family: inherit;
