@@ -221,9 +221,11 @@ interface YtVideo {
   snippet?: {
     publishedAt: string;
     title: string;
+    description?: string;
     channelId: string;
     channelTitle: string;
     categoryId?: string;
+    tags?: string[];
     thumbnails?: {
       default?: YtThumbnail;
       medium?: YtThumbnail;
@@ -239,6 +241,23 @@ interface YtVideo {
   contentDetails?: {
     duration?: string;
   };
+}
+
+// Zero-tolerance Shorts detection (task #19). One regex used by both the
+// title and the description check. Matches optional leading `#`, the
+// usual Shorts/Reels aliases, and TikTok cross-post markers, with a word
+// boundary so we don't false-positive on substrings like "shortcut".
+const SHORTS_TEXT_PATTERN =
+  /#?(shorts|short|ytshorts|youtubeshorts|yshort|reel|reels|tiktok)\b/i;
+const SHORTS_TAG_PATTERN = /(short|reel)/i;
+
+// Best landscape-vs-portrait signal we have. maxres is preferred (most
+// accurate aspect for valid long-form), falls back to high so we still
+// catch Shorts when maxres is missing on the rare borderline video.
+function pickAspectThumbnail(v: YtVideo): YtThumbnail | null {
+  return (
+    v.snippet?.thumbnails?.maxres ?? v.snippet?.thumbnails?.high ?? null
+  );
 }
 
 interface YtListResponse {
@@ -436,8 +455,6 @@ function passesPreClassifierFilters(
   if (snippet.channelTitle && CHANNEL_NAME_BLOCKLIST.test(snippet.channelTitle)) {
     return "channel_blocklist";
   }
-  if (!pickMaxresThumbnail(v)) return "no_maxres";
-
   const publishedAt = new Date(snippet.publishedAt).getTime();
   if (!Number.isFinite(publishedAt)) return "bad_publish_date";
   const ageMs = NOW_TS() - publishedAt;
@@ -446,7 +463,64 @@ function passesPreClassifierFilters(
 
   const durationSec = parseIsoDuration(v.contentDetails?.duration);
   if (durationSec === null) return "no_duration";
-  if (durationSec < 60) return "short_form";
+
+  // ─── Zero-tolerance Shorts gate (task #19) ───────────────────────────
+  // Five independent signals; a single match rejects the video. The
+  // duration floor at 180s (= YouTube's max Shorts length) deliberately
+  // sacrifices legitimate sub-3-min content — the "no Shorts in pool"
+  // promise is more important than catching every short tutorial.
+  // These run BEFORE the generic `no_maxres` rejection so each signal
+  // gets its own slot in the per-reason skip telemetry; without that
+  // ordering, every no-maxres Short would silently fall into the
+  // `no_maxres` bucket and we'd lose visibility into why we rejected it.
+  if (durationSec <= 180) return "shorts_duration";
+
+  // Title OR description hashtag/marker check.
+  if (SHORTS_TEXT_PATTERN.test(snippet.title)) return "shorts_title_marker";
+  if (
+    snippet.description &&
+    SHORTS_TEXT_PATTERN.test(snippet.description)
+  ) {
+    return "shorts_description_marker";
+  }
+
+  // Aspect ratio: reject if portrait/square. Uses maxres → high fallback
+  // because maxres is sometimes missing on borderline videos. Done before
+  // the generic no_maxres rejection so the `high` fallback can actually
+  // do its job for no-maxres-but-still-clearly-vertical videos.
+  const aspectThumb = pickAspectThumbnail(v);
+  if (
+    aspectThumb &&
+    typeof aspectThumb.width === "number" &&
+    typeof aspectThumb.height === "number" &&
+    aspectThumb.width > 0 &&
+    aspectThumb.height >= aspectThumb.width
+  ) {
+    return "shorts_vertical_thumbnail";
+  }
+
+  // Tag array check. snippet.tags can be undefined or empty — both fine.
+  if (snippet.tags && snippet.tags.length > 0) {
+    for (const tag of snippet.tags) {
+      if (SHORTS_TAG_PATTERN.test(tag)) return "shorts_tag";
+    }
+  }
+
+  // Filter 5 from the spec: no maxres + sub-4-min = treat as Short. This
+  // catches the residual case where a vertical video sneaks through with
+  // a square-ish `high` thumb but no maxres — YouTube only generates
+  // maxres for properly-rendered landscape uploads above a certain
+  // bitrate, so its absence on short videos is itself a strong Shorts
+  // signal. Has its own skip-reason so it stays visible in telemetry.
+  if (!pickMaxresThumbnail(v) && durationSec < 240) {
+    return "shorts_no_maxres_under_240";
+  }
+
+  // Generic quality gate for the >=240s case (Brief A: maxres-only, no
+  // fallback). Now reached only by long-form videos missing maxres,
+  // which is the original "low-quality upload" case this rule existed
+  // for before the Shorts work piggybacked on it.
+  if (!pickMaxresThumbnail(v)) return "no_maxres";
 
   const views = Number(stats.viewCount);
   if (!Number.isFinite(views) || views < 25_000) return "below_min_views";
@@ -495,6 +569,9 @@ async function fetchJson<T>(url: URL): Promise<T> {
 
 async function fetchMostPopular(apiKey: string, region: string): Promise<YtVideo[]> {
   const url = new URL(`${YT_BASE}/videos`);
+  // snippet already includes description + tags + thumbnails — no extra
+  // `part` cost. Just kept the explicit comment so a future trim of the
+  // part list doesn't accidentally drop the Shorts-filter signals.
   url.searchParams.set("part", "snippet,statistics,contentDetails");
   url.searchParams.set("chart", "mostPopular");
   url.searchParams.set("regionCode", region);
@@ -532,6 +609,8 @@ async function fetchVideosByIds(apiKey: string, ids: string[]): Promise<YtVideo[
   for (let i = 0; i < ids.length; i += 50) {
     const batch = ids.slice(i, i + 50);
     const url = new URL(`${YT_BASE}/videos`);
+    // snippet brings description + tags + thumbnails the Shorts filter
+    // (task #19) needs. No extra quota cost vs. snippet alone.
     url.searchParams.set("part", "snippet,statistics,contentDetails");
     url.searchParams.set("id", batch.join(","));
     url.searchParams.set("key", apiKey);
