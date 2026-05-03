@@ -76,7 +76,10 @@ async function fetchVideosByIds(
     url.searchParams.set("id", batch.join(","));
     url.searchParams.set("key", apiKey);
     const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`videos.list failed: HTTP ${res.status}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "(no body)");
+      throw new Error(`videos.list failed: HTTP ${res.status}\nResponse body: ${body.slice(0, 1500)}`);
+    }
     const data = (await res.json()) as YtListResponse;
     if (data.error) throw new Error(`videos.list error: ${data.error.message}`);
     if (data.items) out.push(...data.items);
