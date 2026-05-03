@@ -257,7 +257,14 @@ interface YtSearchResponse {
 
 interface YtChannel {
   id: string;
-  snippet?: { publishedAt?: string };
+  snippet?: {
+    publishedAt?: string;
+    thumbnails?: {
+      default?: { url?: string };
+      medium?: { url?: string };
+      high?: { url?: string };
+    };
+  };
   statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean };
 }
 
@@ -537,6 +544,7 @@ async function fetchVideosByIds(apiKey: string, ids: string[]): Promise<YtVideo[
 interface ChannelInfo {
   subscriberCount: number;
   createdAt: Date | null;
+  logoUrl: string | null;
 }
 
 async function fetchChannelInfo(
@@ -559,9 +567,19 @@ async function fetchChannelInfo(
       }
       const createdRaw = ch.snippet?.publishedAt;
       const createdAt = createdRaw ? new Date(createdRaw) : null;
+      // Prefer medium (88×88) — sharp at the 22-24px sizes the UI uses
+      // even on retina, and stays small enough to keep the leaderboard
+      // payload light. Fall back to high → default if YouTube didn't
+      // return medium for this channel.
+      const logoUrl =
+        ch.snippet?.thumbnails?.medium?.url ??
+        ch.snippet?.thumbnails?.high?.url ??
+        ch.snippet?.thumbnails?.default?.url ??
+        null;
       out.set(ch.id, {
         subscriberCount: subs,
         createdAt: createdAt && !isNaN(createdAt.getTime()) ? createdAt : null,
+        logoUrl,
       });
     }
   }
@@ -887,6 +905,8 @@ export async function syncTrendingVideos(opts?: {
             title: snippet.title,
             imageUrl,
             channelName: snippet.channelTitle,
+            channelId: snippet.channelId ?? null,
+            channelLogoUrl: channelInfo.get(snippet.channelId ?? "")?.logoUrl ?? null,
             niche: a.appCategory, // mirror app_category for legacy UI
             appCategory: a.appCategory,
             categoryId: Number.isFinite(categoryIdInt) ? categoryIdInt : null,
@@ -929,6 +949,8 @@ export async function syncTrendingVideos(opts?: {
           .set({
             title: snippet.title,
             channelName: snippet.channelTitle,
+            channelId: snippet.channelId ?? null,
+            channelLogoUrl: channelInfo.get(snippet.channelId ?? "")?.logoUrl ?? null,
             niche: a.appCategory,
             appCategory: a.appCategory,
             categoryId: Number.isFinite(categoryIdInt) ? categoryIdInt : null,

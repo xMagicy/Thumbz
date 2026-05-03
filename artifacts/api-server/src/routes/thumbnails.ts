@@ -28,6 +28,8 @@ const toDto = (
   title: t.title,
   imageUrl: t.imageUrl,
   channelName: t.channelName,
+  channelId: t.channelId,
+  channelLogoUrl: t.channelLogoUrl,
   niche: t.niche,
   ctr: t.ctr,
   youtubeUrl: t.youtubeUrl,

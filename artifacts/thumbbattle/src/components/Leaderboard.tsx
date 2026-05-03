@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import type { Niche } from "./NicheFilterBar";
 import { EloSparkline } from "./EloTrendChart";
+import { ChannelAvatar } from "./ChannelAvatar";
 
 type Sort = (typeof ListThumbnailsSort)[keyof typeof ListThumbnailsSort];
 
@@ -407,17 +408,24 @@ export function Leaderboard({
                       >
                         {thumb.title}
                       </h4>
-                      <p
-                        className="truncate"
-                        style={{
-                          fontFamily: inter,
-                          fontWeight: 400,
-                          fontSize: "0.8125rem",
-                          color: "#888",
-                        }}
-                      >
-                        {thumb.channelName}
-                      </p>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ChannelAvatar
+                          channelName={thumb.channelName}
+                          channelLogoUrl={thumb.channelLogoUrl}
+                          size={22}
+                        />
+                        <p
+                          className="truncate"
+                          style={{
+                            fontFamily: inter,
+                            fontWeight: 400,
+                            fontSize: "0.8125rem",
+                            color: "#aaa",
+                          }}
+                        >
+                          {thumb.channelName}
+                        </p>
+                      </div>
                       <p
                         style={{
                           fontFamily: inter,

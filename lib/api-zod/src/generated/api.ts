@@ -37,6 +37,18 @@ export const ListThumbnailsResponseItem = zod.object({
   title: zod.string(),
   imageUrl: zod.string(),
   channelName: zod.string(),
+  channelId: zod
+    .string()
+    .nullish()
+    .describe(
+      "YouTube channelId for YouTube-sourced rows; null for user uploads.",
+    ),
+  channelLogoUrl: zod
+    .string()
+    .nullish()
+    .describe(
+      "Channel avatar URL (YouTube snippet.thumbnails.medium.url); null for user uploads.",
+    ),
   niche: zod
     .string()
     .describe(
@@ -185,6 +197,18 @@ export const GetBattlePairResponse = zod.object({
           title: zod.string(),
           imageUrl: zod.string(),
           channelName: zod.string(),
+          channelId: zod
+            .string()
+            .nullish()
+            .describe(
+              "YouTube channelId for YouTube-sourced rows; null for user uploads.",
+            ),
+          channelLogoUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Channel avatar URL (YouTube snippet.thumbnails.medium.url); null for user uploads.",
+            ),
           niche: zod
             .string()
             .describe(
@@ -251,6 +275,18 @@ export const GetBattlePairResponse = zod.object({
           title: zod.string(),
           imageUrl: zod.string(),
           channelName: zod.string(),
+          channelId: zod
+            .string()
+            .nullish()
+            .describe(
+              "YouTube channelId for YouTube-sourced rows; null for user uploads.",
+            ),
+          channelLogoUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Channel avatar URL (YouTube snippet.thumbnails.medium.url); null for user uploads.",
+            ),
           niche: zod
             .string()
             .describe(
@@ -372,6 +408,18 @@ export const CastVoteResponse = zod.object({
     title: zod.string(),
     imageUrl: zod.string(),
     channelName: zod.string(),
+    channelId: zod
+      .string()
+      .nullish()
+      .describe(
+        "YouTube channelId for YouTube-sourced rows; null for user uploads.",
+      ),
+    channelLogoUrl: zod
+      .string()
+      .nullish()
+      .describe(
+        "Channel avatar URL (YouTube snippet.thumbnails.medium.url); null for user uploads.",
+      ),
     niche: zod
       .string()
       .describe(
@@ -438,6 +486,18 @@ export const CastVoteResponse = zod.object({
     title: zod.string(),
     imageUrl: zod.string(),
     channelName: zod.string(),
+    channelId: zod
+      .string()
+      .nullish()
+      .describe(
+        "YouTube channelId for YouTube-sourced rows; null for user uploads.",
+      ),
+    channelLogoUrl: zod
+      .string()
+      .nullish()
+      .describe(
+        "Channel avatar URL (YouTube snippet.thumbnails.medium.url); null for user uploads.",
+      ),
     niche: zod
       .string()
       .describe(

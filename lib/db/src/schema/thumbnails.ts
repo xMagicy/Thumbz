@@ -21,6 +21,14 @@ export const thumbnailsTable = pgTable(
     title: text("title").notNull(),
     imageUrl: text("image_url").notNull(),
     channelName: text("channel_name").notNull(),
+    // YouTube channelId (e.g. "UCX6OQ3DkcsbYNE6H8uQQuVA"). Stored so the
+    // logo backfill + future channel-grouping queries don't have to
+    // re-resolve it from the videoId. NULL for user uploads.
+    channelId: text("channel_id"),
+    // Cached channel avatar URL — snippet.thumbnails.medium.url from
+    // channels.list. Rendered in FighterCard / Leaderboard / dashboard.
+    // NULL for user uploads (UI falls back to a gradient initial).
+    channelLogoUrl: text("channel_logo_url"),
     // Legacy upload-input field. Captures what the uploader picked at
     // upload time (and what early seed/YouTube rows were tagged with).
     // Post task #16 backfill, `app_category` below is the single source of

@@ -14,6 +14,16 @@ export interface Thumbnail {
   title: string;
   imageUrl: string;
   channelName: string;
+  /**
+   * YouTube channelId for YouTube-sourced rows; null for user uploads.
+   * @nullable
+   */
+  channelId?: string | null;
+  /**
+   * Channel avatar URL (YouTube snippet.thumbnails.medium.url); null for user uploads.
+   * @nullable
+   */
+  channelLogoUrl?: string | null;
   /** One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other */
   niche: string;
   /**

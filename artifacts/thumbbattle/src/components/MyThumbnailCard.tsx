@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Check, X, Loader2 } from "lucide-react";
 import { EloSparkline } from "./EloTrendChart";
 import { updateThumbnailCtr, type MyThumbnail } from "../lib/dashboard-api";
+import { ChannelAvatar } from "./ChannelAvatar";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -116,9 +117,25 @@ export function MyThumbnailCard({ thumbnail }: MyThumbnailCardProps) {
           >
             {thumbnail.title}
           </h3>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.78rem" }}>
-            {thumbnail.channelName} · {thumbnail.niche}
-          </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <ChannelAvatar
+              channelName={thumbnail.channelName}
+              channelLogoUrl={thumbnail.channelLogoUrl}
+              size={22}
+            />
+            <p
+              className="truncate"
+              style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.78rem" }}
+            >
+              <span style={{ color: "rgba(255,255,255,0.78)" }}>
+                {thumbnail.channelName}
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 6px" }}>
+                ·
+              </span>
+              {thumbnail.niche}
+            </p>
+          </div>
         </div>
 
         <div

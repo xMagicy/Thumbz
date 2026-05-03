@@ -9,6 +9,8 @@ export interface MyThumbnail {
   title: string;
   imageUrl: string;
   channelName: string;
+  channelId: string | null;
+  channelLogoUrl: string | null;
   niche: string;
   ctr: number | null;
   youtubeUrl: string | null;

@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { ChannelAvatar } from "./ChannelAvatar";
 
 interface FighterCardProps {
   thumbnail: Thumbnail;
@@ -282,27 +283,11 @@ export function FighterCard({
           style={{ marginTop: 10 }}
         >
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span
-              aria-hidden
-              className="shrink-0 rounded-full"
-              style={{
-                width: 18,
-                height: 18,
-                background:
-                  "linear-gradient(135deg, rgba(168,85,247,0.55), rgba(217,70,239,0.55))",
-                border: "1px solid rgba(255,255,255,0.18)",
-                fontFamily: INTER_STACK,
-                fontWeight: 700,
-                fontSize: 9,
-                color: "#fff",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 1,
-              }}
-            >
-              {(thumbnail.channelName?.[0] ?? "?").toUpperCase()}
-            </span>
+            <ChannelAvatar
+              channelName={thumbnail.channelName}
+              channelLogoUrl={thumbnail.channelLogoUrl}
+              size={22}
+            />
             <span
               className="truncate"
               style={{

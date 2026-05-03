@@ -9,6 +9,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { EloTrendChart } from "./EloTrendChart";
+import { ChannelAvatar } from "./ChannelAvatar";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -202,14 +203,23 @@ export function ThumbnailDetailModal({
                 >
                   {thumbnail.title}
                 </h2>
-                <p
-                  style={{
-                    color: "rgba(255,255,255,0.6)",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  {thumbnail.channelName}
-                </p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <ChannelAvatar
+                    channelName={thumbnail.channelName}
+                    channelLogoUrl={thumbnail.channelLogoUrl}
+                    size={24}
+                  />
+                  <p
+                    className="truncate"
+                    style={{
+                      color: "rgba(255,255,255,0.72)",
+                      fontSize: "0.9rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {thumbnail.channelName}
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">

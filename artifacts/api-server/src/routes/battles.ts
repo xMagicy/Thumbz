@@ -12,6 +12,8 @@ const toDto = (t: typeof thumbnailsTable.$inferSelect) => ({
   title: t.title,
   imageUrl: t.imageUrl,
   channelName: t.channelName,
+  channelId: t.channelId,
+  channelLogoUrl: t.channelLogoUrl,
   wins: t.wins,
   losses: t.losses,
   eloRating: t.eloRating,

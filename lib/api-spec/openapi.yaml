@@ -305,6 +305,12 @@ components:
           type: string
         channelName:
           type: string
+        channelId:
+          type: ["string", "null"]
+          description: YouTube channelId for YouTube-sourced rows; null for user uploads.
+        channelLogoUrl:
+          type: ["string", "null"]
+          description: Channel avatar URL (YouTube snippet.thumbnails.medium.url); null for user uploads.
         niche:
           type: string
           description: One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other
