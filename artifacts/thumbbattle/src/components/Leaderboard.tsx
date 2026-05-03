@@ -1,10 +1,11 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Trophy, Medal, Star, Search, TrendingUp } from "lucide-react";
 import type { Thumbnail } from "@workspace/api-client-react";
 import { ListThumbnailsSort } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import type { Niche } from "./NicheFilterBar";
+import { EloSparkline } from "./EloTrendChart";
 
 type Sort = (typeof ListThumbnailsSort)[keyof typeof ListThumbnailsSort];
 
@@ -34,64 +35,6 @@ const TIER_BREAKS: { index: number; label: string; subtitle: string }[] = [
 
 // Cubic-bezier easing tuple shared across leaderboard transitions
 const EASE_STANDARD = [0.4, 0, 0.2, 1] as const;
-
-// Mini sparkline showing a deterministic placeholder ELO trend per thumbnail.
-// Pure visual filler — never reads from the DB. The trend always lands on the
-// thumbnail's current ELO so it visually matches the row's rating display.
-function EloSparkline({ seed, currentElo }: { seed: number; currentElo: number }) {
-  const points = useMemo(() => {
-    const pts: number[] = [];
-    let v = currentElo - 28;
-    let s = (seed * 9301 + 49297) % 233280;
-    for (let i = 0; i < 9; i++) {
-      s = (s * 9301 + 49297) % 233280;
-      const r = s / 233280 - 0.5;
-      v += r * 18;
-      pts.push(v);
-    }
-    pts.push(currentElo);
-    return pts;
-  }, [seed, currentElo]);
-
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const W = 64;
-  const H = 22;
-  const path = points
-    .map((p, i) => {
-      const x = (i / (points.length - 1)) * W;
-      const y = H - ((p - min) / range) * (H - 2) - 1;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  const trendUp = points[points.length - 1] >= points[0];
-  const stroke = trendUp ? "#86efac" : "#fca5a5";
-  const fill = trendUp ? "rgba(34,197,94,0.18)" : "rgba(239,68,68,0.18)";
-  const areaPath = `${path} L${W},${H} L0,${H} Z`;
-
-  return (
-    <svg
-      width={W}
-      height={H}
-      viewBox={`0 0 ${W} ${H}`}
-      className="shrink-0"
-      role="img"
-      aria-label={`ELO trend: ${trendUp ? "up" : "down"}`}
-    >
-      <path d={areaPath} fill={fill} />
-      <path
-        d={path}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function TierHeader({ label, subtitle }: { label: string; subtitle: string }) {
   return (

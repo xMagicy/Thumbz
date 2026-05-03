@@ -8,6 +8,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { EloTrendChart } from "./EloTrendChart";
 
 const inter = "'Inter', system-ui, sans-serif";
 
@@ -233,6 +234,11 @@ export function ThumbnailDetailModal({
                   value={(thumbnail.wins + thumbnail.losses).toString()}
                 />
               </div>
+
+              <EloTrendChart
+                seed={thumbnail.id}
+                currentElo={Math.round(thumbnail.eloRating)}
+              />
 
               <div className="flex items-center justify-between gap-3 text-sm">
                 <div
