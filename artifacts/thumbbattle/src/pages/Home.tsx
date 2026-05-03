@@ -894,14 +894,39 @@ export default function Home() {
               transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
             >
               {/* Heavy backdrop scrim — kills the visual competition with the
-                  blurred thumbnails behind so the card is the only thing the
-                  eye latches onto. Radial darkness from center outward. */}
+                  blurred thumbnails (and their ambient-light bleed) behind so
+                  the card is the only thing the eye latches onto.
+                  Two layers:
+                   1. A massively oversized radial that extends well past the
+                      battle container's bounds so the gradient fades to fully
+                      transparent before reaching any edge. This kills the
+                      hard rectangular silhouette the scrim used to draw at
+                      the exact width of the battle area.
+                   2. A tight inner radial that pumps extra darkness directly
+                      under the modal to mask the card glow that previously
+                      bled out at the bottom-right corner. */}
               <div
                 aria-hidden
-                className="absolute inset-0 pointer-events-none"
+                className="pointer-events-none absolute"
                 style={{
+                  left: "-60vw",
+                  right: "-60vw",
+                  top: "-40vh",
+                  bottom: "-40vh",
                   background:
-                    "radial-gradient(ellipse at 50% 50%, rgba(8,5,20,0.78), rgba(8,5,20,0.92) 70%)",
+                    "radial-gradient(ellipse 55% 45% at 50% 50%, rgba(8,5,20,0.92), rgba(8,5,20,0.6) 55%, rgba(8,5,20,0) 78%)",
+                }}
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute"
+                style={{
+                  left: "-12%",
+                  right: "-12%",
+                  top: "-12%",
+                  bottom: "-12%",
+                  background:
+                    "radial-gradient(ellipse 45% 55% at 50% 50%, rgba(8,5,20,0.65), rgba(8,5,20,0) 75%)",
                 }}
               />
 
