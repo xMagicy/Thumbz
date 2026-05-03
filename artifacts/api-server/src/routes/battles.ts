@@ -98,22 +98,35 @@ router.post("/vote", async (req, res) => {
     if (!winner) return res.status(404).json({ error: `Thumbnail ${winnerId} not found` });
     if (!loser) return res.status(404).json({ error: `Thumbnail ${loserId} not found` });
 
-    // ELO calculation (K=32)
-    const K = 32;
+    // ELO with decaying K-factor (Blok B):
+    //   K=32 while battle_count<20 (newcomers move fast)
+    //   K=16 once stable (small corrections, low noise)
+    // The K applied is each side's own K — winner and loser may differ.
+    const kFor = (battleCount: number) => (battleCount < 20 ? 32 : 16);
+    const winnerK = kFor(winner.battleCount);
+    const loserK = kFor(loser.battleCount);
     const expectedWin = 1 / (1 + Math.pow(10, (loser.eloRating - winner.eloRating) / 400));
     const expectedLoss = 1 - expectedWin;
-    const newWinnerElo = Math.round(winner.eloRating + K * (1 - expectedWin));
-    const newLoserElo = Math.round(loser.eloRating + K * (0 - expectedLoss));
+    const newWinnerElo = Math.round(winner.eloRating + winnerK * (1 - expectedWin));
+    const newLoserElo = Math.round(loser.eloRating + loserK * (0 - expectedLoss));
 
     const [updatedWinner] = await db
       .update(thumbnailsTable)
-      .set({ wins: winner.wins + 1, eloRating: newWinnerElo })
+      .set({
+        wins: winner.wins + 1,
+        eloRating: newWinnerElo,
+        battleCount: winner.battleCount + 1,
+      })
       .where(eq(thumbnailsTable.id, winnerId))
       .returning();
 
     const [updatedLoser] = await db
       .update(thumbnailsTable)
-      .set({ losses: loser.losses + 1, eloRating: newLoserElo })
+      .set({
+        losses: loser.losses + 1,
+        eloRating: newLoserElo,
+        battleCount: loser.battleCount + 1,
+      })
       .where(eq(thumbnailsTable.id, loserId))
       .returning();
 

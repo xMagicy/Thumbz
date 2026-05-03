@@ -91,6 +91,14 @@ export const thumbnailsTable = pgTable(
     // last sync. Multi-region presence = strong global signal. Stored
     // as a Postgres text[] so we can `unnest` for the balance query.
     trendingRegions: text("trending_regions").array(),
+    // ── Blok E hybrid classifier output ────────────────────────────────
+    // Final UI-facing category produced by the hybrid classifier
+    // (categoryId + title keywords + channel patterns). Distinct from
+    // YouTube's raw categoryId because one categoryId can map to several
+    // niches (e.g. categoryId=22 People&Blogs → could be Lifestyle, Vlog,
+    // or Finance depending on title). Matchmaking and leaderboard tabs
+    // both read this. NULL for user uploads (they keep `niche`).
+    appCategory: text("app_category"),
   },
   (t) => [
     index("thumbnails_user_id_idx").on(t.userId),

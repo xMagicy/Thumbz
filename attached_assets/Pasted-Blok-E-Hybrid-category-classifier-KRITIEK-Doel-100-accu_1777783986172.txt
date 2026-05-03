@@ -1,0 +1,111 @@
+Blok E — Hybrid category classifier (KRITIEK)
+Doel: 100% accurate UI category mapping. Geen gaming in Vlog, geen lyric video in Music, etc.
+
+Aanpak: hybrid classifier per thumbnail. Volgorde van evaluatie matters — meest specifieke eerst, broad catch-all laatste. Eerste match wint.
+
+Sla resultaat op in app_category (text). Sla bij meervoudige match een category_confidence (low/medium/high) op voor monitoring.
+
+Evaluation order
+Gaming → 2. Music → 3. Finance → 4. Tech → 5. Tutorial → 6. Lifestyle → 7. Vlog → 8. Other (catchall)
+Match rules per category
+All keyword matching is case-insensitive, on title unless specified.
+
+1. Gaming
+Match if any of:
+
+categoryId = 20
+Title contains any game name: minecraft, fortnite, roblox, brookhaven, gta, valorant, league of legends, lol, dota, brawl stars, brawler, clash royale, clash of clans, pokemon, zelda, mario, sonic, fifa, nba 2k, madden, call of duty, cod, warzone, apex legends, overwatch, counter-strike, csgo, cs2, rocket league, fall guys, among us, the sims, animal crossing, smash bros, splatoon, terraria, stardew valley, hollow knight, elden ring, dark souls, baldur's gate, cyberpunk, witcher, skyrim, fallout, mass effect, halo, doom, diablo, world of warcraft, wow, runescape, osrs, final fantasy, persona, monster hunter, tekken, mortal kombat, street fighter, pubg, free fire, mobile legends, genshin, honkai, hearthstone, magic the gathering, mtg, yugioh, pokemon tcg
+Title contains gaming verbs: gameplay, speedrun, let's play, playthrough, boss fight, walkthrough, no commentary, hardcore mode, raid, pvp, ranked, esports, tournament, battle pass, season pass, mod showcase, devlog, twitch highlights
+Channel name ends with: Plays, Gaming, Gamer, GG, Esports, TFT
+Channel name contains: Plays, Gaming, Gamer
+2. Music
+Match if all of:
+
+categoryId = 10
+Title does NOT contain (lyric video exclusion): lyric, lyrics, official audio, audio only, slowed, reverb, 8d audio, 1 hour, hours of, sleep music, study music, lo-fi to study, lofi study, white noise
+OR match if title contains: official music video, official mv, music video, official video, vevo presents, ft., feat., remix, cover, acoustic, live performance, tiny desk, npr music, kexp (en thumbnail heeft maxres beschikbaar)
+
+3. Finance
+Match if any of:
+
+Title contains: stocks, stock market, investing, invest, dividend, dividends, s&p 500, nasdaq, dow jones, bitcoin, btc, crypto, ethereum, eth, etf, index fund, mutual fund, bonds, treasury, real estate, reit, passive income, wealth, wealthy, millionaire, broke, salary, paycheck, rent, mortgage, debt, student loan, credit score, retirement, 401k, ira, roth, fire movement, financial freedom, financial independence, frugal, saving money, budget, budgeting
+Channel name in whitelist: Graham Stephan, Andrei Jikh, Coffeezilla, How Money Works, The Plain Bagel, Patrick Boyle, Ben Felix, The Money Guy, Humphrey Yang, Nate O'Brien, Erika Kullberg, Money With Katie, Two Cents, Caleb Hammer, Dave Ramsey, Robert Kiyosaki
+4. Tech
+Match if any of:
+
+categoryId = 28
+Title contains: iphone, android, samsung galaxy, google pixel, macbook, ipad, apple watch, m1 chip, m2 chip, m3 chip, m4 chip, intel core, amd ryzen, nvidia rtx, gpu, custom pc, gaming pc, build pc, review, unboxing, hands-on, ai chatbot, gpt, chatgpt, openai, claude, gemini, copilot, llm, machine learning, javascript, python, react, swift, kubernetes, docker, aws, gcp, azure, devops, programming tutorial, coding interview
+Channel name ends with: Tech, Reviews
+Channel name contains: MKBHD, Linus Tech, Marques Brownlee, Dave2D, JerryRigEverything
+5. Tutorial
+Match if any of:
+
+categoryId = 26 OR 27
+Title contains: how to, tutorial, guide, learn, step by step, explained, beginner's guide, masterclass, course, lesson, fundamentals, the basics of, deep dive, introduction to, complete guide, ultimate guide, in 10 minutes, in 5 minutes
+Must not have matched Gaming, Music, Finance, Tech first.
+
+6. Lifestyle
+Match if all of:
+
+categoryId = 22 (People & Blogs)
+Title contains: morning routine, night routine, day in my life, day in the life, ditl, week in my life, outfit, ootd, fashion, skincare, makeup, beauty, fitness, workout, gym, home gym, diet, what i eat, meal prep, recipe, cooking, baking, minimalism, declutter, organize, clean with me, productivity, journaling, self care, wellness, aesthetic, cottagecore, dark academia, room tour, apartment tour, house tour, garden, plants, sustainable, slow living
+Must not have matched Gaming, Tech, Finance first.
+
+7. Vlog
+Match if all of:
+
+categoryId = 22 OR 24
+Title contains: vlog, daily vlog, weekly vlog, trip to, travel vlog, traveling to, moving to, moved out, life update, came back, story time, storytime, draw my life, q&a, qna, behind the scenes, last week, last month, my first time
+Must not have matched Gaming, Music, Finance, Tech, Tutorial, Lifestyle first.
+
+8. Other (catchall)
+Everything that didn't match. Includes news, sports, comedy sketches, ASMR, food (non-routine), pets, etc.
+
+Confidence scoring
+Voor monitoring/debugging:
+
+High: matched on categoryId + minstens 1 keyword/channel pattern
+Medium: matched alleen op keyword (geen categoryId match)
+Low: matched op channel pattern alleen, of in catchall (Other)
+Logging: bij elke sync log totaal aantal per category + per confidence level. Voorbeeld console output:
+
+Gaming:    245 (high: 180, medium: 60, low: 5)
+Music:     89 (high: 89, medium: 0, low: 0)
+Finance:   34 (high: 0, medium: 32, low: 2)  // geen categoryId, alles op keywords
+Vlog:      67 (high: 12, medium: 50, low: 5)
+Other:     91 (low: 91)
+Als Other > 30% van pool → keyword regels te strict, breid uit.
+
+Verificatie test cases (verplicht na implementatie)
+Run deze checks. Verwacht resultaat tussen []:
+
+-- Gaming detection sanity
+SELECT title, channel_name, app_category FROM thumbnails 
+WHERE title ILIKE '%brookhaven%' OR title ILIKE '%brawler%' 
+   OR channel_name IN ('Mohi Plays', 'SoyWelix');
+-- [Expected: alle Gaming]
+
+-- Lyric video exclusion sanity
+SELECT title, app_category FROM thumbnails 
+WHERE title ILIKE '%lyric%';
+-- [Expected: 0 rows in Music — lyric videos zouden uitgefilterd moeten zijn in sourcing]
+
+-- Finance via keywords (geen categoryId)
+SELECT title, channel_name FROM thumbnails 
+WHERE app_category = 'Finance' LIMIT 10;
+-- [Expected: titles bevatten finance termen]
+
+-- Other percentage check
+SELECT app_category, COUNT(*),
+       ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct
+FROM thumbnails GROUP BY app_category ORDER BY 2 DESC;
+-- [Expected: Other < 30%]
+
+-- Vlog tab purity (geen gaming!)
+SELECT title, channel_name FROM thumbnails 
+WHERE app_category = 'Vlog' AND (
+  channel_name ILIKE '%plays%' OR channel_name ILIKE '%gaming%'
+  OR title ~* 'minecraft|fortnite|roblox|brawler|brookhaven'
+);
+-- [Expected: 0 rows]
+Als één van deze checks faalt: classifier nog niet correct, fix vereist voor je verder gaat.

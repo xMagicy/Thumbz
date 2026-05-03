@@ -1,4 +1,4 @@
-import { syncTrendingVideos } from "./youtube";
+import { syncTrendingVideos, archiveUnderperformers } from "./youtube";
 import { logger } from "./logger";
 
 /**
