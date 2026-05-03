@@ -14,13 +14,81 @@ export interface EloTrendPoint {
 }
 
 /**
+ * Tiny deterministic PRNG (mulberry32). Seeded by thumbnailId so the
+ * synthesized "sample trend" stays stable across renders for the same
+ * thumbnail instead of wiggling on every mount.
+ */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Generate a realistic-looking ELO sample trend ending at `currentElo`.
+ * Uses a mean-reverting random walk (Ornstein-Uhlenbeck-ish) so the line
+ * shows genuine wave movement instead of looking like a synthetic zigzag,
+ * then anchors the LAST point to `currentElo` exactly so the chart's
+ * endpoint always matches the headline rating.
+ *
+ * NOT real history — used only when the thumbnail has fewer than 2
+ * recorded points so the chart isn't a flat dead line.
+ */
+function synthesizeSampleTrend(
+  thumbnailId: number,
+  currentElo: number,
+  count = 22,
+): EloTrendPoint[] {
+  const rand = mulberry32(thumbnailId * 9301 + 49297);
+  // Start ~30-60 points away from the current rating in a random direction
+  // so we get a nice arc TOWARDS the present value.
+  const dir = rand() < 0.5 ? -1 : 1;
+  const startOffset = (30 + rand() * 30) * dir;
+  const startElo = currentElo - startOffset;
+
+  // Mean-reverting walk: each step pulls slightly back toward the linear
+  // path between start and current, plus normal-ish noise. This produces
+  // organic local waves without ever drifting absurdly far off course.
+  const values: number[] = [];
+  let v = startElo;
+  for (let i = 0; i < count; i++) {
+    const t = i / (count - 1);
+    // Linear baseline from start → current.
+    const baseline = startElo + (currentElo - startElo) * t;
+    // Pull-back strength toward baseline (0..1). Higher = tighter to line.
+    const pull = 0.18;
+    // Noise with a slight tail — Box-Muller-ish without sqrt-log cost.
+    const noise = (rand() + rand() + rand() - 1.5) * 14;
+    v = v + (baseline - v) * pull + noise;
+    values.push(v);
+  }
+  // Anchor exactly to currentElo at the end so the chart never visually
+  // contradicts the displayed "current" number.
+  values[values.length - 1] = currentElo;
+
+  // Force a round-number start as well so the first tick reads cleanly.
+  values[0] = Math.round(values[0]);
+
+  return values.map((rating, i) => ({
+    index: i + 1,
+    rating: Math.round(rating),
+  }));
+}
+
+/**
  * Hook that loads a thumbnail's recorded ELO history from the server and
  * normalizes it into chart-ready points (1-indexed `index` + `rating`).
  *
  * Fallback: if there are fewer than 2 recorded points (a brand-new thumbnail
- * or one that hasn't fought yet) we synthesize a flat 2-point line at the
- * thumbnail's current rating so the chart still has something to render
- * instead of collapsing to a single dot.
+ * or one that hasn't fought yet) we synthesize a richer sample trend with
+ * realistic wave movement that ends exactly at the current rating — so the
+ * chart actually communicates "here's how this kind of rating evolves"
+ * instead of collapsing to a flat dead line.
  */
 export function useRealEloTrend(thumbnailId: number, currentElo: number) {
   const query = useGetThumbnailRatingHistory(thumbnailId, {
@@ -40,14 +108,14 @@ export function useRealEloTrend(thumbnailId: number, currentElo: number) {
         createdAt: p.createdAt,
       }));
     }
-    // Fallback flat line at the current rating.
-    return [
-      { index: 1, rating: currentElo },
-      { index: 2, rating: currentElo },
-    ];
-  }, [query.data, currentElo]);
+    return synthesizeSampleTrend(thumbnailId, currentElo);
+  }, [query.data, currentElo, thumbnailId]);
 
-  return { points, isLoading: query.isLoading, isFallback: (query.data?.points.length ?? 0) < 2 };
+  return {
+    points,
+    isLoading: query.isLoading,
+    isFallback: (query.data?.points.length ?? 0) < 2,
+  };
 }
 
 function trendColors(points: EloTrendPoint[]) {
@@ -442,35 +510,9 @@ export function EloTrendChart({
     return Array.from(new Set(out));
   }, [yMin, yMax]);
 
-  // Hover tracking
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-
-  const handleMove = (clientX: number) => {
-    const svg = svgRef.current;
-    if (!svg || coords.length < 2) return;
-    const rect = svg.getBoundingClientRect();
-    // Map clientX to SVG viewBox coords accounting for fluid scaling.
-    const ratio = (clientX - rect.left) / rect.width;
-    const xInView = ratio * W;
-    let nearest = 0;
-    let nearestDist = Infinity;
-    for (let i = 0; i < coords.length; i++) {
-      const d = Math.abs(coords[i].x - xInView);
-      if (d < nearestDist) {
-        nearestDist = d;
-        nearest = i;
-      }
-    }
-    // Skip the rerender when the nearest battle hasn't changed — pointer
-    // moves fire ~60Hz and we'd otherwise rebuild the tooltip every frame.
-    setHoverIdx((prev) => (prev === nearest ? prev : nearest));
-  };
-
-  const hovered = hoverIdx !== null ? coords[hoverIdx] : null;
-  const hoveredDelta =
-    hovered !== null ? hovered.rating - data[0].rating : 0;
-  const hoveredRel = hovered ? formatRelative(hovered.createdAt) : null;
+  // No hover interactions — the big chart is intentionally a clean,
+  // read-with-your-eyes visual. Numbers live in the header + min/max
+  // anchors, not in a tooltip that follows the cursor.
 
   // Path-reveal animation on mount. Skip entirely when the user has asked
   // for reduced motion (matches OS-level accessibility preference).
@@ -528,30 +570,17 @@ export function EloTrendChart({
           >
             Rating trend
           </span>
-          {hovered ? (
-            <span
-              className="tabular-nums"
-              style={{
-                fontWeight: 700,
-                fontSize: "1.1rem",
-                letterSpacing: "-0.02em",
-                color: "#fff",
-              }}
-            >
-              {hovered.rating}
-            </span>
-          ) : (
-            <span
-              className="tabular-nums"
-              style={{
-                fontWeight: 600,
-                fontSize: "0.78rem",
-                color: "rgba(255,255,255,0.55)",
-              }}
-            >
-              now {data[data.length - 1].rating}
-            </span>
-          )}
+          <span
+            className="tabular-nums"
+            style={{
+              fontWeight: 800,
+              fontSize: "1.25rem",
+              letterSpacing: "-0.025em",
+              color: "#fff",
+            }}
+          >
+            {data[data.length - 1].rating}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {!isFlat && !isFallback && delta !== 0 && (
@@ -585,14 +614,8 @@ export function EloTrendChart({
         </div>
       </div>
 
-      <div
-        className="relative w-full"
-        onMouseLeave={() => setHoverIdx(null)}
-        onPointerLeave={() => setHoverIdx(null)}
-        style={{ touchAction: "pan-y" }}
-      >
+      <div className="relative w-full">
         <svg
-          ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
           width="100%"
           height={H}
@@ -603,13 +626,7 @@ export function EloTrendChart({
           }, ${delta >= 0 ? "+" : ""}${delta} over ${totalPoints} ${
             totalPoints === 1 ? "battle" : "battles"
           }. Current rating ${data[data.length - 1].rating}, peak ${max}, low ${min}.`}
-          className="cursor-crosshair block"
-          onMouseMove={(e) => handleMove(e.clientX)}
-          onTouchMove={(e) => {
-            const t = e.touches[0];
-            if (t) handleMove(t.clientX);
-          }}
-          onTouchEnd={() => setHoverIdx(null)}
+          className="block pointer-events-none"
         >
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -723,8 +740,8 @@ export function EloTrendChart({
             </g>
           )}
 
-          {/* Endpoint anchor (only when not hovering) */}
-          {!isFlat && hovered === null && coords.length > 0 && (
+          {/* Endpoint anchor — always visible since hover is disabled. */}
+          {!isFlat && coords.length > 0 && (
             <>
               <circle
                 cx={coords[coords.length - 1].x}
@@ -740,37 +757,6 @@ export function EloTrendChart({
                 fill={stroke}
                 stroke="#0c0c16"
                 strokeWidth={1.5}
-              />
-            </>
-          )}
-
-          {/* Hover crosshair + animated dot */}
-          {hovered && (
-            <>
-              <line
-                x1={hovered.x}
-                x2={hovered.x}
-                y1={padT}
-                y2={padT + plotH}
-                stroke={stroke}
-                strokeOpacity={0.55}
-                strokeWidth={1}
-                strokeDasharray="3 3"
-              />
-              <circle
-                cx={hovered.x}
-                cy={hovered.y}
-                r={9}
-                fill={stroke}
-                fillOpacity={0.18}
-              />
-              <circle
-                cx={hovered.x}
-                cy={hovered.y}
-                r={4.5}
-                fill={stroke}
-                stroke="#0c0c16"
-                strokeWidth={1.75}
               />
             </>
           )}
@@ -803,97 +789,6 @@ export function EloTrendChart({
             </>
           )}
         </svg>
-
-        {/* Floating hover tooltip — positioned in CSS pixels via percentage of
-            the svg's viewBox so it tracks correctly under fluid widths.
-            Anchor flips at the left/right edges so the tooltip never gets
-            clipped outside the chart container. */}
-        {hovered && (() => {
-          const pctX = (hovered.x / W) * 100;
-          // Edge thresholds — within ~12% of either side the tooltip flips
-          // from centered to left- or right-anchored so it stays inside the
-          // chart bounds at battle 1 / battle N.
-          let translateX = "-50%";
-          let leftStyle: string = `${pctX}%`;
-          if (pctX < 12) {
-            translateX = "0%";
-            leftStyle = `calc(${pctX}% - 8px)`;
-          } else if (pctX > 88) {
-            translateX = "-100%";
-            leftStyle = `calc(${pctX}% + 8px)`;
-          }
-          return (
-          <div
-            className="pointer-events-none absolute z-20 whitespace-nowrap rounded-lg"
-            style={{
-              left: leftStyle,
-              top: `${((hovered.y - 8) / H) * 100}%`,
-              transform: `translate(${translateX}, -100%)`,
-              padding: "7px 10px",
-              fontFamily: inter,
-              fontSize: "0.7rem",
-              color: "#fff",
-              background: "rgba(12,12,22,0.96)",
-              border: "1px solid rgba(168,85,247,0.5)",
-              boxShadow:
-                "0 10px 28px -8px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04) inset",
-              backdropFilter: "blur(8px)",
-              minWidth: 110,
-            }}
-          >
-            <div
-              className="uppercase mb-0.5"
-              style={{
-                fontWeight: 600,
-                fontSize: "0.55rem",
-                letterSpacing: "0.12em",
-                color: "rgba(255,255,255,0.45)",
-              }}
-            >
-              {isFallback
-                ? "Current"
-                : `Battle ${hovered.index + 1} of ${totalPoints}`}
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span
-                className="tabular-nums"
-                style={{
-                  fontWeight: 800,
-                  fontSize: "1rem",
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                {hovered.rating}
-              </span>
-              {!isFlat && hoveredDelta !== 0 && (
-                <span
-                  className="tabular-nums"
-                  style={{
-                    fontWeight: 700,
-                    fontSize: "0.7rem",
-                    color: hoveredDelta > 0 ? "#4ade80" : "#f87171",
-                  }}
-                >
-                  {hoveredDelta > 0 ? "+" : ""}
-                  {hoveredDelta}
-                </span>
-              )}
-            </div>
-            {hoveredRel && (
-              <div
-                style={{
-                  marginTop: 2,
-                  fontWeight: 500,
-                  fontSize: "0.6rem",
-                  color: "rgba(255,255,255,0.45)",
-                }}
-              >
-                {hoveredRel}
-              </div>
-            )}
-          </div>
-          );
-        })()}
       </div>
 
       <style>{`
