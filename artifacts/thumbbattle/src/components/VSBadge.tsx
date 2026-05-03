@@ -9,16 +9,18 @@ interface VSBadgeProps {
 
 const EASE_STANDARD = [0.4, 0, 0.2, 1] as const;
 
-function SwordSVG({ size = 78 }: { size?: number }) {
-  // White swords with a subtle dark-purple outline (#6b21a8) for definition against
-  // the gradient circle. All elements share the same stroke for visual cohesion.
+function SwordSVG({ size = 56 }: { size?: number }) {
+  // White swords drawn so the blade tip + pommel are EQUIDISTANT from the SVG
+  // center (y=50). Old version had tip at y=4 and pommel at y=80, which made
+  // the visual center sit at y≈42 — that's why crossed copies looked offset.
   const fill = "#ffffff";
-  const stroke = "#6b21a8";
+  const stroke = "rgba(91,33,182,0.85)";
   return (
     <svg viewBox="0 0 100 100" width={size} height={size} fill="none" className="block">
-      {/* Blade — slim & metallic */}
+      {/* Blade — tip at y=12, base at y=58 (so the visual midpoint of the
+          whole sword sits at y=50 once the grip + pommel are added below). */}
       <polygon
-        points="50,4 53,56 50,62 47,56"
+        points="50,12 53,58 50,64 47,58"
         fill={fill}
         stroke={stroke}
         strokeWidth="1"
@@ -26,19 +28,20 @@ function SwordSVG({ size = 78 }: { size?: number }) {
       />
       {/* Crossguard */}
       <rect
-        x="38"
-        y="60"
-        width="24"
-        height="4.5"
+        x="40"
+        y="62"
+        width="20"
+        height="4"
         rx="1"
         fill={fill}
         stroke={stroke}
         strokeWidth="1"
       />
       {/* Grip */}
-      <rect x="47" y="64.5" width="6" height="14" fill={fill} stroke={stroke} strokeWidth="1" />
-      {/* Pommel */}
-      <circle cx="50" cy="80" r="3" fill={fill} stroke={stroke} strokeWidth="1" />
+      <rect x="47.5" y="66" width="5" height="16" fill={fill} stroke={stroke} strokeWidth="1" />
+      {/* Pommel — center at y=85 so blade-tip→pommel-edge spans y=12..88,
+          midpoint y=50 ✓ */}
+      <circle cx="50" cy="85" r="3" fill={fill} stroke={stroke} strokeWidth="1" />
     </svg>
   );
 }
@@ -76,32 +79,11 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
           }}
         />
 
-        {/* Layer 3 — crossed swords. Centered behind the gradient circle via a
-            full-size flex wrapper, then rotated ±45° around the badge center.
-            300ms fade in/out on hover. Only visible when hovered. */}
+        {/* Layer 2 — gradient ball (80px). Now uses overflow:hidden so the
+            hover sword animation is CLIPPED inside the ball and never spills
+            out past the rim. */}
         <motion.div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{ zIndex: 2, rotate: 45 }}
-          initial={false}
-          animate={{ opacity: showSwords ? 1 : 0 }}
-          transition={{ duration: 0.3, ease: EASE_STANDARD }}
-        >
-          <SwordSVG />
-        </motion.div>
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{ zIndex: 2, rotate: -45 }}
-          initial={false}
-          animate={{ opacity: showSwords ? 1 : 0 }}
-          transition={{ duration: 0.3, ease: EASE_STANDARD }}
-        >
-          <SwordSVG />
-        </motion.div>
-
-        {/* Layer 2 — solid gradient circle (80px). Painted ABOVE the swords so the
-            bottom halves of the swords sit visually behind it. */}
-        <motion.div
-          className="absolute rounded-full flex items-center justify-center pointer-events-none"
+          className="absolute rounded-full flex items-center justify-center pointer-events-none overflow-hidden"
           style={{
             zIndex: 3,
             width: 80,
@@ -114,19 +96,64 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          {/* Layer 4 — VS text. ALWAYS visible at full opacity, on top of every other
-              element in the badge. Never fades out; only the surrounding badge fades
-              when a vote is in progress (handled by the outer motion.div). */}
+          {/* Crossed swords — clipped inside the ball. They live BEHIND the
+              VS text and slowly rotate while hovered for a subtle "alive"
+              feel. Sized small enough that nothing pokes past the rim. */}
+          <motion.div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ zIndex: 1 }}
+            initial={false}
+            animate={{
+              opacity: showSwords ? 0.42 : 0,
+              rotate: showSwords ? 8 : 0,
+            }}
+            transition={{ duration: 0.45, ease: EASE_STANDARD }}
+          >
+            <div className="absolute" style={{ transform: "rotate(45deg)" }}>
+              <SwordSVG />
+            </div>
+            <div className="absolute" style={{ transform: "rotate(-45deg)" }}>
+              <SwordSVG />
+            </div>
+          </motion.div>
+
+          {/* Subtle radial sheen that drifts across the ball on hover —
+              the "background animation" the user asked for, kept inside
+              the clipped ball so it never bleeds out. */}
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              zIndex: 2,
+              background:
+                "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.22), rgba(255,255,255,0) 55%)",
+              mixBlendMode: "screen",
+            }}
+            initial={false}
+            animate={{
+              opacity: showSwords ? 1 : 0,
+              backgroundPosition: showSwords
+                ? ["0% 0%", "100% 100%", "0% 0%"]
+                : "0% 0%",
+            }}
+            transition={{
+              opacity: { duration: 0.4, ease: EASE_STANDARD },
+              backgroundPosition: showSwords
+                ? { duration: 4, repeat: Infinity, ease: "easeInOut" }
+                : { duration: 0 },
+            }}
+          />
+
+          {/* VS text — ALWAYS readable, on top of swords + sheen. */}
           <span
             style={{
               position: "relative",
-              zIndex: 4,
+              zIndex: 3,
               fontFamily: "'Inter', system-ui, sans-serif",
               fontWeight: 900,
               fontSize: 28,
               color: "#ffffff",
               letterSpacing: "-0.04em",
-              textShadow: "0 2px 6px rgba(0,0,0,0.45)",
+              textShadow: "0 2px 6px rgba(0,0,0,0.55), 0 0 8px rgba(0,0,0,0.35)",
               lineHeight: 1,
             }}
           >
