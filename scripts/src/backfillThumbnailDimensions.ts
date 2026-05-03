@@ -71,13 +71,17 @@ function detectVerticalAcrossAllVariants(v: YtVideo): {
     storedHeight = primary.height;
   }
 
+  // Threshold tightened to ratio <1.5 — keep in sync with the copy in
+  // artifacts/api-server/src/lib/youtube.ts. Catches square reuploads
+  // and 4:3 / 5:4 podcast clips that the old h≥w check let through.
   let isVertical = false;
   for (const t of variants) {
     if (
       typeof t.width === "number" &&
       typeof t.height === "number" &&
       t.width > 0 &&
-      t.height >= t.width
+      t.height > 0 &&
+      t.width / t.height < 1.5
     ) {
       isVertical = true;
       break;
