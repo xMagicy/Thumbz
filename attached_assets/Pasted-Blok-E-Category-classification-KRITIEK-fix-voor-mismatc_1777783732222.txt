@@ -1,0 +1,60 @@
+Blok E — Category classification (KRITIEK, fix voor mismatches)
+Probleem: YouTube's eigen categoryIds mappen niet 1-op-1 op onze UI tabs. Eén categoryId kan meerdere niches bevatten. Resultaat: gaming thumbnails in Vlog tab.
+
+Fix: hybrid classifier per thumbnail = categoryId + title keywords + channel pattern.
+
+Mapping logic (run na elke sync, sla op in nieuwe kolom app_category):
+
+Gaming:     categoryId=20  
+            OR title bevat: "minecraft", "fortnite", "gameplay", "speedrun", "let's play", "playthrough", "boss fight"
+Music:      categoryId=10 EN niet "lyric" / "lyrics" in title (excludeert auto-thumbs)
+Tech:       categoryId=28
+            OR title bevat: "iphone", "android", "macbook", "review", "unboxing", "vs", "tech", "AI", "GPU", "CPU"
+Tutorial:   categoryId=26 OR 27
+            OR title bevat: "how to", "tutorial", "guide", "learn", "step by step", "explained"
+Finance:    title bevat: "stocks", "investing", "money", "dividend", "S&P", "bitcoin", "crypto", "ETF", "passive income", "wealth", "millionaire", "broke", "salary", "rent", "mortgage"
+            OR channel name in: ["Graham Stephan", "Andrei Jikh", "Coffeezilla", "How Money Works", "The Plain Bagel", "Patrick Boyle"] (en uitbreidbaar)
+Lifestyle:  categoryId=22 (People & Blogs) en geen match met Gaming/Tech/Finance
+            OR title bevat: "morning routine", "day in my life", "outfit", "skincare", "fitness", "diet", "minimalism", "decluttering"
+Vlog:       categoryId=22 OR 24
+            EN title bevat: "vlog", "day", "trip", "moving", "life update"
+            EN niet match met Gaming
+Other:      alles wat niet matcht met bovenstaande
+Order matters: pas categories toe in de volgorde Gaming → Music → Tech → Finance → Tutorial → Lifestyle → Vlog → Other. Eerste match wint.
+
+Blok F — Category balance + cold start handling
+Probleem 1: Gaming krijgt natuurlijk veel views, dus pool is gaming-zwaar. Battles voelen 80% gaming.
+
+Fix: cap per category op max 20% van totale pool. Als Gaming oversaturated is: alleen top-N gaming thumbs op ELO rating, rest archive.
+
+Probleem 2: Sommige categories (Finance) krijgen weinig content via mostPopular.
+
+Fix: voor categories met minder dan 30 entries, gerichte search calls uitvoeren:
+
+Finance: search.list?q="investing OR stocks OR money"&order=viewCount&publishedAfter=last_14_days
+Lifestyle: q="morning routine OR day in my life OR aesthetic"
+Tutorial: q="how to OR tutorial"&videoCategoryId=26
+Dezelfde quality filters uit Blok A toepassen.
+
+Minimum per category: streven naar ≥ 25 thumbnails per category. Als categorie er na targeted search nog niet komt, log een warning maar block de sync niet.
+
+Probleem 3: Cold start — nieuwe thumbnails hebben nog geen ELO, kunnen mismatched battles geven (mooie vs lelijke).
+
+Fix: nieuwe thumbnails (battle_count = 0) krijgen "calibration phase":
+
+Eerste 5 battles: gepaard met thumbnails uit middentier ELO (1150-1250) van zelfde category
+Voorkomt dat newcomer direct tegen 1500-rated champion battlet (zou voelen als oneerlijk voor user)
+Na 5 battles: normale ELO matchmaking
+Verificatie addendum
+Run na blok E+F:
+
+-- Category spread (geen category > 20%, geen category < 5%)
+SELECT app_category, COUNT(*), 
+       ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM thumbnails WHERE archived IS NOT true), 1) AS pct
+FROM thumbnails WHERE archived IS NOT true
+GROUP BY app_category ORDER BY 2 DESC;
+
+-- Category quality check: pick 5 random uit Vlog, klopt het?
+SELECT title, channel_name FROM thumbnails 
+WHERE app_category = 'Vlog' AND archived IS NOT true 
+ORDER BY RANDOM() LIMIT 5;

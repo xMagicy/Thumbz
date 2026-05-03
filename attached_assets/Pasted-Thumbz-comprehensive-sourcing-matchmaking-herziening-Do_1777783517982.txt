@@ -1,0 +1,89 @@
+Thumbz: comprehensive sourcing + matchmaking herziening
+Doel: pool van globaal trending, kwalitatief sterke YouTube thumbnails — gemaakt door creators waar de thumbnail zelf het werk doet. Battles worden eerlijk en uitdagend door category + ELO matchmaking.
+
+Implementeer in 4 blokken (A → D). Test elk blok voor je naar de volgende gaat.
+
+Blok A — Sourcing rebuild (data ingestion)
+API calls:
+
+videos.list met chart=mostPopular per regio: US, GB, IN, BR, JP, DE, KR, MX, FR, CA, AU, ID (12 regio's, parallel calls)
+Daarnaast: search.list per categoryId met order=viewCount + publishedAfter= (laatste 3 dagen). Pakt emerging niches die nog niet in mostPopular zitten.
+part=snippet,statistics,contentDetails voor stats. channels.list voor subscriberCount.
+Filters (apply in deze volgorde):
+
+Recency: publishedAt binnen laatste 14 dagen
+Duration: ≥ 60 seconden (excludet Shorts)
+Min views: ≥ 25K views
+Thumbnail quality: skip als thumbnails.maxres ontbreekt. Gebruik altijd maxres URL (1280x720)
+Engagement: likes/views ≥ 2%
+Overperformer ratio (KERN FILTER): viewCount / subscriberCount ≥ 1.0. Dit surfaceert juist kleine channels met breakout videos — waar de thumbnail het werk doet, niet de fanbase.
+Exclude categoryId 1 (Film & Animation — movie trailers)
+Exclude channel name patterns (case-insensitive): "VEVO", "Records", "Films", "Studios", "Pictures", "Network"
+Channel cap: max 2 videos per channelId in finale pool
+Topic diversity binnen category: max 5 videos met grote keyword overlap in title (geen 10x Minecraft in Gaming pool)
+Region balance: na sync, geen region > 25% van pool. Cap zo nodig.
+Dedupe op videoId (zelfde video in meerdere regio's = sterk global signaal, bewaar 1x)
+Schema additions (ALTER TABLE thumbnails):
+
+category_id (int)
+subscriber_count (int)
+view_count (bigint)
+published_at (timestamp)
+trending_regions (text[]) — array van regio codes waar video voorkomt
+view_to_sub_ratio (numeric) — gecached voor sortering
+Schedule: 1x per 6 uur. 12 regio's × 4 calls/dag = 48 quota. Free tier = 10K/dag, ruim voldoende.
+
+Blok B — ELO rating systeem
+Schema (ALTER TABLE thumbnails):
+
+elo_rating (int, default 1200)
+battle_count (int, default 0)
+Update logic na elke battle:
+
+Standaard ELO formule
+K-factor: 32 als battle_count < 20, anders 16
+Update beide thumbnails (winner +X, loser -X)
+Increment battle_count op beide
+Blok C — Smart matchmaking
+Pairing rules (apply in volgorde):
+
+Category lock: zelfs op "All" tab — elke battle is binnen één category. Tab "All" rotates door categories per battle.
+View tier bucketing: pair binnen tier:
+25K-250K
+250K-1M
+1M-5M
+5M+
+ELO proximity: binnen tier+category, pick 2 thumbnails waarvan ELO ratings binnen ±150 punten. Verbreed naar ±300 als pool te klein.
+Channel dedup: zelfde channelId mag niet beide kanten van battle vullen
+Blok D — Pool curation (one-time + ongoing)
+One-time cleanup (NU uitvoeren):
+
+DELETE FROM thumbnails WHERE image_url LIKE '%picsum.photos%';
+DELETE FROM thumbnails WHERE image_url NOT LIKE '%youtube.com%' AND image_url NOT LIKE '%ytimg.com%';
+Ongoing auto-cycle:
+
+Daily cronjob: thumbnails met elo_rating < 1100 AND battle_count >= 20 worden geflagd archived=true
+Archived thumbnails niet meer in pool, maar wel bewaard voor analytics
+Maakt ruimte voor verse content uit nieuwe sourcing runs
+Verificatie queries (run na implementatie en stuur output)
+-- Pool gezondheid
+SELECT COUNT(*) total,
+       COUNT(DISTINCT channel_name) channels,
+       COUNT(DISTINCT category_id) categories,
+       AVG(view_to_sub_ratio) avg_overperform,
+       MIN(elo_rating), MAX(elo_rating), AVG(elo_rating)
+FROM thumbnails WHERE archived IS NOT true;
+
+-- Region balance check
+SELECT unnest(trending_regions) region, COUNT(*) FROM thumbnails GROUP BY 1 ORDER BY 2 DESC;
+
+-- Category spread
+SELECT category_id, COUNT(*) FROM thumbnails GROUP BY 1 ORDER BY 2 DESC;
+
+-- Channel concentration check (moet leeg zijn)
+SELECT channel_name, COUNT(*) FROM thumbnails GROUP BY 1 HAVING COUNT(*) > 2;
+Belangrijk
+Implementeer blok voor blok (A → B → C → D), checkpoint na elk blok
+Schrijf een korte design doc (max 10 regels per blok) over hoe je het hebt opgelost — voor mijn referentie
+Geen feature creep: alleen wat hierboven staat. Andere ideeën park je voor later.
+Swipe UX (rode flash op verlies, keyboard arrows) is een aparte ronde, niet meenemen in deze build.
