@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { syncTrendingVideos } from "../lib/youtube";
+import { withSyncLock } from "../lib/syncLock";
 
 const router: Router = Router();
 
@@ -55,7 +56,20 @@ router.post("/sync-youtube", async (req, res) => {
         ? Number(req.query["max"])
         : undefined;
 
-    const result = await syncTrendingVideos({ regions, maxResults });
+    // Mutex-wrap the manual trigger too, otherwise an operator hitting
+    // this endpoint right when the 6h cron fires would do duplicate
+    // upserts and corrupt the per-channel / region / category balance
+    // heuristics that depend on a stable single-pass view of the pool.
+    const locked = await withSyncLock(() =>
+      syncTrendingVideos({ regions, maxResults }),
+    );
+    if (!locked.ok) {
+      return res.status(409).json({
+        error: "sync_in_progress",
+        message: "A YouTube sync is already running. Try again in a minute.",
+      });
+    }
+    const result = locked.result;
     if (!result.ok) {
       return res.status(503).json({
         error: "sync_unavailable",
