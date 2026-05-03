@@ -99,6 +99,30 @@ export const thumbnailsTable = pgTable(
     // or Finance depending on title). Matchmaking and leaderboard tabs
     // both read this. NULL for user uploads (they keep `niche`).
     appCategory: text("app_category"),
+
+    // ── Blok G velocity + emerging channel signals ─────────────────────
+    // Cached views/hour computed at sync time:
+    //   views_per_hour = view_count / hours_since_publish
+    // Used both as a quality filter (>=500 vph baseline) and as a
+    // velocity input to breakout_score. Stored so the leaderboard "rising"
+    // sort doesn't need to recompute on every read.
+    viewsPerHour: real("views_per_hour"),
+    // When the *channel* (not the video) was created. From channels.list
+    // snippet.publishedAt. Lets us flag fresh creators where a single
+    // breakout video is real signal, not noise.
+    channelCreatedAt: timestamp("channel_created_at", { withTimezone: true }),
+    // Cached channel age in days at sync time.
+    channelAgeDays: integer("channel_age_days"),
+    // Convenience flag: channel age < 180 days. Drives the future
+    // "Discover" tab and acts as a small bonus in breakout_score.
+    isEmergingChannel: boolean("is_emerging_channel").notNull().default(false),
+    // Composite ranking signal (Blok G):
+    //   30·log10(vph)
+    // + 40·log10(viewToSubRatio + 1)
+    // + 20 if emerging
+    // + 10·(engagement_rate * 100)
+    // Used as a tiebreaker in matchmaking and as the future Discover sort.
+    breakoutScore: real("breakout_score"),
   },
   (t) => [
     index("thumbnails_user_id_idx").on(t.userId),

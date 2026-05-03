@@ -210,6 +210,7 @@ interface YtSearchResponse {
 
 interface YtChannel {
   id: string;
+  snippet?: { publishedAt?: string };
   statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean };
 }
 
@@ -404,19 +405,22 @@ function passesPreClassifierFilters(
   const views = Number(stats.viewCount);
   if (!Number.isFinite(views) || views < 25_000) return "below_min_views";
 
+  // Blok G: minimum velocity 500 views/hour (= 12k/day).
+  const ageHours = Math.max(1, ageMs / (60 * 60 * 1000));
+  const vph = views / ageHours;
+  if (vph < 500) return "below_min_velocity";
+
   const likes = Number(stats.likeCount);
   if (!Number.isFinite(likes)) return "no_like_count";
   const engagement = likes / views;
   if (engagement < 0.02) return "low_engagement";
 
-  if (subscriberCount === null || subscriberCount === 0) {
-    // Hidden / zero subs → can't compute overperformer ratio. Skip
-    // rather than divide by zero. Channels that hide their sub count
-    // are uncommon in trending and often spam aggregators anyway.
-    return "no_subscriber_count";
-  }
-  const ratio = views / subscriberCount;
-  if (ratio < 1.0) return "below_overperform_ratio";
+  // Blok G: tiered overperformer threshold replaces the flat ratio check.
+  // Channels with hidden subs (subscriberCount === 0) get the <1k bucket
+  // (just need 10k views) — generous, but honest given we can't compute
+  // a ratio for them.
+  const subs = subscriberCount ?? 0;
+  if (!passesTieredRatio(views, subs)) return "below_overperform_ratio";
 
   return null;
 }
@@ -484,28 +488,65 @@ async function fetchVideosByIds(apiKey: string, ids: string[]): Promise<YtVideo[
   return out;
 }
 
-async function fetchChannelSubs(
+interface ChannelInfo {
+  subscriberCount: number;
+  createdAt: Date | null;
+}
+
+async function fetchChannelInfo(
   apiKey: string,
   channelIds: string[],
-): Promise<Map<string, number>> {
-  const subs = new Map<string, number>();
+): Promise<Map<string, ChannelInfo>> {
+  const out = new Map<string, ChannelInfo>();
   for (let i = 0; i < channelIds.length; i += 50) {
     const batch = channelIds.slice(i, i + 50);
     const url = new URL(`${YT_BASE}/channels`);
-    url.searchParams.set("part", "statistics");
+    url.searchParams.set("part", "snippet,statistics");
     url.searchParams.set("id", batch.join(","));
     url.searchParams.set("key", apiKey);
     const data = await fetchJson<YtChannelsResponse>(url);
     for (const ch of data.items ?? []) {
-      if (ch.statistics?.hiddenSubscriberCount) {
-        subs.set(ch.id, 0);
-        continue;
+      let subs = 0;
+      if (!ch.statistics?.hiddenSubscriberCount) {
+        const n = Number(ch.statistics?.subscriberCount);
+        if (Number.isFinite(n)) subs = n;
       }
-      const n = Number(ch.statistics?.subscriberCount);
-      if (Number.isFinite(n)) subs.set(ch.id, n);
+      const createdRaw = ch.snippet?.publishedAt;
+      const createdAt = createdRaw ? new Date(createdRaw) : null;
+      out.set(ch.id, {
+        subscriberCount: subs,
+        createdAt: createdAt && !isNaN(createdAt.getTime()) ? createdAt : null,
+      });
     }
   }
-  return subs;
+  return out;
+}
+
+// Blok G — tiered overperformer threshold. Returns true if the video
+// passes the ratio gate appropriate for its channel size. Small channels
+// must massively outperform their audience; mega channels need only a
+// small ratio because hitting any % of 10M subs is hard.
+function passesTieredRatio(views: number, subs: number): boolean {
+  if (subs < 1_000) return views >= 10_000;
+  const ratio = views / subs;
+  if (subs < 10_000) return ratio >= 5.0;
+  if (subs < 100_000) return ratio >= 2.0;
+  if (subs < 1_000_000) return ratio >= 1.0;
+  if (subs < 10_000_000) return ratio >= 0.3;
+  return ratio >= 0.1;
+}
+
+function computeBreakoutScore(
+  viewsPerHour: number,
+  ratio: number,
+  isEmerging: boolean,
+  engagement: number,
+): number {
+  const vphTerm = Math.log10(Math.max(1, viewsPerHour)) * 30;
+  const ratioTerm = Math.log10(Math.max(0, ratio) + 1) * 40;
+  const emergingTerm = isEmerging ? 20 : 0;
+  const engTerm = engagement * 100 * 10;
+  return vphTerm + ratioTerm + emergingTerm + engTerm;
 }
 
 // ─── Sync orchestration ───────────────────────────────────────────────
@@ -598,12 +639,12 @@ export async function syncTrendingVideos(opts?: {
         .filter((id): id is string => Boolean(id)),
     ),
   );
-  let subs: Map<string, number>;
+  let channelInfo: Map<string, ChannelInfo>;
   try {
-    subs = await fetchChannelSubs(apiKey, channelIds);
+    channelInfo = await fetchChannelInfo(apiKey, channelIds);
   } catch (err) {
     logger.error({ err }, "channels.list failed — overperformer filter will reject all");
-    subs = new Map();
+    channelInfo = new Map();
   }
 
   // ── Phase 3: filter through quality gate + classify ───────────────
@@ -611,6 +652,11 @@ export async function syncTrendingVideos(opts?: {
     meta: CandidateMeta;
     subscriberCount: number;
     viewCount: number;
+    viewsPerHour: number;
+    channelCreatedAt: Date | null;
+    channelAgeDays: number | null;
+    isEmergingChannel: boolean;
+    breakoutScore: number;
     appCategory: string;
     confidence: Confidence;
     titleTokens: Set<string>;
@@ -621,17 +667,39 @@ export async function syncTrendingVideos(opts?: {
 
   for (const meta of candidates.values()) {
     const channelId = meta.video.snippet?.channelId;
-    const subscriberCount = channelId ? subs.get(channelId) ?? null : null;
+    const info = channelId ? channelInfo.get(channelId) ?? null : null;
+    const subscriberCount = info ? info.subscriberCount : null;
     const reason = passesPreClassifierFilters(meta.video, subscriberCount);
     if (reason) {
       skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1);
       continue;
     }
     const { category: appCategory, confidence } = classify(meta.video);
+    const views = Number(meta.video.statistics?.viewCount ?? 0);
+    const likes = Number(meta.video.statistics?.likeCount ?? 0);
+    const engagement = views > 0 ? likes / views : 0;
+    const publishedAt = new Date(meta.video.snippet!.publishedAt).getTime();
+    const ageHours = Math.max(1, (NOW_TS() - publishedAt) / (60 * 60 * 1000));
+    const viewsPerHour = views / ageHours;
+    const subs = subscriberCount ?? 0;
+    const ratio = subs > 0 ? views / subs : 0;
+    const channelCreatedAt = info?.createdAt ?? null;
+    const channelAgeDays = channelCreatedAt
+      ? Math.floor((NOW_TS() - channelCreatedAt.getTime()) / DAY_MS)
+      : null;
+    const isEmergingChannel = channelAgeDays !== null && channelAgeDays < 180;
+    const breakoutScore = computeBreakoutScore(
+      viewsPerHour, ratio, isEmergingChannel, engagement,
+    );
     accepted.push({
       meta,
-      subscriberCount: subscriberCount ?? 0,
-      viewCount: Number(meta.video.statistics?.viewCount ?? 0),
+      subscriberCount: subs,
+      viewCount: views,
+      viewsPerHour,
+      channelCreatedAt,
+      channelAgeDays,
+      isEmergingChannel,
+      breakoutScore,
       appCategory,
       confidence,
       titleTokens: tokenize(meta.video.snippet?.title ?? ""),
@@ -787,6 +855,12 @@ export async function syncTrendingVideos(opts?: {
             publishedAt,
             lastSyncedAt: now,
             trendingRegions: trendingArr.length > 0 ? trendingArr : null,
+            // Blok G
+            viewsPerHour: a.viewsPerHour,
+            channelCreatedAt: a.channelCreatedAt,
+            channelAgeDays: a.channelAgeDays,
+            isEmergingChannel: a.isEmergingChannel,
+            breakoutScore: a.breakoutScore,
           })
           .returning({ id: thumbnailsTable.id });
         if (!ins) continue;
@@ -823,6 +897,12 @@ export async function syncTrendingVideos(opts?: {
             trendingRegions: trendingArr.length > 0 ? trendingArr : null,
             // Re-activate if a previously archived video makes the cut again.
             archived: false,
+            // Blok G — recompute every sync since vph & breakout decay/grow.
+            viewsPerHour: a.viewsPerHour,
+            channelCreatedAt: a.channelCreatedAt,
+            channelAgeDays: a.channelAgeDays,
+            isEmergingChannel: a.isEmergingChannel,
+            breakoutScore: a.breakoutScore,
           })
           .where(eq(thumbnailsTable.id, thumbnailId));
         updated += 1;

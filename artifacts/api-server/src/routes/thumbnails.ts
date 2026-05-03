@@ -53,6 +53,11 @@ const toDto = (
   categoryId: t.categoryId,
   subscriberCount: t.subscriberCount,
   viewToSubRatio: t.viewToSubRatio,
+  // Blok G.
+  viewsPerHour: t.viewsPerHour,
+  channelAgeDays: t.channelAgeDays,
+  isEmergingChannel: t.isEmergingChannel,
+  breakoutScore: t.breakoutScore,
 });
 
 // Batched fetch of the most-recent N rating snapshots for a set of thumbnail
@@ -202,9 +207,15 @@ router.get("/battle", async (req, res) => {
         ? Math.min(10, Math.floor(rawCount))
         : 1;
 
-    const conditions: SQL[] = [eq(thumbnailsTable.status, "active")];
+    // Battle pool: active, non-archived. Niche filter applies if the
+    // client locked the leaderboard tab; "All" returns the full pool and
+    // we rotate categories per pair below.
+    const conditions: SQL[] = [
+      eq(thumbnailsTable.status, "active"),
+      eq(thumbnailsTable.archived, false),
+    ];
     if (niche) conditions.push(eq(thumbnailsTable.niche, niche));
-    const where = conditions.length === 1 ? conditions[0] : and(...conditions);
+    const where = and(...conditions);
 
     const pool = await db.select().from(thumbnailsTable).where(where);
 
@@ -212,59 +223,124 @@ router.get("/battle", async (req, res) => {
       return res.status(400).json({ error: "Not enough thumbnails for a battle" });
     }
 
-    // Pre-bucket by (niche, tier) for cheap lookup during pair generation.
-    const byNicheTier = new Map<string, typeof pool>();
-    const byNiche = new Map<string, typeof pool>();
+    // Bucket by app_category (with niche fallback for legacy/user rows).
+    // The cat key is what the matchmaker locks each pair to. When the UI
+    // is on "All", we rotate by picking a random cat per pair.
+    type Row = typeof pool[number];
+    const catKey = (r: Row): string => r.appCategory ?? r.niche ?? "Other";
+    const byCat = new Map<string, Row[]>();
     for (const row of pool) {
-      const tier = viewTier(row);
-      const nicheKey = row.niche ?? "Other";
-      const ntKey = `${nicheKey}|${tier}`;
-      const ntList = byNicheTier.get(ntKey) ?? [];
-      ntList.push(row);
-      byNicheTier.set(ntKey, ntList);
-      const nList = byNiche.get(nicheKey) ?? [];
-      nList.push(row);
-      byNiche.set(nicheKey, nList);
+      const k = catKey(row);
+      const list = byCat.get(k) ?? [];
+      list.push(row);
+      byCat.set(k, list);
     }
 
-    // Pick a pair from a candidate list, preferring different channels.
-    // Returns null if the list has fewer than 2 distinct entries.
-    function pickPair(list: typeof pool): [typeof pool[0], typeof pool[0]] | null {
-      if (list.length < 2) return null;
-      const left = list[Math.floor(Math.random() * list.length)];
-      // Try 5 times to find a different-channel partner before relaxing.
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const right = list[Math.floor(Math.random() * list.length)];
-        if (right.id === left.id) continue;
-        if (right.channelName && left.channelName && right.channelName === left.channelName) continue;
-        return [left, right];
+    const sameChannel = (a: Row, b: Row): boolean =>
+      Boolean(a.channelName && b.channelName && a.channelName === b.channelName);
+
+    // Find an opponent for `anchor` from `candidates` honoring:
+    //   - id ≠ anchor.id
+    //   - different channel
+    //   - not already used in this request (to avoid repeat-pairs)
+    //   - falls back to 'any not-anchor' last
+    function findOpponent(
+      anchor: Row,
+      candidates: Row[],
+      used: Set<number>,
+    ): Row | null {
+      const eligible = candidates.filter(
+        (r) => r.id !== anchor.id && !sameChannel(anchor, r) && !used.has(r.id),
+      );
+      if (eligible.length > 0) {
+        return eligible[Math.floor(Math.random() * eligible.length)];
       }
-      // Relaxed: any different id is acceptable.
-      const others = list.filter((r) => r.id !== left.id);
-      if (others.length === 0) return null;
-      return [left, others[Math.floor(Math.random() * others.length)]];
+      const relaxed = candidates.filter(
+        (r) => r.id !== anchor.id && !sameChannel(anchor, r),
+      );
+      if (relaxed.length > 0) {
+        return relaxed[Math.floor(Math.random() * relaxed.length)];
+      }
+      const anyDifferent = candidates.filter((r) => r.id !== anchor.id);
+      if (anyDifferent.length === 0) return null;
+      return anyDifferent[Math.floor(Math.random() * anyDifferent.length)];
     }
 
-    const pairs = [];
+    // Run the full Blok C/F matchmaking ladder for one anchor:
+    //   1. Cold-start calibration   — anchor has battle_count<5
+    //      → opponent in [1150, 1250] ELO, same category
+    //   2. Same tier + ELO ≤ 150
+    //   3. Same tier + ELO ≤ 300
+    //   4. Same category + ELO ≤ 300
+    //   5. Same category, any ELO
+    function pickOpponentFor(
+      anchor: Row,
+      categoryPool: Row[],
+      used: Set<number>,
+    ): Row | null {
+      const anchorTier = viewTier(anchor);
+      const anchorElo = anchor.eloRating;
+
+      if (anchor.battleCount < CALIBRATION_BATTLES) {
+        const calibration = categoryPool.filter(
+          (r) =>
+            r.eloRating >= CALIBRATION_ELO_LO &&
+            r.eloRating <= CALIBRATION_ELO_HI &&
+            r.battleCount >= CALIBRATION_BATTLES,
+        );
+        const op = findOpponent(anchor, calibration, used);
+        if (op) return op;
+        // Fall through if calibration tier is empty (e.g. fresh deploy).
+      }
+
+      const sameTier = categoryPool.filter((r) => viewTier(r) === anchorTier);
+      const tierNear = sameTier.filter(
+        (r) => Math.abs(r.eloRating - anchorElo) <= ELO_NEAR,
+      );
+      let op = findOpponent(anchor, tierNear, used);
+      if (op) return op;
+
+      const tierFar = sameTier.filter(
+        (r) => Math.abs(r.eloRating - anchorElo) <= ELO_FAR,
+      );
+      op = findOpponent(anchor, tierFar, used);
+      if (op) return op;
+
+      const catFar = categoryPool.filter(
+        (r) => Math.abs(r.eloRating - anchorElo) <= ELO_FAR,
+      );
+      op = findOpponent(anchor, catFar, used);
+      if (op) return op;
+
+      return findOpponent(anchor, categoryPool, used);
+    }
+
+    const usedIds = new Set<number>();
+    const pairs: Array<{ left: ReturnType<typeof toDto>; right: ReturnType<typeof toDto> }> = [];
+    const eligibleCats = [...byCat.entries()].filter(([, l]) => l.length >= 2);
+
     for (let i = 0; i < count; i++) {
-      // Walk the fallback chain. We pick a random (niche, tier) bucket from
-      // the buckets that actually have ≥2 entries, then fall back if needed.
-      const ntCandidates = [...byNicheTier.values()].filter((l) => l.length >= 2);
-      let pair: [typeof pool[0], typeof pool[0]] | null = null;
-      if (ntCandidates.length > 0) {
-        const bucket = ntCandidates[Math.floor(Math.random() * ntCandidates.length)];
-        pair = pickPair(bucket);
-      }
-      if (!pair) {
-        const nCandidates = [...byNiche.values()].filter((l) => l.length >= 2);
-        if (nCandidates.length > 0) {
-          const bucket = nCandidates[Math.floor(Math.random() * nCandidates.length)];
-          pair = pickPair(bucket);
-        }
-      }
-      if (!pair) pair = pickPair(pool);
-      if (!pair) break; // Pool too small even for last-resort.
-      pairs.push({ left: toDto(pair[0]), right: toDto(pair[1]) });
+      // Category lock: if UI fixed a niche, that's the only bucket;
+      // otherwise rotate randomly per pair across non-empty categories.
+      const [, catPool] = eligibleCats[
+        Math.floor(Math.random() * eligibleCats.length)
+      ];
+      const anchor = catPool[Math.floor(Math.random() * catPool.length)];
+      const opponent = pickOpponentFor(anchor, catPool, usedIds);
+      if (!opponent) continue;
+      usedIds.add(anchor.id);
+      usedIds.add(opponent.id);
+      pairs.push({ left: toDto(anchor), right: toDto(opponent) });
+    }
+
+    // Last-resort: if the rotation produced nothing usable (tiny pool),
+    // fall back to any two distinct rows so the client never sees an
+    // empty array.
+    if (pairs.length === 0 && pool.length >= 2) {
+      const a = pool[Math.floor(Math.random() * pool.length)];
+      const others = pool.filter((r) => r.id !== a.id);
+      const b = others[Math.floor(Math.random() * others.length)];
+      pairs.push({ left: toDto(a), right: toDto(b) });
     }
 
     if (pairs.length === 0) {
