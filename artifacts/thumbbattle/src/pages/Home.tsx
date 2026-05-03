@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
-  useGetBattlePair,
-  getGetBattlePairQueryKey,
+  getBattlePair,
   useListThumbnails,
   getListThumbnailsQueryKey,
   useListBattles,
@@ -24,7 +23,7 @@ import { UploadDialog } from "../components/UploadDialog";
 import { SignInDialog } from "../components/SignInDialog";
 import { UserMenu } from "../components/UserMenu";
 import { UploadPromo } from "../components/UploadPromo";
-import { NicheFilterBar, type Niche } from "../components/NicheFilterBar";
+import { NicheFilterBar, NICHES, type Niche } from "../components/NicheFilterBar";
 import { ThumbnailDetailModal } from "../components/ThumbnailDetailModal";
 import { useSession } from "../lib/auth-client";
 
@@ -190,30 +189,151 @@ export default function Home() {
     };
   }, []);
 
-  const {
-    data: rawBattlePair,
-    isLoading: isLoadingPair,
-    isFetching: isFetchingPair,
-    isError: isErrorPair,
-    refetch: refetchPair,
-  } = useGetBattlePair(battlePairParams, {
-    query: {
-      queryKey: getGetBattlePairQueryKey(battlePairParams),
-      refetchOnWindowFocus: false,
-      // One automatic retry on transient failure so the arena never gets stuck on a flake.
-      retry: 1,
-      // Keep the previous pair visible during a niche switch refetch so the UI
-      // doesn't blank out — the new pair fades in once the request settles.
-      placeholderData: keepPreviousData,
-    },
-  });
+  // ────────────────────────────────────────────────────────────────────────────
+  // Tinder-style prefetched battle queue.
+  //
+  // Strategy: maintain a per-niche FIFO queue of pre-fetched pairs in local
+  // state. On vote we pop the head — the next pair is already in memory AND
+  // its images are already in the browser cache (warmed via `new Image().src`
+  // the moment they entered the queue). This puts ZERO network on the critical
+  // path between votes, which is what makes Tinder feel instant.
+  //
+  //   QUEUE_TARGET     — how many pairs to hold for the active niche
+  //   QUEUE_REFILL_AT  — refill (in background) when remaining drops below this
+  //   IDLE_PREFETCH_MS — after this idle period, warm a single pair for every
+  //                      OTHER niche so the first niche-switch is also instant
+  // ────────────────────────────────────────────────────────────────────────────
+  type Pair = { left: Thumbnail; right: Thumbnail };
+  const QUEUE_TARGET = 5;
+  const QUEUE_REFILL_AT = 2;
+  const IDLE_PREFETCH_MS = 2000;
 
-  // The next-pair refetch fires the moment the user clicks vote, in parallel
-  // with the swipe animation. If we let useGetBattlePair's data swap the pair
-  // mid-animation, AnimatePresence would interrupt FighterCard's exit. Freeze
-  // the pair locally during voting, then release on round-bump.
-  const [frozenPair, setFrozenPair] = useState<typeof rawBattlePair | null>(null);
-  const battlePair = frozenPair ?? rawBattlePair;
+  const [queues, setQueues] = useState<Record<string, Pair[]>>({});
+  // Per-niche error state — scoped so a failed background prefetch for niche A
+  // can never clear or mask an active-niche-A error, and a successful idle
+  // prefetch for niche B can never overwrite niche A's state.
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
+  // Track which niches have an in-flight fetch so we never stampede the API
+  // with overlapping requests for the same niche.
+  const inflightRef = useRef<Set<string>>(new Set());
+  // Mirror of `queues` for read-time decisions inside async handlers (vote
+  // refill check) — useState reads inside callbacks may be stale otherwise.
+  const queuesRef = useRef<Record<string, Pair[]>>({});
+
+  const fetchPairs = useCallback(
+    async (
+      nicheKey: string,
+      count: number,
+      mode: "replace" | "append",
+    ): Promise<void> => {
+      if (inflightRef.current.has(nicheKey)) return;
+      inflightRef.current.add(nicheKey);
+      try {
+        const apiNicheArg = nicheKey === "All" ? undefined : nicheKey;
+        const params = apiNicheArg
+          ? { niche: apiNicheArg, count }
+          : { count };
+        const resp = await getBattlePair(params);
+        const pairs = resp?.pairs ?? [];
+        if (pairs.length > 0) {
+          // Image preload — the single biggest perceived-speed win. By the
+          // time these pairs are rendered the JPGs are decoded in the browser
+          // cache, so the swipe-to-paint gap collapses to ~one frame.
+          for (const p of pairs) {
+            new Image().src = p.left.imageUrl;
+            new Image().src = p.right.imageUrl;
+          }
+          setQueues((prev) => {
+            const existing = prev[nicheKey] ?? [];
+            const next =
+              mode === "append" ? [...existing, ...pairs] : pairs;
+            const updated = { ...prev, [nicheKey]: next };
+            queuesRef.current = updated;
+            return updated;
+          });
+        }
+        // Successful response for THIS niche → clear THIS niche's error only.
+        setErrors((prev) => (prev[nicheKey] ? { ...prev, [nicheKey]: false } : prev));
+      } catch (err) {
+        console.error("[thumbz] fetchPairs failed", { nicheKey, mode, err });
+        // Surface the error only when this niche has nothing left to render —
+        // i.e. a replace-fetch failed, OR an append-fetch failed and the
+        // queue is empty. Otherwise the failure is invisible to the user.
+        const nicheQueueEmpty =
+          !queuesRef.current[nicheKey] || queuesRef.current[nicheKey].length === 0;
+        if (mode === "replace" || nicheQueueEmpty) {
+          setErrors((prev) => ({ ...prev, [nicheKey]: true }));
+        }
+      } finally {
+        inflightRef.current.delete(nicheKey);
+      }
+    },
+    [],
+  );
+
+  // On niche change (and on initial mount): ensure the active niche has a
+  // queue. We intentionally read `queues` inside the effect body (not via
+  // deps) so that vote-driven queue mutations don't re-trigger this effect —
+  // refills are owned by the vote handler.
+  useEffect(() => {
+    const key = niche;
+    // Clear THIS niche's error before re-attempting (other niches keep state).
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: false } : prev));
+    if (!queuesRef.current[key] || queuesRef.current[key].length === 0) {
+      void fetchPairs(key, QUEUE_TARGET, "replace");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [niche, fetchPairs]);
+
+  // Recovery guard: if the active niche somehow ends up with an empty queue
+  // and no in-flight fetch and no error, kick off a replace-fetch. This
+  // covers the failure mode where a background refill quietly failed before
+  // the queue drained — without this the arena would deadlock at "Loading…"
+  // forever waiting on a refill that never comes.
+  const activeQueueLength = (queues[niche] ?? []).length;
+  useEffect(() => {
+    if (activeQueueLength === 0 && !inflightRef.current.has(niche) && !errors[niche]) {
+      void fetchPairs(niche, QUEUE_TARGET, "replace");
+    }
+  }, [activeQueueLength, niche, errors, fetchPairs]);
+
+  // Idle prefetch — once on mount, after IDLE_PREFETCH_MS, warm a single pair
+  // for every other niche. First niche-switch then renders instantly from
+  // cache while the new niche's full queue back-fills in the background.
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      for (const n of NICHES) {
+        const cur = queuesRef.current[n];
+        if (!cur || cur.length === 0) {
+          void fetchPairs(n, 1, "replace");
+        }
+      }
+    }, IDLE_PREFETCH_MS);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const currentQueue = queues[niche] ?? [];
+  const headPair: Pair | undefined = currentQueue[0];
+
+  // Frozen pair pins the rendered cards during the swipe animation so the
+  // queue mutation underneath cannot interrupt FighterCard's exit transition.
+  const [frozenPair, setFrozenPair] = useState<Pair | null>(null);
+  const battlePair: Pair | undefined = frozenPair ?? headPair;
+
+  // Loading + error states derived from the per-niche queue + error map.
+  const nicheError = !!errors[niche];
+  const isLoadingPair = !battlePair && !nicheError;
+  const isFetchingPair = inflightRef.current.has(niche) && !!battlePair;
+  const isErrorPair = nicheError && !battlePair;
+  const refetchPair = useCallback(() => {
+    setErrors((prev) => (prev[niche] ? { ...prev, [niche]: false } : prev));
+    void fetchPairs(niche, QUEUE_TARGET, "replace");
+  }, [fetchPairs, niche]);
+
+  // keepPreviousData unused now — kept import-stable below via the leaderboard
+  // query which still benefits from it.
+  void keepPreviousData;
 
   const {
     data: thumbnails,
@@ -221,6 +341,7 @@ export default function Home() {
     isFetching: isFetchingLeaderboard,
   } = useListThumbnails(listThumbnailsParams, {
     query: {
+      queryKey: getListThumbnailsQueryKey(listThumbnailsParams),
       placeholderData: keepPreviousData,
     },
   });
@@ -276,8 +397,8 @@ export default function Home() {
     voteStartedAtRef.current = Date.now();
     setVoteState({ winnerId, round });
 
-    // Pin the displayed pair to the current value so the parallel refetch we
-    // kick off below cannot mutate the rendered pair mid-animation.
+    // Pin the displayed pair so the queue pop below can't mutate the rendered
+    // pair mid-animation. Released when the round bumps.
     setFrozenPair(battlePair);
 
     // Increment via refs (race-free sync writes), then mirror to state for rendering.
@@ -310,37 +431,39 @@ export default function Home() {
       /* ignore quota / disabled storage */
     }
 
-    // Fire the vote mutation AND the next-pair refetch simultaneously. Both
-    // overlap with the swipe animation so by the time the timer below expires
-    // the new pair is usually already in cache and the round-bump is instant.
+    // Fire the vote mutation in the background — DB write + ELO calc happen
+    // server-side while the user is already looking at the next pair.
     castVote.mutate({ data: { winnerId, loserId } });
-    const refetchPromise = queryClient.invalidateQueries({
-      queryKey: getGetBattlePairQueryKey(),
+
+    // Pop the consumed pair from the queue NOW so the next pair (already
+    // image-preloaded) is the new head when the round bumps in 250ms.
+    const key = niche;
+    const remainingAfterPop =
+      Math.max(0, (queuesRef.current[key]?.length ?? 0) - 1);
+    setQueues((prev) => {
+      const q = prev[key] ?? [];
+      const next = { ...prev, [key]: q.slice(1) };
+      queuesRef.current = next;
+      return next;
     });
 
-    // VOTE_ANIM_DURATION_MS after the click, the cinematic exit is complete.
-    // We then commit the round-swap (which forces AnimatePresence to remount
-    // with the new pair) once the parallel refetch has actually settled.
-    //
-    // A 1.5s safety fallback guarantees the UI never deadlocks even if the
-    // refetch hangs — short because the fetch has been running since click.
+    // Background refill if the queue is getting low — never blocks the UI.
+    if (remainingAfterPop < QUEUE_REFILL_AT) {
+      void fetchPairs(key, QUEUE_TARGET, "append");
+    }
+
+    // VOTE_ANIM_DURATION_MS after click, commit the round swap. The new pair
+    // is already in state (queue head) AND already in the image cache, so
+    // AnimatePresence remounts with a fully painted card — zero perceived
+    // wait. No safety timer needed: there's no async dependency to race.
     if (pairRefreshTimeoutRef.current !== null) {
       window.clearTimeout(pairRefreshTimeoutRef.current);
     }
     pairRefreshTimeoutRef.current = window.setTimeout(() => {
       pairRefreshTimeoutRef.current = null;
-      let committed = false;
-      const commit = () => {
-        if (committed) return;
-        committed = true;
-        if (safetyId !== null) window.clearTimeout(safetyId);
-        setVoteState(null);
-        setRound((r) => r + 1);
-        // Release the frozen pair so the freshly-fetched data is rendered.
-        setFrozenPair(null);
-      };
-      refetchPromise.then(commit, commit);
-      const safetyId = window.setTimeout(commit, 1500);
+      setVoteState(null);
+      setRound((r) => r + 1);
+      setFrozenPair(null);
     }, VOTE_ANIM_DURATION_MS);
   };
 

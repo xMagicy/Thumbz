@@ -93,22 +93,38 @@ paths:
     get:
       operationId: getBattlePair
       tags: [thumbnails]
-      summary: Get two random thumbnails for a battle
-      description: Returns two distinct random active thumbnails to compare, optionally filtered by niche.
+      summary: Get one or more random battle pairs
+      description: |
+        Returns a queue of distinct random active thumbnail pairs to compare,
+        optionally filtered by niche. Used by the client to maintain a local
+        prefetched queue so swipes feel instant. Pass `count` to fetch
+        multiple pairs in one round-trip.
       parameters:
         - name: niche
           in: query
           required: false
           schema:
             type: string
-          description: Restrict the battle pair to a specific niche.
+          description: Restrict the battle pairs to a specific niche.
+        - name: count
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 1
+          description: |
+            How many pairs to return. Server may return fewer if the niche
+            does not have enough active thumbnails to satisfy the request.
+            Always at least 1 on a 200 response.
       responses:
         "200":
-          description: Two thumbnails for battle
+          description: One or more thumbnail pairs for battles
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BattlePair"
+                $ref: "#/components/schemas/BattleQueueResponse"
         "400":
           description: Not enough thumbnails for a battle
           content:
@@ -337,6 +353,18 @@ components:
       required:
         - left
         - right
+
+    BattleQueueResponse:
+      type: object
+      properties:
+        pairs:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/BattlePair"
+      required:
+        - pairs
 
     VoteBody:
       type: object

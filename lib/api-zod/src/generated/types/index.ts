@@ -7,6 +7,7 @@
  */
 
 export * from "./battlePair";
+export * from "./battleQueueResponse";
 export * from "./battleStats";
 export * from "./errorResponse";
 export * from "./feedbackBody";

@@ -17,7 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  BattlePair,
+  BattleQueueResponse,
   BattleStats,
   ErrorResponse,
   FeedbackBody,
@@ -303,8 +303,12 @@ export const useUploadThumbnail = <
 };
 
 /**
- * Returns two distinct random active thumbnails to compare, optionally filtered by niche.
- * @summary Get two random thumbnails for a battle
+ * Returns a queue of distinct random active thumbnail pairs to compare,
+optionally filtered by niche. Used by the client to maintain a local
+prefetched queue so swipes feel instant. Pass `count` to fetch
+multiple pairs in one round-trip.
+
+ * @summary Get one or more random battle pairs
  */
 export const getGetBattlePairUrl = (params?: GetBattlePairParams) => {
   const normalizedParams = new URLSearchParams();
@@ -325,8 +329,8 @@ export const getGetBattlePairUrl = (params?: GetBattlePairParams) => {
 export const getBattlePair = async (
   params?: GetBattlePairParams,
   options?: RequestInit,
-): Promise<BattlePair> => {
-  return customFetch<BattlePair>(getGetBattlePairUrl(params), {
+): Promise<BattleQueueResponse> => {
+  return customFetch<BattleQueueResponse>(getGetBattlePairUrl(params), {
     ...options,
     method: "GET",
   });
@@ -371,7 +375,7 @@ export type GetBattlePairQueryResult = NonNullable<
 export type GetBattlePairQueryError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Get two random thumbnails for a battle
+ * @summary Get one or more random battle pairs
  */
 
 export function useGetBattlePair<

@@ -112,75 +112,99 @@ export const UploadThumbnailBody = zod.object({
 });
 
 /**
- * Returns two distinct random active thumbnails to compare, optionally filtered by niche.
- * @summary Get two random thumbnails for a battle
+ * Returns a queue of distinct random active thumbnail pairs to compare,
+optionally filtered by niche. Used by the client to maintain a local
+prefetched queue so swipes feel instant. Pass `count` to fetch
+multiple pairs in one round-trip.
+
+ * @summary Get one or more random battle pairs
  */
+export const getBattlePairQueryCountDefault = 1;
+export const getBattlePairQueryCountMax = 10;
+
 export const GetBattlePairQueryParams = zod.object({
   niche: zod.coerce
     .string()
     .optional()
-    .describe("Restrict the battle pair to a specific niche."),
+    .describe("Restrict the battle pairs to a specific niche."),
+  count: zod.coerce
+    .number()
+    .min(1)
+    .max(getBattlePairQueryCountMax)
+    .default(getBattlePairQueryCountDefault)
+    .describe(
+      "How many pairs to return. Server may return fewer if the niche\ndoes not have enough active thumbnails to satisfy the request.\nAlways at least 1 on a 200 response.\n",
+    ),
 });
 
+export const getBattlePairResponsePairsMax = 10;
+
 export const GetBattlePairResponse = zod.object({
-  left: zod.object({
-    id: zod.number(),
-    title: zod.string(),
-    imageUrl: zod.string(),
-    channelName: zod.string(),
-    niche: zod
-      .string()
-      .describe(
-        "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
-      ),
-    ctr: zod
-      .number()
-      .nullish()
-      .describe(
-        "Click-through rate as a percentage (0-100), null if not provided",
-      ),
-    youtubeUrl: zod
-      .string()
-      .nullish()
-      .describe("Optional public YouTube link to verify the thumbnail"),
-    status: zod.string().describe("active or pending"),
-    wins: zod.number(),
-    losses: zod.number(),
-    eloRating: zod.number(),
-    winRate: zod
-      .number()
-      .nullish()
-      .describe("Win rate as a percentage (0-100), null if no battles"),
-  }),
-  right: zod.object({
-    id: zod.number(),
-    title: zod.string(),
-    imageUrl: zod.string(),
-    channelName: zod.string(),
-    niche: zod
-      .string()
-      .describe(
-        "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
-      ),
-    ctr: zod
-      .number()
-      .nullish()
-      .describe(
-        "Click-through rate as a percentage (0-100), null if not provided",
-      ),
-    youtubeUrl: zod
-      .string()
-      .nullish()
-      .describe("Optional public YouTube link to verify the thumbnail"),
-    status: zod.string().describe("active or pending"),
-    wins: zod.number(),
-    losses: zod.number(),
-    eloRating: zod.number(),
-    winRate: zod
-      .number()
-      .nullish()
-      .describe("Win rate as a percentage (0-100), null if no battles"),
-  }),
+  pairs: zod
+    .array(
+      zod.object({
+        left: zod.object({
+          id: zod.number(),
+          title: zod.string(),
+          imageUrl: zod.string(),
+          channelName: zod.string(),
+          niche: zod
+            .string()
+            .describe(
+              "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
+            ),
+          ctr: zod
+            .number()
+            .nullish()
+            .describe(
+              "Click-through rate as a percentage (0-100), null if not provided",
+            ),
+          youtubeUrl: zod
+            .string()
+            .nullish()
+            .describe("Optional public YouTube link to verify the thumbnail"),
+          status: zod.string().describe("active or pending"),
+          wins: zod.number(),
+          losses: zod.number(),
+          eloRating: zod.number(),
+          winRate: zod
+            .number()
+            .nullish()
+            .describe("Win rate as a percentage (0-100), null if no battles"),
+        }),
+        right: zod.object({
+          id: zod.number(),
+          title: zod.string(),
+          imageUrl: zod.string(),
+          channelName: zod.string(),
+          niche: zod
+            .string()
+            .describe(
+              "One of Gaming, Tutorial, Finance, Music, Lifestyle, Tech, Vlog, Other",
+            ),
+          ctr: zod
+            .number()
+            .nullish()
+            .describe(
+              "Click-through rate as a percentage (0-100), null if not provided",
+            ),
+          youtubeUrl: zod
+            .string()
+            .nullish()
+            .describe("Optional public YouTube link to verify the thumbnail"),
+          status: zod.string().describe("active or pending"),
+          wins: zod.number(),
+          losses: zod.number(),
+          eloRating: zod.number(),
+          winRate: zod
+            .number()
+            .nullish()
+            .describe("Win rate as a percentage (0-100), null if no battles"),
+        }),
+      }),
+    )
+    .min(1)
+    .max(getBattlePairResponsePairsMax),
 });
 
 /**

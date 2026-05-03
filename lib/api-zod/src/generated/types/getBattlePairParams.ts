@@ -8,7 +8,16 @@
 
 export type GetBattlePairParams = {
   /**
-   * Restrict the battle pair to a specific niche.
+   * Restrict the battle pairs to a specific niche.
    */
   niche?: string;
+  /**
+ * How many pairs to return. Server may return fewer if the niche
+does not have enough active thumbnails to satisfy the request.
+Always at least 1 on a 200 response.
+
+ * @minimum 1
+ * @maximum 10
+ */
+  count?: number;
 };

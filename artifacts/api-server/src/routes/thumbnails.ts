@@ -74,30 +74,47 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/thumbnails/battle?niche= — two random active thumbnails
+// GET /api/thumbnails/battle?niche=&count=N — N random active thumbnail pairs
+// (default 1, max 10). Client uses count>1 to maintain a prefetched queue so
+// swipes feel instant — no network on the critical path between votes.
 router.get("/battle", async (req, res) => {
   try {
     const niche = normalizeNiche(typeof req.query.niche === "string" ? req.query.niche : undefined);
+
+    // Parse count: clamp to [1, 10], default 1. Anything unparseable → 1.
+    const rawCount = typeof req.query.count === "string" ? Number(req.query.count) : 1;
+    const count =
+      Number.isFinite(rawCount) && rawCount >= 1
+        ? Math.min(10, Math.floor(rawCount))
+        : 1;
 
     const conditions: SQL[] = [eq(thumbnailsTable.status, "active")];
     if (niche) conditions.push(eq(thumbnailsTable.niche, niche));
     const where = conditions.length === 1 ? conditions[0] : and(...conditions);
 
+    // Fetch up to count*2 random rows in one query, then chunk into pairs.
+    // If the niche has fewer rows than requested we silently return fewer
+    // pairs — never less than 1, otherwise we 400 (handled below).
     const rows = await db
       .select()
       .from(thumbnailsTable)
       .where(where)
       .orderBy(sql`RANDOM()`)
-      .limit(2);
+      .limit(count * 2);
 
     if (rows.length < 2) {
       return res.status(400).json({ error: "Not enough thumbnails for a battle" });
     }
 
-    res.json({ left: toDto(rows[0]), right: toDto(rows[1]) });
+    const pairs = [];
+    for (let i = 0; i + 1 < rows.length; i += 2) {
+      pairs.push({ left: toDto(rows[i]), right: toDto(rows[i + 1]) });
+    }
+
+    return res.json({ pairs });
   } catch (err) {
     req.log.error({ err }, "Failed to get battle pair");
-    res.status(500).json({ error: "Failed to get battle pair" });
+    return res.status(500).json({ error: "Failed to get battle pair" });
   }
 });
 
