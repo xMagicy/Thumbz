@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   useGetBattlePair,
   getGetBattlePairQueryKey,
@@ -202,12 +202,21 @@ export default function Home() {
       refetchOnWindowFocus: false,
       // One automatic retry on transient failure so the arena never gets stuck on a flake.
       retry: 1,
+      // Keep the previous pair visible during a niche switch refetch so the UI
+      // doesn't blank out — the new pair fades in once the request settles.
+      placeholderData: keepPreviousData,
     },
   });
 
-  const { data: thumbnails, isLoading: isLoadingLeaderboard } = useListThumbnails(
-    listThumbnailsParams,
-  );
+  const {
+    data: thumbnails,
+    isLoading: isLoadingLeaderboard,
+    isFetching: isFetchingLeaderboard,
+  } = useListThumbnails(listThumbnailsParams, {
+    query: {
+      placeholderData: keepPreviousData,
+    },
+  });
 
   const { data: stats } = useListBattles();
 
@@ -531,6 +540,28 @@ export default function Home() {
         {/* Niche filter bar */}
         <div className="w-full mb-6">
           <NicheFilterBar value={niche} onChange={setNiche} />
+          {/* Loading bar — visible while a niche-switch refetch is in flight.
+              Lives outside any AnimatePresence container so it never interferes
+              with the battle pair / vote transitions. */}
+          <div
+            aria-hidden
+            className="relative mt-2 h-[2px] w-full overflow-hidden rounded-full"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+          >
+            <div
+              className="absolute inset-y-0 left-0 transition-opacity duration-200"
+              style={{
+                width: "100%",
+                background:
+                  "linear-gradient(90deg, transparent, #d946ef, #8b5cf6, transparent)",
+                opacity: isFetchingPair || isFetchingLeaderboard ? 1 : 0,
+                animation:
+                  isFetchingPair || isFetchingLeaderboard
+                    ? "thumbz-loading-sweep 1.1s ease-in-out infinite"
+                    : undefined,
+              }}
+            />
+          </div>
         </div>
 
         {/* Streak indicator */}
