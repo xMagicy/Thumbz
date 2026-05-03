@@ -342,7 +342,7 @@ export function Leaderboard({
                             lineHeight: 1.2,
                           }}
                         >
-                          {thumb.niche}
+                          {thumb.appCategory ?? thumb.niche}
                         </span>
                         {thumb.ctr !== null && thumb.ctr !== undefined && (
                           <span

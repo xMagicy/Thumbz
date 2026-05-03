@@ -91,6 +91,12 @@ export const ListThumbnailsResponseItem = zod.object({
     .date()
     .nullish()
     .describe("When the source YouTube video was published."),
+  appCategory: zod
+    .string()
+    .nullish()
+    .describe(
+      "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
+    ),
 });
 export const ListThumbnailsResponse = zod.array(ListThumbnailsResponseItem);
 
@@ -233,6 +239,12 @@ export const GetBattlePairResponse = zod.object({
             .date()
             .nullish()
             .describe("When the source YouTube video was published."),
+          appCategory: zod
+            .string()
+            .nullish()
+            .describe(
+              "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
+            ),
         }),
         right: zod.object({
           id: zod.number(),
@@ -293,6 +305,12 @@ export const GetBattlePairResponse = zod.object({
             .date()
             .nullish()
             .describe("When the source YouTube video was published."),
+          appCategory: zod
+            .string()
+            .nullish()
+            .describe(
+              "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
+            ),
         }),
       }),
     )
@@ -408,6 +426,12 @@ export const CastVoteResponse = zod.object({
       .date()
       .nullish()
       .describe("When the source YouTube video was published."),
+    appCategory: zod
+      .string()
+      .nullish()
+      .describe(
+        "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
+      ),
   }),
   loser: zod.object({
     id: zod.number(),
@@ -468,6 +492,12 @@ export const CastVoteResponse = zod.object({
       .date()
       .nullish()
       .describe("When the source YouTube video was published."),
+    appCategory: zod
+      .string()
+      .nullish()
+      .describe(
+        "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
+      ),
   }),
   totalVotes: zod.number(),
 });

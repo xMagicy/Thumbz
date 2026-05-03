@@ -114,7 +114,15 @@ router.get("/", async (req, res) => {
       eq(thumbnailsTable.status, "active"),
       eq(thumbnailsTable.archived, false),
     ];
-    if (niche) conditions.push(eq(thumbnailsTable.niche, niche));
+    // Single source of truth (Blok 5): filter on app_category as the primary
+    // bucket, falling back to legacy `niche` for rows where app_category is
+    // still NULL (older user uploads pre-backfill). New uploads write
+    // app_category at insert time so this fallback gradually empties.
+    if (niche) {
+      conditions.push(
+        sql`COALESCE(${thumbnailsTable.appCategory}, ${thumbnailsTable.niche}) = ${niche}`,
+      );
+    }
     const where = and(...conditions);
 
     // ORDER BY clause per sort. NULLS LAST so missing CTRs sink to the bottom on a CTR sort.
@@ -167,7 +175,7 @@ router.get("/", async (req, res) => {
 //     fall back to ≤300, then any.
 //   • Different channel — never pair two videos from the same channel.
 //   • Cold-start calibration — if either side has battle_count<5, lock the
-//     opponent to the 1150-1250 ELO mid-tier of the same category. Prevents
+//     opponent to the 1100-1300 ELO mid-tier of the same category. Prevents
 //     a brand-new thumbnail from being thrown straight at a 1500 champion.
 //   • Archived rows are excluded entirely.
 //
@@ -192,8 +200,11 @@ function viewTier(row: { source: string | null; viewCount: number | null }): Tie
 }
 
 const CALIBRATION_BATTLES = 5;
-const CALIBRATION_ELO_LO = 1150;
-const CALIBRATION_ELO_HI = 1250;
+// Brief: cold-start opponents fall in the 1100-1300 band of the same
+// category. Widened from 1150-1250 so small categories with few mid-tier
+// rows still produce a calibration partner before falling through.
+const CALIBRATION_ELO_LO = 1100;
+const CALIBRATION_ELO_HI = 1300;
 const ELO_NEAR = 150;
 const ELO_FAR = 300;
 
@@ -214,7 +225,14 @@ router.get("/battle", async (req, res) => {
       eq(thumbnailsTable.status, "active"),
       eq(thumbnailsTable.archived, false),
     ];
-    if (niche) conditions.push(eq(thumbnailsTable.niche, niche));
+    // Same single-source-of-truth filter as the leaderboard list endpoint:
+    // primary bucket is app_category, with niche as legacy fallback for old
+    // user uploads where app_category is still NULL.
+    if (niche) {
+      conditions.push(
+        sql`COALESCE(${thumbnailsTable.appCategory}, ${thumbnailsTable.niche}) = ${niche}`,
+      );
+    }
     const where = and(...conditions);
 
     const pool = await db.select().from(thumbnailsTable).where(where);
@@ -268,11 +286,13 @@ router.get("/battle", async (req, res) => {
 
     // Run the full Blok C/F matchmaking ladder for one anchor:
     //   1. Cold-start calibration   — anchor has battle_count<5
-    //      → opponent in [1150, 1250] ELO, same category
+    //      → opponent in [1100, 1300] ELO, same category
     //   2. Same tier + ELO ≤ 150
     //   3. Same tier + ELO ≤ 300
-    //   4. Same category + ELO ≤ 300
-    //   5. Same category, any ELO
+    //   4. Same category + ELO ≤ 150
+    //   5. Same category + ELO ≤ 300
+    //   6. Same category, any ELO (veterans only)
+    //   7. Last-resort: any in category pool incl. newcomers
     function pickOpponentFor(
       anchor: Row,
       categoryPool: Row[],
@@ -293,7 +313,18 @@ router.get("/battle", async (req, res) => {
         // Fall through if calibration tier is empty (e.g. fresh deploy).
       }
 
-      const sameTier = categoryPool.filter((r) => viewTier(r) === anchorTier);
+      // Symmetric cold-start: when the anchor is established, exclude
+      // newcomers from the regular paths so a 1500 vet never gets paired
+      // with a fresh 1200 newcomer outside that newcomer's calibration
+      // window. Newcomers are still picked as anchors elsewhere and get
+      // their own calibration branch above. We only fall back to including
+      // newcomers as a last resort (full-pool sweep below).
+      const veteranPool =
+        anchor.battleCount >= CALIBRATION_BATTLES
+          ? categoryPool.filter((r) => r.battleCount >= CALIBRATION_BATTLES)
+          : categoryPool;
+
+      const sameTier = veteranPool.filter((r) => viewTier(r) === anchorTier);
       const tierNear = sameTier.filter(
         (r) => Math.abs(r.eloRating - anchorElo) <= ELO_NEAR,
       );
@@ -306,12 +337,23 @@ router.get("/battle", async (req, res) => {
       op = findOpponent(anchor, tierFar, used);
       if (op) return op;
 
-      const catFar = categoryPool.filter(
+      const catNear = veteranPool.filter(
+        (r) => Math.abs(r.eloRating - anchorElo) <= ELO_NEAR,
+      );
+      op = findOpponent(anchor, catNear, used);
+      if (op) return op;
+
+      const catFar = veteranPool.filter(
         (r) => Math.abs(r.eloRating - anchorElo) <= ELO_FAR,
       );
       op = findOpponent(anchor, catFar, used);
       if (op) return op;
 
+      op = findOpponent(anchor, veteranPool, used);
+      if (op) return op;
+
+      // Last-resort: fall back to anyone in the category pool, including
+      // newcomers. Better an unbalanced pair than no pair in tiny pools.
       return findOpponent(anchor, categoryPool, used);
     }
 
@@ -445,6 +487,12 @@ router.post("/", async (req, res) => {
         title: title.trim(),
         channelName: channelName.trim(),
         niche,
+        // Blok 5: app_category is the primary bucket for matchmaking and
+        // leaderboard filtering. For user uploads the classifier doesn't
+        // run, so mirror the user-picked niche into app_category so this
+        // row participates in app_category-driven flows from day one
+        // (no batch backfill required).
+        appCategory: niche,
         imageUrl,
         ctr: ctr ?? null,
         youtubeUrl: youtubeUrl?.trim() || null,

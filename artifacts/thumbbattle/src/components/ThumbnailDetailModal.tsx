@@ -173,7 +173,7 @@ export function ThumbnailDetailModal({
                       border: "1px solid rgba(168, 85, 247, 0.4)",
                     }}
                   >
-                    {thumbnail.niche}
+                    {thumbnail.appCategory ?? thumbnail.niche}
                   </span>
                   {thumbnail.ctr !== null && thumbnail.ctr !== undefined && (
                     <span

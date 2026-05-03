@@ -354,6 +354,13 @@ components:
           type: ["string", "null"]
           format: date-time
           description: When the source YouTube video was published.
+        appCategory:
+          type: ["string", "null"]
+          description: |
+            Canonical category bucket used for matchmaking and leaderboard
+            filtering (Blok 5). Mirrors `niche` for user uploads; for
+            YouTube rows it's the hybrid classifier output. Treat as the
+            primary bucket; fall back to `niche` only when null (legacy).
       required:
         - id
         - title

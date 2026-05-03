@@ -67,6 +67,15 @@ This is the "rising" signal — sort by this DESC for trending.
    * @nullable
    */
   publishedAt?: string | null;
+  /**
+   * Canonical category bucket used for matchmaking and leaderboard
+filtering (Blok 5). Mirrors `niche` for user uploads; for
+YouTube rows it's the hybrid classifier output. Treat as the
+primary bucket; fall back to `niche` only when null (legacy).
+
+   * @nullable
+   */
+  appCategory?: string | null;
 }
 
 export type UploadThumbnailRequestNiche =
