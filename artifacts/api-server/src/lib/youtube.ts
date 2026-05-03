@@ -53,6 +53,18 @@ const TARGETED_SEARCHES: Array<{
   { category: "Tutorial", q: "how to OR tutorial", videoCategoryId: "26" },
 ];
 
+// Ronde 3 Blok 3: trend-spotting search queries. Each is a separate
+// search.list call (100 quota units), ordered by viewCount with a
+// per-query freshness window, to catch viral newcomers in opkomende
+// niches before they show up in mostPopular.
+const TRENDING_SEARCHES: Array<{ q: string; minDays: number }> = [
+  { q: "viral", minDays: 7 },
+  { q: "trending OR viral now", minDays: 3 },
+  { q: "everyone is talking about", minDays: 7 },
+  { q: "what happened to", minDays: 14 },
+  { q: "the truth about", minDays: 14 },
+];
+
 // Channel-name pattern blocklist. These channels are usually labels,
 // movie studios, news networks, brands or kids/franchise factories
 // where the brand pulls the views, not the thumbnail. Matched as whole
@@ -61,9 +73,14 @@ const TARGETED_SEARCHES: Array<{
 //
 // Order doesn't matter — the regex is a flat alternation. Edits should
 // keep entries case-insensitive (the /i flag does the lifting).
+// Brand-name blocklist: match as whole word ANYWHERE in channel name.
+// These are specific corporate channels, not generic suffixes.
+//
+// Ronde 3 Blok 2: removed TV, Media, Channel, Official — too many false
+// positives (Vsauce TV, Linus Media Group, Casey Neistat-style "Channel"
+// suffixes, Official remixes). Generic suffixes (Studios/Pictures/...)
+// moved to CHANNEL_NAME_SUFFIX_BLOCKLIST below.
 const CHANNEL_BLOCKLIST_TERMS = [
-  // Original generic suffixes
-  "VEVO", "Records", "Films", "Studios", "Pictures", "Network",
   // Movie / TV studios
   "Marvel", "Disney", "Pixar", "DreamWorks", "Warner Bros", "Universal",
   "Paramount", "Sony Pictures", "Lionsgate", "A24", "Searchlight",
@@ -85,20 +102,9 @@ const CHANNEL_BLOCKLIST_TERMS = [
   // Brand channels
   "Apple", "Samsung", "Google", "Microsoft", "Coca-Cola", "Pepsi",
   "Nike", "Adidas", "McDonald's", "Tesla",
-  // Trailer / commercial channel suffixes (urgent patch — Ultimate
-  // Studios + JoBlo Movie Network + similar slipped through). Matches
-  // \b…\b so "Vsauce" is safe but "Foo TV" / "Bar Movies" / "Baz Concept
-  // Trailers" all hit. "TV" and "Media" intentionally aggressive — the
-  // zero-tolerance brief says we'd rather lose a few legit creators
-  // than ship one trailer pair to a creator.
-  "Productions", "Entertainment Group", "Media Group", "Media", "TV",
-  "Channel", "Official", "Music Group", "Animation", "Concept",
-  "Trailers", "Movies", "Movieclips", "Movie Network",
-  // Shorts/TikTok/Reels channel suffixes (post-republish gap fix —
-  // "School of Hard Knocks Shorts" slipped through). Word-boundary
-  // match so legit creators with these tokens inside a longer word
-  // are unaffected.
-  "Shorts", "TikTok", "Reels",
+  // Trailer-channel signals — multi-word phrases unlikely to false-positive.
+  "Entertainment Group", "Media Group", "Music Group", "Animation",
+  "Concept", "Trailers", "Movieclips", "Movie Network", "Movies",
 ];
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -107,6 +113,13 @@ const CHANNEL_NAME_BLOCKLIST = new RegExp(
   `\\b(${CHANNEL_BLOCKLIST_TERMS.map(escapeRegex).join("|")})\\b`,
   "i",
 );
+// Generic-suffix blocklist: match ONLY when the channel name ENDS with
+// one of these words. Catches "Foo Studios", "Bar Pictures", "Baz
+// Shorts" while letting channels with these tokens earlier in the name
+// (e.g. "Studios Quarter Reviews") through. Trailing punctuation/space
+// tolerated.
+const CHANNEL_NAME_SUFFIX_BLOCKLIST =
+  /\b(Studios|Pictures|Films|Productions|Records|VEVO|Network|Shorts|TikTok|Reels)\s*[!.]?\s*$/i;
 
 // Excluded YouTube category IDs.
 //   1  = Film & Animation (movie trailers, studio-driven)
@@ -494,7 +507,11 @@ function passesPreClassifierFilters(
   if (snippet.categoryId && EXCLUDED_CATEGORIES.has(snippet.categoryId)) {
     return "excluded_category";
   }
-  if (snippet.channelTitle && CHANNEL_NAME_BLOCKLIST.test(snippet.channelTitle)) {
+  if (
+    snippet.channelTitle &&
+    (CHANNEL_NAME_BLOCKLIST.test(snippet.channelTitle) ||
+      CHANNEL_NAME_SUFFIX_BLOCKLIST.test(snippet.channelTitle))
+  ) {
     return "channel_blocklist";
   }
 
@@ -511,7 +528,12 @@ function passesPreClassifierFilters(
   ) {
     return "trailer_year_pattern";
   }
-  if (CAST_LIST_PATTERN.test(title)) return "trailer_cast_list";
+  // Ronde 3 Blok 2: CAST_LIST_PATTERN dropped — too many false positives
+  // on legit panel-discussion / collab titles. Trailer detection now relies
+  // on TRAILER_TITLE_PATTERN + year patterns + commercial description +
+  // category-1 exclusion + channel blocklist, which together already cover
+  // every confirmed trailer regression we've shipped.
+  void CAST_LIST_PATTERN;
   if (
     snippet.description &&
     COMMERCIAL_DESCRIPTION_PATTERN.test(snippet.description)
@@ -621,12 +643,20 @@ function passesPreClassifierFilters(
   if (!pickMaxresThumbnail(v)) return "no_maxres";
 
   const views = Number(stats.viewCount);
-  if (!Number.isFinite(views) || views < 25_000) return "below_min_views";
+  if (!Number.isFinite(views)) return "below_min_views";
 
-  // Blok G: minimum velocity 500 views/hour (= 12k/day).
+  // Ronde 3 Blok 3: tiered velocity gate — relax thresholds for breakouts
+  // still in their first 72h (where total views haven't compounded yet
+  // but vph is already a strong trend signal).
+  //   <72h old : ≥10k views AND ≥200 vph
+  //   ≥72h old : ≥25k views AND ≥500 vph
   const ageHours = Math.max(1, ageMs / (60 * 60 * 1000));
+  const isYoung = ageHours < 72;
+  const minViews = isYoung ? 10_000 : 25_000;
+  const minVph = isYoung ? 200 : 500;
+  if (views < minViews) return "below_min_views";
   const vph = views / ageHours;
-  if (vph < 500) return "below_min_velocity";
+  if (vph < minVph) return "below_min_velocity";
 
   const likes = Number(stats.likeCount);
   if (!Number.isFinite(likes)) return "no_like_count";
@@ -683,6 +713,7 @@ async function fetchSearchVideoIds(
   apiKey: string,
   q: string,
   videoCategoryId: string | undefined,
+  windowDays: number = 14,
 ): Promise<string[]> {
   const url = new URL(`${YT_BASE}/search`);
   url.searchParams.set("part", "snippet");
@@ -690,8 +721,9 @@ async function fetchSearchVideoIds(
   url.searchParams.set("order", "viewCount");
   url.searchParams.set("maxResults", "50");
   url.searchParams.set("q", q);
-  // Last 14 days, ISO 8601.
-  const after = new Date(Date.now() - 14 * DAY_MS).toISOString();
+  // Per-query freshness window, ISO 8601. Default 14 days for legacy
+  // TARGETED_SEARCHES; trend-spotting queries override this.
+  const after = new Date(Date.now() - windowDays * DAY_MS).toISOString();
   url.searchParams.set("publishedAfter", after);
   if (videoCategoryId) url.searchParams.set("videoCategoryId", videoCategoryId);
   url.searchParams.set("key", apiKey);
@@ -869,6 +901,29 @@ export async function syncTrendingVideos(opts?: {
       }
     } catch (err) {
       logger.error({ err, q: search.q }, "Targeted search failed");
+    }
+  }
+
+  // Ronde 3 Blok 3: trend-spotting search loop. Per-query freshness
+  // window so "trending viral now" pulls last 3 days while "the truth
+  // about" reaches 14 days back.
+  for (const search of TRENDING_SEARCHES) {
+    try {
+      const ids = await fetchSearchVideoIds(apiKey, search.q, undefined, search.minDays);
+      const newIds = ids.filter((id) => !candidates.has(id));
+      if (newIds.length === 0) continue;
+      const enriched = await fetchVideosByIds(apiKey, newIds);
+      for (const v of enriched) {
+        if (!v.id || candidates.has(v.id)) continue;
+        candidates.set(v.id, {
+          video: v,
+          primaryRegion: "TRENDING",
+          trendingRegions: new Set(),
+          fromSearch: true,
+        });
+      }
+    } catch (err) {
+      logger.error({ err, q: search.q }, "Trending search failed");
     }
   }
 
@@ -1216,7 +1271,10 @@ async function enforceCategoryBalance(): Promise<number> {
       ),
     );
   if (rows.length === 0) return 0;
-  const cap = Math.max(1, Math.floor(rows.length * 0.20));
+  // Ronde 3 Blok 2: floor at 8 to prevent the cap collapsing on a small
+  // pool. With <40 active rows the 20% formula yields <8, which one
+  // category sweep can wipe out entirely.
+  const cap = Math.max(8, Math.floor(rows.length * 0.20));
   const byCat = new Map<string, typeof rows>();
   for (const r of rows) {
     const cat = r.appCategory ?? "Other";

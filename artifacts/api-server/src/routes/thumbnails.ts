@@ -171,9 +171,12 @@ router.get("/", async (req, res) => {
         orderBy = sql`(${thumbnailsTable.wins} + ${thumbnailsTable.losses}) DESC, ${thumbnailsTable.eloRating} DESC`;
         break;
       case "rising":
-        // FPH = views per hour. NULLS LAST so user-uploaded thumbnails
-        // (which have no YouTube velocity yet) sink below YouTube rows.
-        orderBy = sql`${thumbnailsTable.viewVelocity} DESC NULLS LAST, ${thumbnailsTable.eloRating} DESC`;
+        // Ronde 3 Blok 4: order by breakout_score (composite of vph,
+        // view-to-sub ratio, emerging-channel bonus, engagement) instead
+        // of raw view velocity. Surfaces actual breakouts, not just
+        // already-massive videos. NULLS LAST so user uploads + un-synced
+        // YouTube rows sink below scored rows.
+        orderBy = sql`${thumbnailsTable.breakoutScore} DESC NULLS LAST, ${thumbnailsTable.eloRating} DESC`;
         break;
       case "elo":
       default:

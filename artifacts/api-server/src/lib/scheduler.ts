@@ -21,7 +21,10 @@ import { lt } from "drizzle-orm";
  * short-circuits, archive doesn't depend on the API at all.
  */
 
-const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+// Ronde 3 Blok 3: tightened from 6h → 3h for trend responsiveness.
+// Quota budget at 3h: 12 regions × 8 runs/day × ~430 units = ~3500/day,
+// well under the 10k daily quota.
+const SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BOOT_DELAY_MS = 30 * 1000;
 const ARCHIVE_BOOT_DELAY_MS = 5 * 60 * 1000;
@@ -146,7 +149,7 @@ export function startScheduler() {
   }, BOOT_DELAY_MS);
   syncTimer = setInterval(() => {
     void runYoutubeSync();
-  }, SIX_HOURS_MS);
+  }, SYNC_INTERVAL_MS);
 
   archiveBootTimer = setTimeout(() => {
     void runArchiveSweep();
@@ -167,7 +170,7 @@ export function startScheduler() {
 
   logger.info(
     {
-      syncIntervalMs: SIX_HOURS_MS,
+      syncIntervalMs: SYNC_INTERVAL_MS,
       archiveIntervalMs: DAY_MS,
       retentionIntervalMs: DAY_MS,
       bootDelayMs: BOOT_DELAY_MS,
