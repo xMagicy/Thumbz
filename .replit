@@ -9,6 +9,15 @@ runButton = "Project"
 
 [nix]
 channel = "stable-25_05"
+packages = ["psmisc"]
+
+[[ports]]
+localPort = 3333
+externalPort = 4200
+
+[[ports]]
+localPort = 5174
+externalPort = 3003
 
 [[ports]]
 localPort = 8080
