@@ -14,4 +14,5 @@ export const ListThumbnailsSort = {
   winRate: "winRate",
   ctr: "ctr",
   battles: "battles",
+  rising: "rising",
 } as const;

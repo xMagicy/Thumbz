@@ -53,7 +53,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [elo, winRate, ctr, battles]
+            enum: [elo, winRate, ctr, battles, rising]
           description: Sort order for the rankings. Defaults to elo.
       responses:
         "200":
@@ -335,6 +335,25 @@ components:
             oldest first, up to 20 points). Embedded so leaderboard
             sparklines can render without N+1 per-row fetches. Empty array
             for thumbnails that have not battled yet.
+        source:
+          type: string
+          description: Provenance — "user", "youtube", or "seed".
+        youtubeVideoId:
+          type: ["string", "null"]
+          description: Source YouTube videoId for thumbnails pulled via trending sync.
+        viewCount:
+          type: ["integer", "null"]
+          description: Latest YouTube view count snapshot (null for non-YouTube rows).
+        viewVelocity:
+          type: ["number", "null"]
+          description: |
+            Views-per-hour (FPH) computed from the delta between the last
+            two view snapshots. Null until we have at least two snapshots.
+            This is the "rising" signal — sort by this DESC for trending.
+        publishedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: When the source YouTube video was published.
       required:
         - id
         - title
@@ -345,6 +364,7 @@ components:
         - wins
         - losses
         - eloRating
+        - source
 
     UploadThumbnailRequest:
       type: object

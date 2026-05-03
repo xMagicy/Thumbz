@@ -39,6 +39,13 @@ const toDto = (
       ? Math.round((t.wins / (t.wins + t.losses)) * 100 * 10) / 10
       : null,
   recentRatings,
+  // Phase B — YouTube provenance + velocity (FPH = views/hour).
+  // All nullable: user-uploaded thumbnails won't have these.
+  source: t.source,
+  youtubeVideoId: t.youtubeVideoId,
+  viewCount: t.viewCount,
+  viewVelocity: t.viewVelocity,
+  publishedAt: t.publishedAt ? t.publishedAt.toISOString() : null,
 });
 
 // Batched fetch of the most-recent N rating snapshots for a set of thumbnail
@@ -84,8 +91,8 @@ router.get("/", async (req, res) => {
   try {
     const niche = normalizeNiche(typeof req.query.niche === "string" ? req.query.niche : undefined);
     const sortRaw = typeof req.query.sort === "string" ? req.query.sort : "elo";
-    const sort = (["elo", "winRate", "ctr", "battles"] as const).includes(sortRaw as never)
-      ? (sortRaw as "elo" | "winRate" | "ctr" | "battles")
+    const sort = (["elo", "winRate", "ctr", "battles", "rising"] as const).includes(sortRaw as never)
+      ? (sortRaw as "elo" | "winRate" | "ctr" | "battles" | "rising")
       : "elo";
 
     // Always restrict to active rows; pending uploads await admin review.
@@ -104,6 +111,11 @@ router.get("/", async (req, res) => {
         break;
       case "battles":
         orderBy = sql`(${thumbnailsTable.wins} + ${thumbnailsTable.losses}) DESC, ${thumbnailsTable.eloRating} DESC`;
+        break;
+      case "rising":
+        // FPH = views per hour. NULLS LAST so user-uploaded thumbnails
+        // (which have no YouTube velocity yet) sink below YouTube rows.
+        orderBy = sql`${thumbnailsTable.viewVelocity} DESC NULLS LAST, ${thumbnailsTable.eloRating} DESC`;
         break;
       case "elo":
       default:

@@ -27,7 +27,7 @@ export const ListThumbnailsQueryParams = zod.object({
       'Filter to a specific niche (case-insensitive). Omit or \"all\" returns all niches.',
     ),
   sort: zod
-    .enum(["elo", "winRate", "ctr", "battles"])
+    .enum(["elo", "winRate", "ctr", "battles", "rising"])
     .optional()
     .describe("Sort order for the rankings. Defaults to elo."),
 });
@@ -66,6 +66,31 @@ export const ListThumbnailsResponseItem = zod.object({
     .describe(
       "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
     ),
+  source: zod
+    .string()
+    .describe('Provenance — \"user\", \"youtube\", or \"seed\".'),
+  youtubeVideoId: zod
+    .string()
+    .nullish()
+    .describe(
+      "Source YouTube videoId for thumbnails pulled via trending sync.",
+    ),
+  viewCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Latest YouTube view count snapshot (null for non-YouTube rows).",
+    ),
+  viewVelocity: zod
+    .number()
+    .nullish()
+    .describe(
+      'Views-per-hour (FPH) computed from the delta between the last\ntwo view snapshots. Null until we have at least two snapshots.\nThis is the \"rising\" signal — sort by this DESC for trending.\n',
+    ),
+  publishedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("When the source YouTube video was published."),
 });
 export const ListThumbnailsResponse = zod.array(ListThumbnailsResponseItem);
 
@@ -183,6 +208,31 @@ export const GetBattlePairResponse = zod.object({
             .describe(
               "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
             ),
+          source: zod
+            .string()
+            .describe('Provenance — \"user\", \"youtube\", or \"seed\".'),
+          youtubeVideoId: zod
+            .string()
+            .nullish()
+            .describe(
+              "Source YouTube videoId for thumbnails pulled via trending sync.",
+            ),
+          viewCount: zod
+            .number()
+            .nullish()
+            .describe(
+              "Latest YouTube view count snapshot (null for non-YouTube rows).",
+            ),
+          viewVelocity: zod
+            .number()
+            .nullish()
+            .describe(
+              'Views-per-hour (FPH) computed from the delta between the last\ntwo view snapshots. Null until we have at least two snapshots.\nThis is the \"rising\" signal — sort by this DESC for trending.\n',
+            ),
+          publishedAt: zod.coerce
+            .date()
+            .nullish()
+            .describe("When the source YouTube video was published."),
         }),
         right: zod.object({
           id: zod.number(),
@@ -218,6 +268,31 @@ export const GetBattlePairResponse = zod.object({
             .describe(
               "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
             ),
+          source: zod
+            .string()
+            .describe('Provenance — \"user\", \"youtube\", or \"seed\".'),
+          youtubeVideoId: zod
+            .string()
+            .nullish()
+            .describe(
+              "Source YouTube videoId for thumbnails pulled via trending sync.",
+            ),
+          viewCount: zod
+            .number()
+            .nullish()
+            .describe(
+              "Latest YouTube view count snapshot (null for non-YouTube rows).",
+            ),
+          viewVelocity: zod
+            .number()
+            .nullish()
+            .describe(
+              'Views-per-hour (FPH) computed from the delta between the last\ntwo view snapshots. Null until we have at least two snapshots.\nThis is the \"rising\" signal — sort by this DESC for trending.\n',
+            ),
+          publishedAt: zod.coerce
+            .date()
+            .nullish()
+            .describe("When the source YouTube video was published."),
         }),
       }),
     )
@@ -308,6 +383,31 @@ export const CastVoteResponse = zod.object({
       .describe(
         "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
       ),
+    source: zod
+      .string()
+      .describe('Provenance — \"user\", \"youtube\", or \"seed\".'),
+    youtubeVideoId: zod
+      .string()
+      .nullish()
+      .describe(
+        "Source YouTube videoId for thumbnails pulled via trending sync.",
+      ),
+    viewCount: zod
+      .number()
+      .nullish()
+      .describe(
+        "Latest YouTube view count snapshot (null for non-YouTube rows).",
+      ),
+    viewVelocity: zod
+      .number()
+      .nullish()
+      .describe(
+        'Views-per-hour (FPH) computed from the delta between the last\ntwo view snapshots. Null until we have at least two snapshots.\nThis is the \"rising\" signal — sort by this DESC for trending.\n',
+      ),
+    publishedAt: zod.coerce
+      .date()
+      .nullish()
+      .describe("When the source YouTube video was published."),
   }),
   loser: zod.object({
     id: zod.number(),
@@ -343,6 +443,31 @@ export const CastVoteResponse = zod.object({
       .describe(
         "Most recent rating snapshots for this thumbnail (chronological,\noldest first, up to 20 points). Embedded so leaderboard\nsparklines can render without N+1 per-row fetches. Empty array\nfor thumbnails that have not battled yet.\n",
       ),
+    source: zod
+      .string()
+      .describe('Provenance — \"user\", \"youtube\", or \"seed\".'),
+    youtubeVideoId: zod
+      .string()
+      .nullish()
+      .describe(
+        "Source YouTube videoId for thumbnails pulled via trending sync.",
+      ),
+    viewCount: zod
+      .number()
+      .nullish()
+      .describe(
+        "Latest YouTube view count snapshot (null for non-YouTube rows).",
+      ),
+    viewVelocity: zod
+      .number()
+      .nullish()
+      .describe(
+        'Views-per-hour (FPH) computed from the delta between the last\ntwo view snapshots. Null until we have at least two snapshots.\nThis is the \"rising\" signal — sort by this DESC for trending.\n',
+      ),
+    publishedAt: zod.coerce
+      .date()
+      .nullish()
+      .describe("When the source YouTube video was published."),
   }),
   totalVotes: zod.number(),
 });

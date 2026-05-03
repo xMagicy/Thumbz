@@ -42,6 +42,31 @@ sparklines can render without N+1 per-row fetches. Empty array
 for thumbnails that have not battled yet.
  */
   recentRatings?: number[];
+  /** Provenance — "user", "youtube", or "seed". */
+  source: string;
+  /**
+   * Source YouTube videoId for thumbnails pulled via trending sync.
+   * @nullable
+   */
+  youtubeVideoId?: string | null;
+  /**
+   * Latest YouTube view count snapshot (null for non-YouTube rows).
+   * @nullable
+   */
+  viewCount?: number | null;
+  /**
+   * Views-per-hour (FPH) computed from the delta between the last
+two view snapshots. Null until we have at least two snapshots.
+This is the "rising" signal — sort by this DESC for trending.
+
+   * @nullable
+   */
+  viewVelocity?: number | null;
+  /**
+   * When the source YouTube video was published.
+   * @nullable
+   */
+  publishedAt?: string | null;
 }
 
 export type UploadThumbnailRequestNiche =
@@ -228,6 +253,7 @@ export const ListThumbnailsSort = {
   winRate: "winRate",
   ctr: "ctr",
   battles: "battles",
+  rising: "rising",
 } as const;
 
 export type GetBattlePairParams = {

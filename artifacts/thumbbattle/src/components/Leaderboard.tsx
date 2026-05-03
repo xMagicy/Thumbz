@@ -1,5 +1,5 @@
 import React from "react";
-import { Trophy, Medal, Star, Search, TrendingUp } from "lucide-react";
+import { Trophy, Medal, Star, Search, TrendingUp, Flame } from "lucide-react";
 import type { Thumbnail } from "@workspace/api-client-react";
 import { ListThumbnailsSort } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,10 +22,22 @@ const inter = "'Inter', system-ui, sans-serif";
 
 const SORT_OPTIONS: { value: Sort; label: string }[] = [
   { value: "elo", label: "Rating" },
+  { value: "rising", label: "Rising" },
   { value: "winRate", label: "Win rate" },
   { value: "ctr", label: "CTR" },
   { value: "battles", label: "Most battled" },
 ];
+
+// Compact FPH formatter: 12345 → "12.3k", 1500000 → "1.5M".
+// Returns null for falsy/zero values so the badge can hide cleanly.
+function formatFph(v: number | null | undefined): string | null {
+  if (v === null || v === undefined || !Number.isFinite(v) || v <= 0) {
+    return null;
+  }
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+  return Math.round(v).toString();
+}
 
 const TIER_BREAKS: { index: number; label: string; subtitle: string }[] = [
   { index: 0, label: "Champions", subtitle: "The reigning thumbnails" },
@@ -350,6 +362,39 @@ export function Leaderboard({
                             {thumb.ctr.toFixed(1)}% CTR
                           </span>
                         )}
+                        {(() => {
+                          // 🔥 FPH badge — only shown when we actually have
+                          // velocity data (real YouTube sync), never faked.
+                          const fph = formatFph(thumb.viewVelocity);
+                          if (!fph) return null;
+                          return (
+                            <span
+                              className="inline-flex items-center gap-1"
+                              style={{
+                                fontFamily: inter,
+                                fontWeight: 700,
+                                fontSize: "0.62rem",
+                                color: "#fdba74",
+                                background:
+                                  "linear-gradient(135deg, rgba(251,146,60,0.18), rgba(244,63,94,0.18))",
+                                border: "1px solid rgba(251,146,60,0.45)",
+                                padding: "2px 7px",
+                                borderRadius: "9999px",
+                                lineHeight: 1.2,
+                                letterSpacing: "0.02em",
+                                boxShadow:
+                                  "0 0 12px rgba(251,146,60,0.25)",
+                              }}
+                              title="Views per hour (FPH) — measured from the last two YouTube snapshots"
+                            >
+                              <Flame
+                                className="w-2.5 h-2.5"
+                                style={{ color: "#fb923c" }}
+                              />
+                              {fph}/h
+                            </span>
+                          );
+                        })()}
                       </div>
                       <h4
                         className="truncate text-white"
