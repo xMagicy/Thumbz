@@ -917,27 +917,79 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -8, scale: 0.97 }}
                 transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col items-center text-center"
-                style={{ maxWidth: 440 }}
+                className="relative flex flex-col items-center text-center pointer-events-auto"
+                style={{
+                  maxWidth: 480,
+                  width: "calc(100% - 32px)",
+                  padding: "32px 28px 28px",
+                  borderRadius: 24,
+                  background:
+                    "linear-gradient(180deg, rgba(20,16,32,0.92), rgba(14,10,24,0.92))",
+                  border: "1px solid rgba(168,85,247,0.32)",
+                  boxShadow:
+                    "0 30px 80px -20px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 60px -10px rgba(217,70,239,0.35)",
+                  backdropFilter: "blur(14px)",
+                  WebkitBackdropFilter: "blur(14px)",
+                }}
               >
+                {/* Outer breathing glow halo — keeps the card feeling alive
+                    without animating any text or layout. */}
+                <motion.div
+                  aria-hidden
+                  className="absolute -inset-[1px] rounded-[25px] pointer-events-none"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(139,92,246,0.55), rgba(217,70,239,0.55))",
+                    opacity: 0.25,
+                    filter: "blur(14px)",
+                    zIndex: -1,
+                  }}
+                  animate={{ opacity: [0.18, 0.32, 0.18] }}
+                  transition={{
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+
+                {/* Top corner accent gradient — subtle Linear-style sheen */}
                 <div
-                  className="px-3 py-1 rounded-full backdrop-blur-md mb-5"
+                  aria-hidden
+                  className="absolute inset-x-0 top-0 h-24 rounded-t-[24px] pointer-events-none"
+                  style={{
+                    background:
+                      "radial-gradient(ellipse at 50% 0%, rgba(217,70,239,0.20), rgba(0,0,0,0) 70%)",
+                  }}
+                />
+
+                <div
+                  className="px-3 py-1 rounded-full mb-5 inline-flex items-center gap-1.5 relative"
                   style={{
                     fontFamily: inter,
                     fontWeight: 600,
                     fontSize: "0.65rem",
                     letterSpacing: "0.16em",
-                    color: "rgba(255,255,255,0.7)",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "#e9d5ff",
+                    background: "rgba(168,85,247,0.14)",
+                    border: "1px solid rgba(168,85,247,0.35)",
                     textTransform: "uppercase",
                   }}
                 >
-                  Ready when you are
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: "#d946ef",
+                      boxShadow: "0 0 8px rgba(217,70,239,0.9)",
+                    }}
+                  />
+                  The challenge
                 </div>
 
                 <h3
-                  className="text-white"
+                  className="text-white relative"
                   style={{
                     fontFamily: inter,
                     fontWeight: 800,
@@ -953,13 +1005,14 @@ export default function Home() {
                 </h3>
 
                 <p
+                  className="relative"
                   style={{
                     fontFamily: inter,
                     fontWeight: 400,
-                    fontSize: "0.95rem",
-                    color: "rgba(255,255,255,0.6)",
+                    fontSize: "0.92rem",
+                    color: "rgba(255,255,255,0.62)",
                     lineHeight: 1.55,
-                    marginBottom: 26,
+                    marginBottom: 22,
                   }}
                 >
                   Two thumbnails go head-to-head. You decide which one wins.
