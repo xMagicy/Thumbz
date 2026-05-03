@@ -13,6 +13,7 @@
     "backfill-thumbnail-dimensions": "tsx ./src/backfillThumbnailDimensions.ts",
     "restore-broken-backfill": "tsx ./src/restoreBrokenBackfill.ts",
     "diagnose-shorts": "tsx ./src/diagnoseShorts.ts",
+    "diagnose-shorts-db": "tsx ./src/diagnoseShortsDb.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
