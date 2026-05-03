@@ -48,8 +48,13 @@ function SwordSVG({ size = 56 }: { size?: number }) {
 
 export function VSBadge({ isVoting = false }: VSBadgeProps) {
   const [hovered, setHovered] = useState(false);
-  // Swords appear ONLY while hovered AND not in the middle of a vote transition.
-  const showSwords = hovered && !isVoting;
+  // Swords are now ALWAYS visible as a subtle background motif inside the
+  // ball, with their opacity / rotation lifted on hover for the "alive"
+  // feeling. They fade out completely during a vote so the cinematic
+  // transition isn't competing with anything underneath.
+  const intensified = hovered && !isVoting;
+  const baseSwordOpacity = isVoting ? 0 : 0.22;
+  const hoverSwordOpacity = isVoting ? 0 : 0.55;
 
   return (
     <motion.div
@@ -96,30 +101,43 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          {/* Crossed swords — clipped inside the ball. They live BEHIND the
-              VS text and slowly rotate while hovered for a subtle "alive"
-              feel. Sized small enough that nothing pokes past the rim. */}
+          {/* Crossed swords — clipped inside the ball. ALWAYS visible as a
+              faint background motif at rest, intensified on hover. The whole
+              cluster slowly rotates forever (very slow, ~24s/turn) so the
+              ball feels alive without being distracting. */}
           <motion.div
             className="absolute inset-0 flex items-center justify-center"
             style={{ zIndex: 1 }}
-            initial={false}
-            animate={{
-              opacity: showSwords ? 0.42 : 0,
-              rotate: showSwords ? 8 : 0,
+            animate={{ rotate: 360 }}
+            transition={{
+              rotate: {
+                duration: 24,
+                repeat: Infinity,
+                ease: "linear",
+              },
             }}
-            transition={{ duration: 0.45, ease: EASE_STANDARD }}
           >
-            <div className="absolute" style={{ transform: "rotate(45deg)" }}>
-              <SwordSVG />
-            </div>
-            <div className="absolute" style={{ transform: "rotate(-45deg)" }}>
-              <SwordSVG />
-            </div>
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center"
+              initial={false}
+              animate={{
+                opacity: intensified ? hoverSwordOpacity : baseSwordOpacity,
+                scale: intensified ? 1.08 : 1,
+              }}
+              transition={{ duration: 0.45, ease: EASE_STANDARD }}
+            >
+              <div className="absolute" style={{ transform: "rotate(45deg)" }}>
+                <SwordSVG />
+              </div>
+              <div className="absolute" style={{ transform: "rotate(-45deg)" }}>
+                <SwordSVG />
+              </div>
+            </motion.div>
           </motion.div>
 
-          {/* Subtle radial sheen that drifts across the ball on hover —
-              the "background animation" the user asked for, kept inside
-              the clipped ball so it never bleeds out. */}
+          {/* Slow drifting sheen — always on at low strength, brighter on
+              hover. Provides the soft moving highlight that complements the
+              rotating swords. */}
           <motion.div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -130,16 +148,16 @@ export function VSBadge({ isVoting = false }: VSBadgeProps) {
             }}
             initial={false}
             animate={{
-              opacity: showSwords ? 1 : 0,
-              backgroundPosition: showSwords
-                ? ["0% 0%", "100% 100%", "0% 0%"]
-                : "0% 0%",
+              opacity: intensified ? 1 : 0.55,
+              backgroundPosition: ["0% 0%", "100% 100%", "0% 0%"],
             }}
             transition={{
               opacity: { duration: 0.4, ease: EASE_STANDARD },
-              backgroundPosition: showSwords
-                ? { duration: 4, repeat: Infinity, ease: "easeInOut" }
-                : { duration: 0 },
+              backgroundPosition: {
+                duration: intensified ? 4 : 8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
             }}
           />
 

@@ -30,7 +30,6 @@ function extractYoutubeUrl(thumbnail: Thumbnail): string | null {
 }
 
 const INTER_STACK = "'Inter', system-ui, sans-serif";
-const ACCENT_GRADIENT = "linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%)";
 
 export function FighterCard({
   thumbnail,
@@ -259,47 +258,78 @@ export function FighterCard({
         )}
       </div>
 
-      {/* Info section */}
+      {/* Info section — cleaner hierarchy: title (prominent) → channel
+          (clearly readable, with a small avatar dot for visual anchoring)
+          → solid yellow win-rate chip aligned right. */}
       <div
         className="flex flex-col text-left"
-        style={{ padding: 12, paddingTop: 4 }}
+        style={{ padding: "0 4px", paddingTop: 2 }}
       >
         <h3
-          className="line-clamp-2 text-white text-base sm:text-[18px]"
+          className="line-clamp-2 text-white"
           style={{
             fontFamily: INTER_STACK,
             fontWeight: 600,
-            lineHeight: 1.25,
-            letterSpacing: "-0.01em",
+            fontSize: "1.0625rem",
+            lineHeight: 1.3,
+            letterSpacing: "-0.012em",
           }}
         >
           {thumbnail.title}
         </h3>
         <div
-          className="flex items-baseline justify-between gap-3"
-          style={{ marginTop: 8 }}
+          className="flex items-center justify-between gap-3"
+          style={{ marginTop: 10 }}
         >
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span
+              aria-hidden
+              className="shrink-0 rounded-full"
+              style={{
+                width: 18,
+                height: 18,
+                background:
+                  "linear-gradient(135deg, rgba(168,85,247,0.55), rgba(217,70,239,0.55))",
+                border: "1px solid rgba(255,255,255,0.18)",
+                fontFamily: INTER_STACK,
+                fontWeight: 700,
+                fontSize: 9,
+                color: "#fff",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                lineHeight: 1,
+              }}
+            >
+              {(thumbnail.channelName?.[0] ?? "?").toUpperCase()}
+            </span>
+            <span
+              className="truncate"
+              style={{
+                fontFamily: INTER_STACK,
+                fontWeight: 500,
+                fontSize: "0.875rem",
+                color: "rgba(255,255,255,0.78)",
+                letterSpacing: "0.005em",
+              }}
+            >
+              {thumbnail.channelName}
+            </span>
+          </div>
           <span
-            className="truncate text-[13px] sm:text-sm"
-            style={{
-              fontFamily: INTER_STACK,
-              fontWeight: 400,
-              color: "#9ca3af",
-            }}
-          >
-            {thumbnail.channelName}
-          </span>
-          <span
-            className="shrink-0 rounded-full"
+            className="shrink-0 rounded-full tabular-nums"
             style={{
               padding: "4px 10px",
               fontFamily: INTER_STACK,
-              fontWeight: 600,
+              fontWeight: 700,
               fontSize: 12,
-              color: "#ffffff",
-              background: ACCENT_GRADIENT,
-              boxShadow: "0 4px 12px rgba(139,92,246,0.25)",
+              color: "#1a1500",
+              background: "#facc15",
+              border: "1px solid rgba(250,204,21,0.55)",
+              boxShadow:
+                "0 4px 14px -4px rgba(250,204,21,0.45), inset 0 1px 0 rgba(255,255,255,0.35)",
               whiteSpace: "nowrap",
+              letterSpacing: "-0.005em",
             }}
           >
             {winRateLabel}

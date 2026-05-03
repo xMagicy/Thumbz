@@ -8,109 +8,126 @@ interface UploadPromoProps {
 
 export function UploadPromo({ onUploadClick }: UploadPromoProps) {
   return (
-    <section className="w-full max-w-3xl mx-auto px-6 mt-6 md:mt-8 z-20 relative">
+    <section className="w-full max-w-3xl mx-auto px-6 mt-8 md:mt-10 z-20 relative">
       <div
-        className="rounded-3xl px-8 py-10 md:px-12 md:py-12 relative overflow-hidden"
+        className="rounded-2xl relative overflow-hidden flex flex-col md:flex-row md:items-center gap-5 md:gap-7"
         style={{
+          padding: "20px 22px",
           background:
-            "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(217,70,239,0.08) 60%, rgba(0,0,0,0.0))",
-          border: "1px solid rgba(168,85,247,0.25)",
+            "linear-gradient(135deg, rgba(139,92,246,0.10), rgba(217,70,239,0.06) 65%, rgba(0,0,0,0))",
+          border: "1px solid rgba(168,85,247,0.22)",
           boxShadow:
-            "0 20px 50px -20px rgba(217,70,239,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
+            "0 14px 36px -18px rgba(217,70,239,0.30), inset 0 1px 0 rgba(255,255,255,0.04)",
         }}
       >
         {/* Subtle radial accent */}
         <div
-          className="absolute -top-20 -right-20 w-72 h-72 rounded-full pointer-events-none"
+          className="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none"
           style={{
             background:
-              "radial-gradient(closest-side, rgba(217,70,239,0.18), rgba(0,0,0,0) 70%)",
-            filter: "blur(20px)",
+              "radial-gradient(closest-side, rgba(217,70,239,0.16), rgba(0,0,0,0) 70%)",
+            filter: "blur(18px)",
           }}
         />
 
-        <div className="flex flex-col items-center text-center gap-3 relative">
-          <span
-            className="uppercase"
-            style={{
-              fontFamily: inter,
-              fontWeight: 600,
-              fontSize: "0.7rem",
-              letterSpacing: "0.14em",
-              color: "#c084fc",
-              background: "rgba(168, 85, 247, 0.15)",
-              border: "1px solid rgba(168, 85, 247, 0.35)",
-              padding: "4px 10px",
-              borderRadius: "9999px",
-              lineHeight: 1,
-            }}
-          >
-            For creators
-          </span>
+        {/* Icon disc */}
+        <div
+          className="shrink-0 rounded-xl flex items-center justify-center mx-auto md:mx-0"
+          style={{
+            width: 48,
+            height: 48,
+            background:
+              "linear-gradient(135deg, rgba(168,85,247,0.35), rgba(217,70,239,0.30))",
+            border: "1px solid rgba(255,255,255,0.12)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)",
+          }}
+        >
+          <Upload className="w-5 h-5 text-white" strokeWidth={2.25} />
+        </div>
 
+        {/* Copy block */}
+        <div className="flex-1 min-w-0 text-center md:text-left">
+          <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+            <span
+              className="uppercase"
+              style={{
+                fontFamily: inter,
+                fontWeight: 600,
+                fontSize: "0.6rem",
+                letterSpacing: "0.16em",
+                color: "#c084fc",
+              }}
+            >
+              For creators
+            </span>
+            <span
+              style={{
+                width: 3,
+                height: 3,
+                borderRadius: 999,
+                background: "rgba(168,85,247,0.55)",
+              }}
+            />
+            <span
+              style={{
+                fontFamily: inter,
+                fontWeight: 500,
+                fontSize: "0.65rem",
+                color: "rgba(255,255,255,0.45)",
+                letterSpacing: "0.02em",
+              }}
+            >
+              Free during beta
+            </span>
+          </div>
           <h2
             className="text-white"
             style={{
               fontFamily: inter,
-              fontWeight: 800,
-              fontSize: "clamp(1.4rem, 2.4vw, 1.85rem)",
-              letterSpacing: "-0.02em",
-              lineHeight: 1.2,
-              maxWidth: 560,
+              fontWeight: 700,
+              fontSize: "clamp(1.05rem, 1.8vw, 1.25rem)",
+              letterSpacing: "-0.018em",
+              lineHeight: 1.25,
             }}
           >
             Add your thumbnails to the battle
           </h2>
-
           <p
             style={{
               fontFamily: inter,
               fontWeight: 400,
-              fontSize: "0.95rem",
-              color: "rgba(255,255,255,0.65)",
-              lineHeight: 1.55,
-              maxWidth: 520,
-              marginTop: 2,
+              fontSize: "0.85rem",
+              color: "rgba(255,255,255,0.6)",
+              lineHeight: 1.5,
+              marginTop: 4,
             }}
           >
-            Want to test your own thumbnails against the world? Upload them and watch them
-            rise (or fall) in the rankings.
+            Test your own thumbnails against the world and watch them rise (or
+            fall) in the rankings.
           </p>
-
-          <button
-            type="button"
-            onClick={onUploadClick}
-            className="mt-5 inline-flex items-center gap-2 rounded-full transition-all hover:scale-[1.025] active:scale-[0.98]"
-            style={{
-              fontFamily: inter,
-              fontWeight: 600,
-              fontSize: "0.95rem",
-              color: "#fff",
-              padding: "12px 22px",
-              background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
-              border: "1px solid rgba(255,255,255,0.15)",
-              boxShadow:
-                "0 14px 32px -8px rgba(217,70,239,0.45), inset 0 1px 0 rgba(255,255,255,0.18)",
-              letterSpacing: "0.005em",
-            }}
-          >
-            <Upload className="w-4 h-4" />
-            Upload your thumbnail
-          </button>
-
-          <div
-            className="mt-3"
-            style={{
-              fontFamily: inter,
-              fontWeight: 500,
-              fontSize: "0.78rem",
-              color: "rgba(255,255,255,0.45)",
-              letterSpacing: "0.01em",
-            }}
-          >
-            Free during beta · No account required to vote
-          </div>
         </div>
+
+        {/* CTA */}
+        <button
+          type="button"
+          onClick={onUploadClick}
+          className="shrink-0 inline-flex items-center justify-center gap-2 rounded-full transition-all hover:scale-[1.03] active:scale-[0.97] mx-auto md:mx-0"
+          style={{
+            fontFamily: inter,
+            fontWeight: 600,
+            fontSize: "0.875rem",
+            color: "#fff",
+            padding: "10px 18px",
+            background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            boxShadow:
+              "0 10px 24px -6px rgba(217,70,239,0.45), inset 0 1px 0 rgba(255,255,255,0.18)",
+            letterSpacing: "0.005em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Upload thumbnail
+        </button>
       </div>
     </section>
   );

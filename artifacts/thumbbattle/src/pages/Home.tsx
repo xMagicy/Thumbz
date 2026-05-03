@@ -858,10 +858,17 @@ export default function Home() {
           </div>
         )}
 
+        {/* Upload promo — moved directly under the battle so creators see
+            the call-to-action immediately, instead of after the leaderboard
+            divider gap. */}
+        <div className="w-full mt-8 md:mt-10">
+          <UploadPromo onUploadClick={() => setUploadOpen(true)} />
+        </div>
+
         {/* Daily progress */}
         {dailyCount > 0 && (
           <div
-            className="mt-10"
+            className="mt-6"
             style={{
               fontFamily: inter,
               fontWeight: 400,
@@ -877,11 +884,8 @@ export default function Home() {
         )}
       </main>
 
-      {/* Upload promo — invites creators to join the waitlist */}
-      <UploadPromo onUploadClick={() => setUploadOpen(true)} />
-
       {/* Faint divider between upload promo and championship rankings */}
-      <div className="w-full max-w-5xl mx-auto px-6 mt-12 z-20 relative">
+      <div className="w-full max-w-5xl mx-auto px-6 mt-10 z-20 relative">
         <div className="h-px w-full" style={{ background: "rgba(255,255,255,0.05)" }} />
       </div>
 
