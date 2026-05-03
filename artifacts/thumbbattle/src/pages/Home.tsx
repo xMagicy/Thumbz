@@ -619,11 +619,14 @@ export default function Home() {
             matches today
           </span>
           <div className="w-px h-3 bg-white/15" />
-          <span style={{ fontWeight: 500, fontSize: "0.72rem", color: "rgba(255,255,255,0.55)" }}>
+          <span
+            style={{ fontWeight: 500, fontSize: "0.72rem", color: "rgba(255,255,255,0.55)" }}
+            title="Thumbnails uploaded by real creators on Thumbz (excludes the YouTube trending pool)"
+          >
             <span style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>
               {stats?.totalUploads ? stats.totalUploads.toLocaleString() : 0}
             </span>{" "}
-            uploads
+            creator uploads
           </span>
         </div>
         </div>
