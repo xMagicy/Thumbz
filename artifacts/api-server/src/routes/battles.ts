@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, battlesTable, thumbnailsTable } from "@workspace/db";
+import { db, battlesTable, thumbnailsTable, eloHistoryTable } from "@workspace/db";
 import { eq, count, desc, inArray } from "drizzle-orm";
 import { CastVoteBody } from "@workspace/api-zod";
 
@@ -118,6 +118,13 @@ router.post("/vote", async (req, res) => {
       .returning();
 
     await db.insert(battlesTable).values({ winnerId, loserId });
+
+    // Persist ELO history points for both thumbnails so the dashboard
+    // sparkline has fresh data after every vote. Both rows in one insert.
+    await db.insert(eloHistoryTable).values([
+      { thumbnailId: winnerId, eloRating: newWinnerElo },
+      { thumbnailId: loserId, eloRating: newLoserElo },
+    ]);
 
     const [{ total }] = await db.select({ total: count() }).from(battlesTable);
 
