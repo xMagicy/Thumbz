@@ -1,0 +1,73 @@
+"Ultimate Studios" zit erin — dat is precies de "Studios" suffix uit de blacklist. Of de blacklist is niet enforced, of de cleanup query draaide nooit op bestaande data.
+Knight Rider tagged als Lifestyle — bevestigt de niche vs app_category drift bug uit Replit Agent's audit. Matchmaking gebruikt niche, sync zet app_category, ze raken uit sync.
+Allebei zijn al onderdeel van de P0 ronde. Maar trailer detection is nieuw — laten we het keihard maken.
+
+Plak dit bij Replit Agent
+CRITICAL: Trailers en commerciële content moeten 100% uit de pool. Geen tolerantie. Net als Shorts.
+
+Trailer & commercial content filter (toevoegen aan passesPreClassifierFilters)
+Een video wordt direct geweigerd bij ELK van deze signals.
+
+Filter 1: Title trailer keywords
+Title bevat (case-insensitive, regex word boundary):
+
+/\b(trailer|teaser|first look|sneak peek|coming soon|in theaters|now streaming|premieres|premiere|official trailer|concept trailer|fan trailer|behind the scenes)\b/i
+Filter 2: Year-in-parens + trailer pattern
+Title matched ANY van:
+
+/\(\d{4}\).*(trailer|teaser|first look)/i
+/(trailer|teaser|first look).*\(\d{4}\)/i
+Dekt: "Knight Rider Rebirth (2026) | Concept Trailer", "Concept Trailer (2026)", etc.
+
+Filter 3: Cast list pattern (commercial movies hebben deze)
+Title bevat patroon Naam, Naam(, Naam)+ |:
+
+/[A-Z][a-z]+ [A-Z][a-z]+,\s*[A-Z][a-z]+ [A-Z][a-z]+/
+Verklaring: "Jensen Ackles, Mads Mikkelsen, Scarlett Johansson" pattern. Bijna altijd een cast announcement = trailer.
+
+Filter 4: Description commercial markers
+Description bevat (als beschikbaar):
+
+/\b(in theaters|streaming on|now playing|available now|releases on|premieres on|catch (it|him|her) on|presented by|sponsored by|in association with|all rights reserved)\b/i
+Filter 5: Channel name suffix (uitbreiding van bestaande lijst)
+Channel name ends with OR contains as whole word:
+
+Studios, Pictures, Films, Productions, Entertainment Group,
+Media, TV, Network, Channel (suffix), Official, Records,
+Music Group, Animation, Concept, Trailers, Movies
+Voorbeelden die nu zouden falen: "Ultimate Studios", "Marvel Entertainment", "Concept Trailers", "Movieclips", "Trailer Park Studios".
+
+Filter 6: CategoryId 1 (Film & Animation)
+Al in plaats, behouden. Plus: alle videos van categoryId 24 (Entertainment) waar title een trailer keyword bevat.
+
+Filter 7: Channel subscriber count vs view distribution
+Movie/trailer channels hebben vaak honderden miljoenen views op enkele videos en lage subs ratio. Verdacht patroon:
+
+if (subscriber_count < 1M AND single_video_view_count > 10M) → flag for review
+Niet auto-skip maar wel logging.
+
+Aggressive cleanup van bestaande data
+-- Markeer alle bestaande trailers + commercial content als archived
+UPDATE thumbnails 
+SET archived = true 
+WHERE archived IS NOT true 
+  AND (
+    title ~* '\b(trailer|teaser|first look|sneak peek|coming soon|in theaters|now streaming|premieres|concept trailer)\b'
+    OR title ~* '\(\d{4}\).*\b(trailer|teaser)\b'
+    OR channel_name ~* '\b(studios|pictures|films|productions|movieclips|trailers|entertainment group|media group)\b'
+    OR channel_name ILIKE 'Ultimate Studios'
+  );
+Run deze query NU. Dit moet de "Ultimate Studios" + "Knight Rider Rebirth" rij uit de pool halen.
+
+Verificatie (verplicht)
+-- Mag 0 zijn na cleanup
+SELECT COUNT(*), array_agg(title) FILTER (WHERE archived IS NOT true)
+FROM thumbnails 
+WHERE title ~* '\b(trailer|teaser)\b' 
+   OR channel_name ~* '\b(studios|pictures|films)\b';
+
+-- Spot check
+SELECT title, channel_name, app_category, niche, archived 
+FROM thumbnails 
+WHERE title ILIKE '%knight rider%' OR channel_name ILIKE '%ultimate studios%';
+-- [Expected: archived = true, of helemaal niet meer in tabel na re-sync]
