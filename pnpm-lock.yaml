@@ -530,6 +530,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      better-auth:
+        specifier: ^1.6.0
+        version: 1.6.9(drizzle-kit@0.31.9)(drizzle-orm@0.45.2(@types/pg@8.18.0)(kysely@0.28.16)(pg@8.20.0))(pg@8.20.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
