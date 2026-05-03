@@ -367,6 +367,18 @@ components:
             filtering (Blok 5). Mirrors `niche` for user uploads; for
             YouTube rows it's the hybrid classifier output. Treat as the
             primary bucket; fall back to `niche` only when null (legacy).
+        battleCount:
+          type: integer
+          description: |
+            Total battles this thumbnail has been in (winner OR loser).
+            Drives the upload boost decay (3.0x <10, 1.5x <20, 1.0x else)
+            and the "Calibrating" badge while battleCount < 20.
+        archived:
+          type: boolean
+          description: |
+            Soft-delete flag. Archived thumbnails are excluded from battle
+            pairing and the leaderboard. Set by the daily curation cron and
+            by the per-user upload cap (>5 active uploads → oldest archived).
       required:
         - id
         - title
@@ -378,6 +390,8 @@ components:
         - losses
         - eloRating
         - source
+        - battleCount
+        - archived
 
     UploadThumbnailRequest:
       type: object

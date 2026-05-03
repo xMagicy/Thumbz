@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, thumbnailsTable, ratingHistoryTable } from "@workspace/db";
-import { sql, desc, asc, eq, and, type SQL } from "drizzle-orm";
+import { sql, desc, asc, eq, and, inArray, type SQL } from "drizzle-orm";
 import { z } from "zod/v4";
 import { UploadThumbnailBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -260,6 +260,40 @@ router.get("/battle", async (req, res) => {
     const sameChannel = (a: Row, b: Row): boolean =>
       Boolean(a.channelName && b.channelName && a.channelName === b.channelName);
 
+    // ─── Decaying upload boost ─────────────────────────────────────────
+    // Fresh user uploads need EXPOSURE — without battles their ELO is a
+    // meaningless 1200 default and they sit invisible at the bottom of the
+    // pool. We give them a temporary pairing weight that decays as they
+    // accumulate battle data:
+    //   battle_count <10  → 3.0  (cold start, ~50–60 battles in first 24h)
+    //   battle_count <20  → 1.5  (finetuning toward stable ELO)
+    //   battle_count ≥20  → 1.0  (treated identically to YouTube rows)
+    // The boost auto-decays so there's no permanent advantage — once a
+    // thumbnail has enough samples to be matched on ELO alone, exposure
+    // stops mattering. The per-user upload cap (see POST /thumbnails)
+    // prevents farming this boost by re-uploading the same image.
+    function pairingWeight(r: Row): number {
+      if (r.source !== "user") return 1.0;
+      if (r.battleCount < 10) return 3.0;
+      if (r.battleCount < 20) return 1.5;
+      return 1.0;
+    }
+
+    // Weighted random pick. Falls back to uniform if all weights collapse
+    // to zero (defensive — pairingWeight never returns 0 today).
+    function weightedPick(items: Row[]): Row {
+      if (items.length === 1) return items[0];
+      let total = 0;
+      for (const t of items) total += pairingWeight(t);
+      if (total <= 0) return items[Math.floor(Math.random() * items.length)];
+      let r = Math.random() * total;
+      for (const t of items) {
+        r -= pairingWeight(t);
+        if (r < 0) return t;
+      }
+      return items[items.length - 1];
+    }
+
     // Find an opponent for `anchor` from `candidates` honoring:
     //   - id ≠ anchor.id
     //   - different channel
@@ -273,18 +307,14 @@ router.get("/battle", async (req, res) => {
       const eligible = candidates.filter(
         (r) => r.id !== anchor.id && !sameChannel(anchor, r) && !used.has(r.id),
       );
-      if (eligible.length > 0) {
-        return eligible[Math.floor(Math.random() * eligible.length)];
-      }
+      if (eligible.length > 0) return weightedPick(eligible);
       const relaxed = candidates.filter(
         (r) => r.id !== anchor.id && !sameChannel(anchor, r),
       );
-      if (relaxed.length > 0) {
-        return relaxed[Math.floor(Math.random() * relaxed.length)];
-      }
+      if (relaxed.length > 0) return weightedPick(relaxed);
       const anyDifferent = candidates.filter((r) => r.id !== anchor.id);
       if (anyDifferent.length === 0) return null;
-      return anyDifferent[Math.floor(Math.random() * anyDifferent.length)];
+      return weightedPick(anyDifferent);
     }
 
     // Run the full Blok C/F matchmaking ladder for one anchor:
@@ -365,12 +395,21 @@ router.get("/battle", async (req, res) => {
     const eligibleCats = [...byCat.entries()].filter(([, l]) => l.length >= 2);
 
     for (let i = 0; i < count; i++) {
+      // Sparse-pool guard: if no single category has ≥2 thumbnails the
+      // rotation can't produce a category-locked pair. Skip the loop and
+      // let the cross-category last-resort fallback below run instead of
+      // crashing on a destructure of `undefined`.
+      if (eligibleCats.length === 0) break;
       // Category lock: if UI fixed a niche, that's the only bucket;
       // otherwise rotate randomly per pair across non-empty categories.
       const [, catPool] = eligibleCats[
         Math.floor(Math.random() * eligibleCats.length)
       ];
-      const anchor = catPool[Math.floor(Math.random() * catPool.length)];
+      // Anchor pick is also weighted — this is where the boost actually
+      // earns the upload its exposure. Without it the anchor would still
+      // be uniform and a fresh upload would only get the (small) opponent
+      // bump from weightedPick downstream.
+      const anchor = weightedPick(catPool);
       const opponent = pickOpponentFor(anchor, catPool, usedIds);
       if (!opponent) continue;
       usedIds.add(anchor.id);
@@ -484,25 +523,73 @@ router.post("/", uploadRateLimiter, async (req, res) => {
   }
 
   try {
-    const [row] = await db
-      .insert(thumbnailsTable)
-      .values({
-        title: title.trim(),
-        channelName: channelName.trim(),
-        niche,
-        // Blok 5: app_category is the primary bucket for matchmaking and
-        // leaderboard filtering. For user uploads the classifier doesn't
-        // run, so mirror the user-picked niche into app_category so this
-        // row participates in app_category-driven flows from day one
-        // (no batch backfill required).
-        appCategory: niche,
-        imageUrl,
-        ctr: ctr ?? null,
-        youtubeUrl: youtubeUrl?.trim() || null,
-        status: "active",
-        userId,
-      })
-      .returning();
+    // ─── Anti-abuse cap: max 5 active uploads per user ─────────────────
+    // Without this, a single user could re-upload the same thumbnail 50x
+    // to keep harvesting fresh-upload boost weight. We don't reject the
+    // new upload (would feel punishing) — we instead archive the OLDEST
+    // active upload for this user, so total active uploads never exceeds
+    // 5. Archived rows are kept for analytics + the dashboard but are
+    // excluded from pairing + the leaderboard. Anonymous uploads are
+    // exempt because there's no user_id to count against.
+    //
+    // Wrapped in a transaction with SELECT … FOR UPDATE so two concurrent
+    // uploads from the same user can't both observe `count=4` and each
+    // succeed → exceeding the cap. The row-level lock serializes
+    // per-user upload bursts; cross-user uploads stay fully concurrent.
+    const MAX_ACTIVE_PER_USER = 5;
+    const row = await db.transaction(async (tx) => {
+      if (userId) {
+        const active = await tx
+          .select({
+            id: thumbnailsTable.id,
+            createdAt: thumbnailsTable.createdAt,
+          })
+          .from(thumbnailsTable)
+          .where(
+            and(
+              eq(thumbnailsTable.userId, userId),
+              eq(thumbnailsTable.archived, false),
+            ),
+          )
+          .orderBy(asc(thumbnailsTable.createdAt))
+          .for("update");
+        // Keep room for the new row → archive enough oldest rows so that
+        // after the insert there are at most MAX_ACTIVE_PER_USER active.
+        const overflow = active.length - (MAX_ACTIVE_PER_USER - 1);
+        if (overflow > 0) {
+          const idsToArchive = active.slice(0, overflow).map((r) => r.id);
+          await tx
+            .update(thumbnailsTable)
+            .set({ archived: true })
+            .where(inArray(thumbnailsTable.id, idsToArchive));
+          req.log.info(
+            { userId, archivedIds: idsToArchive },
+            "Archived oldest user uploads to enforce per-user active cap",
+          );
+        }
+      }
+
+      const [inserted] = await tx
+        .insert(thumbnailsTable)
+        .values({
+          title: title.trim(),
+          channelName: channelName.trim(),
+          niche,
+          // Blok 5: app_category is the primary bucket for matchmaking
+          // and leaderboard filtering. For user uploads the classifier
+          // doesn't run, so mirror the user-picked niche into
+          // app_category so this row participates in app_category-driven
+          // flows from day one (no batch backfill required).
+          appCategory: niche,
+          imageUrl,
+          ctr: ctr ?? null,
+          youtubeUrl: youtubeUrl?.trim() || null,
+          status: "active",
+          userId,
+        })
+        .returning();
+      return inserted;
+    });
 
     req.log.info(
       { thumbnailId: row.id, niche, status: row.status, hasUser: !!userId },

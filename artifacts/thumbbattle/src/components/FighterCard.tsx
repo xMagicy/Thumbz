@@ -211,8 +211,12 @@ export function FighterCard({
           }}
         />
 
-        {/* Top-left: niche pill */}
-        <div className="absolute top-3 left-3 z-10 pointer-events-none">
+        {/* Top-left: niche pill + (for fresh user uploads) calibrating badge.
+            "Calibrating" tells the viewer the system is still measuring this
+            thumbnail — so they understand a low ELO / weird matchup isn't
+            random, it's just early-sample noise. Disappears at 20 battles
+            in line with the boost decay schedule. */}
+        <div className="absolute top-3 left-3 z-10 pointer-events-none flex items-center gap-1.5">
           <div
             className="rounded-full backdrop-blur-md"
             style={{
@@ -227,6 +231,35 @@ export function FighterCard({
           >
             {niche}
           </div>
+          {thumbnail.source === "user" && thumbnail.battleCount < 20 && (
+            <div
+              className="rounded-full backdrop-blur-md flex items-center gap-1"
+              style={{
+                padding: "4px 9px",
+                fontFamily: INTER_STACK,
+                fontWeight: 600,
+                fontSize: 10,
+                lineHeight: 1.2,
+                letterSpacing: "0.04em",
+                color: "#fde68a",
+                background: "rgba(251, 191, 36, 0.18)",
+                border: "1px solid rgba(251, 191, 36, 0.45)",
+                textTransform: "uppercase",
+              }}
+              title={`Calibrating — ${thumbnail.battleCount}/20 battles`}
+            >
+              <span
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: 999,
+                  background: "#fbbf24",
+                  boxShadow: "0 0 6px rgba(251,191,36,0.9)",
+                }}
+              />
+              Calibrating
+            </div>
+          )}
         </div>
 
         {/* Top-right: YouTube link icon (with polished tooltip) */}

@@ -109,6 +109,16 @@ export const ListThumbnailsResponseItem = zod.object({
     .describe(
       "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
     ),
+  battleCount: zod
+    .number()
+    .describe(
+      'Total battles this thumbnail has been in (winner OR loser).\nDrives the upload boost decay (3.0x <10, 1.5x <20, 1.0x else)\nand the \"Calibrating\" badge while battleCount < 20.\n',
+    ),
+  archived: zod
+    .boolean()
+    .describe(
+      "Soft-delete flag. Archived thumbnails are excluded from battle\npairing and the leaderboard. Set by the daily curation cron and\nby the per-user upload cap (>5 active uploads → oldest archived).\n",
+    ),
 });
 export const ListThumbnailsResponse = zod.array(ListThumbnailsResponseItem);
 
@@ -269,6 +279,16 @@ export const GetBattlePairResponse = zod.object({
             .describe(
               "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
             ),
+          battleCount: zod
+            .number()
+            .describe(
+              'Total battles this thumbnail has been in (winner OR loser).\nDrives the upload boost decay (3.0x <10, 1.5x <20, 1.0x else)\nand the \"Calibrating\" badge while battleCount < 20.\n',
+            ),
+          archived: zod
+            .boolean()
+            .describe(
+              "Soft-delete flag. Archived thumbnails are excluded from battle\npairing and the leaderboard. Set by the daily curation cron and\nby the per-user upload cap (>5 active uploads → oldest archived).\n",
+            ),
         }),
         right: zod.object({
           id: zod.number(),
@@ -346,6 +366,16 @@ export const GetBattlePairResponse = zod.object({
             .nullish()
             .describe(
               "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
+            ),
+          battleCount: zod
+            .number()
+            .describe(
+              'Total battles this thumbnail has been in (winner OR loser).\nDrives the upload boost decay (3.0x <10, 1.5x <20, 1.0x else)\nand the \"Calibrating\" badge while battleCount < 20.\n',
+            ),
+          archived: zod
+            .boolean()
+            .describe(
+              "Soft-delete flag. Archived thumbnails are excluded from battle\npairing and the leaderboard. Set by the daily curation cron and\nby the per-user upload cap (>5 active uploads → oldest archived).\n",
             ),
         }),
       }),
@@ -483,6 +513,16 @@ export const CastVoteResponse = zod.object({
       .describe(
         "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
       ),
+    battleCount: zod
+      .number()
+      .describe(
+        'Total battles this thumbnail has been in (winner OR loser).\nDrives the upload boost decay (3.0x <10, 1.5x <20, 1.0x else)\nand the \"Calibrating\" badge while battleCount < 20.\n',
+      ),
+    archived: zod
+      .boolean()
+      .describe(
+        "Soft-delete flag. Archived thumbnails are excluded from battle\npairing and the leaderboard. Set by the daily curation cron and\nby the per-user upload cap (>5 active uploads → oldest archived).\n",
+      ),
   }),
   loser: zod.object({
     id: zod.number(),
@@ -560,6 +600,16 @@ export const CastVoteResponse = zod.object({
       .nullish()
       .describe(
         "Canonical category bucket used for matchmaking and leaderboard\nfiltering (Blok 5). Mirrors `niche` for user uploads; for\nYouTube rows it's the hybrid classifier output. Treat as the\nprimary bucket; fall back to `niche` only when null (legacy).\n",
+      ),
+    battleCount: zod
+      .number()
+      .describe(
+        'Total battles this thumbnail has been in (winner OR loser).\nDrives the upload boost decay (3.0x <10, 1.5x <20, 1.0x else)\nand the \"Calibrating\" badge while battleCount < 20.\n',
+      ),
+    archived: zod
+      .boolean()
+      .describe(
+        "Soft-delete flag. Archived thumbnails are excluded from battle\npairing and the leaderboard. Set by the daily curation cron and\nby the per-user upload cap (>5 active uploads → oldest archived).\n",
       ),
   }),
   totalVotes: zod.number(),

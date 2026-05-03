@@ -86,6 +86,16 @@ primary bucket; fall back to `niche` only when null (legacy).
    * @nullable
    */
   appCategory?: string | null;
+  /** Total battles this thumbnail has been in (winner OR loser).
+Drives the upload boost decay (3.0x <10, 1.5x <20, 1.0x else)
+and the "Calibrating" badge while battleCount < 20.
+ */
+  battleCount: number;
+  /** Soft-delete flag. Archived thumbnails are excluded from battle
+pairing and the leaderboard. Set by the daily curation cron and
+by the per-user upload cap (>5 active uploads → oldest archived).
+ */
+  archived: boolean;
 }
 
 export type UploadThumbnailRequestNiche =
