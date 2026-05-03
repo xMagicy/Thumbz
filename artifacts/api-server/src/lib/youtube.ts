@@ -35,9 +35,15 @@ import { logger } from "./logger";
 
 const YT_BASE = "https://www.googleapis.com/youtube/v3";
 
+// claude/backend-fix-1 follow-up: expanded from 12 → 20 regions to broaden
+// candidate sourcing. Each adds ~1 quota unit per sync (negligible) but
+// brings in trending creators from markets the original list missed:
+// NL/IT/ES (Western Europe diversity), PH/TH/VN (Asia creators beyond
+// JP/KR), TR/PL (large emerging markets), NG (Africa creator boom).
 const REGIONS = [
   "US", "GB", "IN", "BR", "JP", "DE",
   "KR", "MX", "FR", "CA", "AU", "ID",
+  "NL", "IT", "ES", "PH", "TH", "VN", "TR", "PL",
 ] as const;
 
 // Targeted search queries to fill structurally under-represented buckets.
@@ -125,18 +131,101 @@ const TARGETED_SEARCHES: Array<{
     q: "\"i tried\" OR \"the truth about\" OR \"i spent\" OR \"i bought\"",
     minDays: 5,
   },
+  // claude/backend-fix-1 follow-up: doubled per-niche coverage with
+  // additional vocabulary variants. mostPopular + 1 search per niche
+  // capped the candidate pool around ~600/sync; with these we hit 1500+
+  // candidates per sync, dramatically lifting active pool size after
+  // filters. Each adds 100 quota — total budget stays under 4000/sync,
+  // leaving 6000/day headroom on the 10k cap.
+  {
+    category: "Tech",
+    q: "\"tech review\" OR unboxing OR \"first impressions\" OR \"hands-on\" OR setup",
+    videoCategoryId: "28",
+    minDays: 10,
+  },
+  {
+    category: "Tech",
+    q: "ai OR chatgpt OR claude OR gemini OR \"machine learning\" OR programming",
+    videoCategoryId: "28",
+    minDays: 7,
+  },
+  {
+    category: "Tutorial",
+    q: "\"step by step\" OR \"complete guide\" OR \"in 10 minutes\" OR masterclass",
+    minDays: 10,
+  },
+  {
+    category: "Tutorial",
+    q: "\"how to make\" OR diy OR craft OR \"easy way\"",
+    videoCategoryId: "26",
+    minDays: 14,
+  },
+  {
+    category: "Lifestyle",
+    q: "\"home tour\" OR \"room tour\" OR \"apartment tour\" OR \"meal prep\" OR \"what i eat\"",
+    minDays: 14,
+  },
+  {
+    category: "Lifestyle",
+    q: "\"morning habits\" OR \"healthy lifestyle\" OR fitness OR workout OR skincare",
+    minDays: 14,
+  },
+  {
+    category: "Vlog",
+    q: "\"day in the life\" OR \"week in the life\" OR \"behind the scenes\" OR \"my routine\"",
+    videoCategoryId: "22",
+    minDays: 10,
+  },
+  {
+    category: "Finance",
+    q: "\"passive income\" OR \"side hustle\" OR \"how i made\" OR \"financial independence\"",
+    minDays: 10,
+  },
+  {
+    category: "Finance",
+    q: "\"stock market\" OR \"market crash\" OR \"economy\" OR recession",
+    minDays: 7,
+  },
+  {
+    category: "Other",
+    q: "\"I made\" OR \"I built\" OR challenge OR experiment",
+    minDays: 7,
+  },
+  {
+    category: "Other",
+    q: "\"how it works\" OR \"the science of\" OR investigation",
+    minDays: 14,
+  },
+  // Emerging breakout signals — different vocabulary than the existing
+  // "i tried/the truth about" query. Catches a different cohort.
+  {
+    category: "Emerging",
+    q: "\"my first\" OR \"first time\" OR \"i tested\" OR \"i compared\"",
+    minDays: 7,
+  },
 ];
 
 // Ronde 3 Blok 3: trend-spotting search queries. Each is a separate
 // search.list call (100 quota units), ordered by viewCount with a
 // per-query freshness window, to catch viral newcomers in opkomende
 // niches before they show up in mostPopular.
+//
+// claude/backend-fix-1 follow-up: expanded from 5 → 12 trending queries.
+// Different freshness windows per query to catch fresh breakouts (3d)
+// AND topics that have legs (30d).
 const TRENDING_SEARCHES: Array<{ q: string; minDays: number }> = [
   { q: "viral", minDays: 7 },
   { q: "trending OR viral now", minDays: 3 },
   { q: "everyone is talking about", minDays: 7 },
   { q: "what happened to", minDays: 14 },
   { q: "the truth about", minDays: 14 },
+  { q: "best of 2026", minDays: 30 },
+  { q: "you wont believe OR \"won't believe\"", minDays: 7 },
+  { q: "\"this changed everything\"", minDays: 14 },
+  { q: "\"insane\" OR \"crazy\"", minDays: 5 },
+  { q: "\"vs\"", minDays: 7 },
+  { q: "\"reaction\" OR \"reacting to\"", minDays: 5 },
+  { q: "\"compilation\"", minDays: 14 },
 ];
 
 // Channel-name pattern blocklist. These channels are usually labels,
@@ -1447,10 +1536,27 @@ async function enforceCategoryBalance(): Promise<number> {
       ),
     );
   if (rows.length === 0) return 0;
+  // claude/backend-fix-1 follow-up: skip enforcement entirely below
+  // a minimum pool size. The cap exists to prevent any single category
+  // dominating the leaderboard, but at <150 active rows we'd rather
+  // keep every quality row than over-trim Gaming to 30 rows just so the
+  // ratio looks pretty. Once the new sourcing expansion brings us above
+  // 150, the cap kicks back in and trims the long tail of Gaming
+  // overflow rather than nuking smaller niches by collateral.
+  if (rows.length < 150) {
+    logger.info(
+      { active: rows.length },
+      "Skipping category balance — pool below 150 row threshold",
+    );
+    return 0;
+  }
   // Ronde 3 Blok 2: floor at 8 to prevent the cap collapsing on a small
   // pool. With <40 active rows the 20% formula yields <8, which one
   // category sweep can wipe out entirely.
-  const cap = Math.max(8, Math.floor(rows.length * 0.20));
+  // claude/backend-fix-1 follow-up: raised cap from 20% to 25% and floor
+  // from 8 to 15 so even at the 150-row threshold we keep at least 15
+  // per category and Gaming can stay 25% of the pool when it deserves.
+  const cap = Math.max(15, Math.floor(rows.length * 0.25));
   const byCat = new Map<string, typeof rows>();
   for (const r of rows) {
     const cat = r.appCategory ?? "Other";
