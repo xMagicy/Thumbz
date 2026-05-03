@@ -147,25 +147,13 @@ export default function Home() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
-  // Start-the-challenge gate. First-time visitors see a clean blurred
-  // overlay with a single CTA so the purpose of the page is unmistakable.
-  // Once started, we persist to localStorage so returning visitors land
-  // straight in the arena.
-  const [challengeStarted, setChallengeStarted] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem("thumbz_challenge_started") === "1";
-    } catch {
-      return false;
-    }
-  });
+  // Start-the-challenge gate. The intro overlay should run on every page
+  // load, including refreshes, so the user always actively opts in to a
+  // session — keeps the experience deliberate instead of a passive feed.
+  // Plain component state means the gate resets every mount automatically.
+  const [challengeStarted, setChallengeStarted] = useState(false);
   const startChallenge = useCallback(() => {
     setChallengeStarted(true);
-    try {
-      window.localStorage.setItem("thumbz_challenge_started", "1");
-    } catch {
-      /* ignore */
-    }
   }, []);
 
   const { data: sessionData, isPending: sessionPending } = useSession();
