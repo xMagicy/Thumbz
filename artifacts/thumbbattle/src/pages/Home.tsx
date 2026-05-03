@@ -147,6 +147,26 @@ export default function Home() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
+  // Start-the-challenge gate. First-time visitors see a clean blurred
+  // overlay with a single CTA so the purpose of the page is unmistakable.
+  // Once started, we persist to localStorage so returning visitors land
+  // straight in the arena.
+  const [challengeStarted, setChallengeStarted] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("thumbz_challenge_started") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const startChallenge = useCallback(() => {
+    setChallengeStarted(true);
+    try {
+      window.localStorage.setItem("thumbz_challenge_started", "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const { data: sessionData, isPending: sessionPending } = useSession();
   const sessionUser = sessionData?.user ?? null;
@@ -653,9 +673,9 @@ export default function Home() {
             style={{
               fontFamily: inter,
               fontWeight: 900,
-              fontSize: "clamp(1.125rem, 2.25vw, 1.7rem)",
-              letterSpacing: "-0.02em",
-              lineHeight: 1.2,
+              fontSize: "clamp(2rem, 4.5vw, 3.25rem)",
+              letterSpacing: "-0.028em",
+              lineHeight: 1.08,
             }}
           >
             Which thumbnail makes you click?
@@ -703,6 +723,26 @@ export default function Home() {
           )}
         </div>
 
+        {/* Battle gate — wraps the streak + battle area. When the user
+            hasn't started the challenge yet, the contents are blurred and
+            non-interactive, with a "Start the challenge" CTA overlaid on
+            top so the call to action is unmistakable. */}
+        <div className="relative w-full flex flex-col items-center">
+        <motion.div
+          className="w-full flex flex-col items-center"
+          initial={false}
+          animate={{
+            filter: challengeStarted ? "blur(0px)" : "blur(8px)",
+            opacity: challengeStarted ? 1 : 0.55,
+          }}
+          transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+          style={{
+            pointerEvents: challengeStarted ? "auto" : "none",
+            // Hint the browser to optimize the blur transition.
+            willChange: challengeStarted ? "auto" : "filter, opacity",
+          }}
+          aria-hidden={!challengeStarted}
+        >
         {/* Streak indicator */}
         <div className="h-7 mb-10 flex items-center">
           <AnimatePresence>
@@ -857,6 +897,149 @@ export default function Home() {
             </AnimatePresence>
           </div>
         )}
+        </motion.div>
+
+        {/* Start-the-challenge overlay — clean, centered, low-key but
+            confident. Lives inside the same relative container as the
+            blurred battle so it sits perfectly on top. */}
+        <AnimatePresence>
+          {!challengeStarted && (
+            <motion.div
+              key="start-challenge-overlay"
+              className="absolute inset-0 z-30 flex items-center justify-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.35, ease: [0.4, 0, 0.2, 1] } }}
+              transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 14, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-col items-center text-center"
+                style={{ maxWidth: 440 }}
+              >
+                <div
+                  className="px-3 py-1 rounded-full backdrop-blur-md mb-5"
+                  style={{
+                    fontFamily: inter,
+                    fontWeight: 600,
+                    fontSize: "0.65rem",
+                    letterSpacing: "0.16em",
+                    color: "rgba(255,255,255,0.7)",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Ready when you are
+                </div>
+
+                <h3
+                  className="text-white"
+                  style={{
+                    fontFamily: inter,
+                    fontWeight: 800,
+                    fontSize: "clamp(1.5rem, 3vw, 2.1rem)",
+                    letterSpacing: "-0.025em",
+                    lineHeight: 1.15,
+                    marginBottom: 10,
+                  }}
+                >
+                  Pick the better thumbnail.
+                  <br />
+                  Vote, repeat, climb.
+                </h3>
+
+                <p
+                  style={{
+                    fontFamily: inter,
+                    fontWeight: 400,
+                    fontSize: "0.95rem",
+                    color: "rgba(255,255,255,0.6)",
+                    lineHeight: 1.55,
+                    marginBottom: 26,
+                  }}
+                >
+                  Two thumbnails go head-to-head. You decide which one wins.
+                </p>
+
+                <motion.button
+                  type="button"
+                  onClick={startChallenge}
+                  className="relative inline-flex items-center justify-center gap-2.5 rounded-full overflow-hidden pointer-events-auto"
+                  style={{
+                    fontFamily: inter,
+                    fontWeight: 700,
+                    fontSize: "1rem",
+                    color: "#fff",
+                    padding: "14px 28px",
+                    background: "linear-gradient(135deg, #8b5cf6, #d946ef)",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    boxShadow:
+                      "0 18px 40px -10px rgba(217,70,239,0.55), inset 0 1px 0 rgba(255,255,255,0.22)",
+                    letterSpacing: "0.005em",
+                  }}
+                  whileHover={{ scale: 1.035 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 22 }}
+                  // Subtle entrance: the soft glow underneath breathes,
+                  // calling attention without being noisy.
+                  animate={{
+                    boxShadow: [
+                      "0 18px 40px -10px rgba(217,70,239,0.45), inset 0 1px 0 rgba(255,255,255,0.22)",
+                      "0 22px 50px -10px rgba(217,70,239,0.65), inset 0 1px 0 rgba(255,255,255,0.22)",
+                      "0 18px 40px -10px rgba(217,70,239,0.45), inset 0 1px 0 rgba(255,255,255,0.22)",
+                    ],
+                  }}
+                >
+                  {/* Sheen sweep — runs once every few seconds, very subtle */}
+                  <motion.span
+                    aria-hidden
+                    className="absolute inset-y-0"
+                    style={{
+                      width: "40%",
+                      background:
+                        "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)",
+                      filter: "blur(2px)",
+                    }}
+                    initial={{ x: "-120%" }}
+                    animate={{ x: ["-120%", "260%"] }}
+                    transition={{
+                      duration: 2.4,
+                      repeat: Infinity,
+                      repeatDelay: 2.6,
+                      ease: "easeInOut",
+                    }}
+                  />
+                  <span className="relative">Start the challenge</span>
+                  <span
+                    className="relative"
+                    style={{ fontSize: "1.1rem", lineHeight: 1 }}
+                    aria-hidden
+                  >
+                    →
+                  </span>
+                </motion.button>
+
+                <div
+                  className="mt-4"
+                  style={{
+                    fontFamily: inter,
+                    fontWeight: 400,
+                    fontSize: "0.75rem",
+                    color: "rgba(255,255,255,0.4)",
+                    letterSpacing: "0.01em",
+                  }}
+                >
+                  No sign-up required
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        </div>
 
         {/* Upload promo — moved directly under the battle so creators see
             the call-to-action immediately, instead of after the leaderboard
