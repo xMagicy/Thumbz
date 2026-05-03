@@ -60,93 +60,60 @@ const REGIONS = [
 //
 // Quota math: 8 targeted * 100 + 5 trending * 100 + 12 mostPopular * 1
 // ≈ 1300 units per sync run × 4 syncs/day ≈ 5200/day under the 10K cap.
+// claude/backend-fix-1 follow-up #2: queries reordered so under-represented
+// niches go FIRST. If quota runs out mid-sync (just happened in real
+// life — 6 trending searches got 403), at least Vlog/Lifestyle/Tutorial/
+// Tech/Finance got their results first. Gaming + trending queries get
+// run last because Gaming is structurally over-represented in the
+// mostPopular feed and trending is a nice-to-have, not critical.
 const TARGETED_SEARCHES: Array<{
   category: string;
   q: string;
   videoCategoryId?: string;
   minDays?: number;
 }> = [
-  // Finance — expanded vocabulary catches both crypto-cycle and personal-
-  // finance creators. minDays=7 prefers fresh angle takes over evergreen.
-  {
-    category: "Finance",
-    q: "investing OR stocks OR money OR crypto OR bitcoin OR \"financial freedom\" OR \"personal finance\"",
-    minDays: 7,
-  },
-  // Lifestyle — daily/aesthetic vocabulary that consistently outranks
-  // generic Lifestyle in YouTube's algo. Higher freshness window because
-  // routine content stays relevant longer.
-  {
-    category: "Lifestyle",
-    q: "\"morning routine\" OR aesthetic OR \"day in my life\" OR \"that girl\" OR \"clean girl\"",
-    minDays: 14,
-  },
-  // Tutorial — categoryId=26 (Howto & Style) on top of the keyword filter
-  // for double-coverage. Short freshness so we get currently-relevant
-  // problem solving, not 5-year-old tutorials.
-  {
-    category: "Tutorial",
-    q: "\"how to\" OR tutorial OR guide OR explained",
-    videoCategoryId: "26",
-    minDays: 7,
-  },
-  // Tech — the biggest gap in current pool (0 active rows). categoryId=28
-  // (Science & Tech) plus topical product+commentary keywords. Tech moves
-  // FAST so 7-day freshness keeps the pool relevant.
-  {
-    category: "Tech",
-    q: "iphone OR macbook OR \"ai tools\" OR chatgpt OR \"tech review\" OR vs",
-    videoCategoryId: "28",
-    minDays: 7,
-  },
-  // Vlog — categoryId=22 (People & Blogs) plus vlog-specific phrasing.
-  // 14-day window because vlogs are routine content that stays relevant.
+  // ─── Tier 1: severely under-represented niches FIRST ────────────────
+  // Vlog (0 active rows after last sync — classifier was too strict).
+  // Three Vlog queries before anything else, with relaxed vocabulary.
   {
     category: "Vlog",
     q: "vlog OR \"q&a\" OR \"life update\" OR \"week in my life\" OR \"story time\"",
     videoCategoryId: "22",
     minDays: 14,
   },
-  // Gaming — already over-represented but we want trending titles, not
-  // catalog. Short freshness window biases toward this-week launches and
-  // patch reactions.
   {
-    category: "Gaming",
-    q: "gameplay OR speedrun OR \"this update\" OR \"new patch\" OR review",
-    videoCategoryId: "20",
-    minDays: 5,
-  },
-  // Other / catch-all for niches our classifier doesn't have a dedicated
-  // bucket for (true crime, news, comedy, science deep-dives).
-  {
-    category: "Other",
-    q: "documentary OR \"true story\" OR \"explained\" OR analysis",
-    minDays: 14,
-  },
-  // Emerging-creator focused query — small channels with viral content.
-  // Not category-specific because breakouts happen everywhere.
-  // Low minDays = catch breakouts in the first few days they go viral.
-  {
-    category: "Emerging",
-    q: "\"i tried\" OR \"the truth about\" OR \"i spent\" OR \"i bought\"",
-    minDays: 5,
-  },
-  // claude/backend-fix-1 follow-up: doubled per-niche coverage with
-  // additional vocabulary variants. mostPopular + 1 search per niche
-  // capped the candidate pool around ~600/sync; with these we hit 1500+
-  // candidates per sync, dramatically lifting active pool size after
-  // filters. Each adds 100 quota — total budget stays under 4000/sync,
-  // leaving 6000/day headroom on the 10k cap.
-  {
-    category: "Tech",
-    q: "\"tech review\" OR unboxing OR \"first impressions\" OR \"hands-on\" OR setup",
-    videoCategoryId: "28",
+    category: "Vlog",
+    q: "\"day in the life\" OR \"week in the life\" OR \"my routine\" OR \"what i did\"",
+    videoCategoryId: "22",
     minDays: 10,
   },
   {
-    category: "Tech",
-    q: "ai OR chatgpt OR claude OR gemini OR \"machine learning\" OR programming",
-    videoCategoryId: "28",
+    category: "Vlog",
+    q: "\"i tried\" OR \"i tested\" OR \"my reaction\" OR \"first day\" OR \"new home\"",
+    videoCategoryId: "22",
+    minDays: 7,
+  },
+  // Lifestyle — rich content but only 4 active rows last sync.
+  {
+    category: "Lifestyle",
+    q: "\"morning routine\" OR aesthetic OR \"day in my life\" OR \"that girl\" OR \"clean girl\"",
+    minDays: 14,
+  },
+  {
+    category: "Lifestyle",
+    q: "\"home tour\" OR \"room tour\" OR \"apartment tour\" OR \"meal prep\" OR \"what i eat\"",
+    minDays: 14,
+  },
+  {
+    category: "Lifestyle",
+    q: "\"morning habits\" OR \"healthy lifestyle\" OR fitness OR workout OR skincare",
+    minDays: 14,
+  },
+  // Tutorial — 11 active rows last sync.
+  {
+    category: "Tutorial",
+    q: "\"how to\" OR tutorial OR guide OR explained",
+    videoCategoryId: "26",
     minDays: 7,
   },
   {
@@ -160,21 +127,30 @@ const TARGETED_SEARCHES: Array<{
     videoCategoryId: "26",
     minDays: 14,
   },
+  // Tech — 31 active rows but want more.
   {
-    category: "Lifestyle",
-    q: "\"home tour\" OR \"room tour\" OR \"apartment tour\" OR \"meal prep\" OR \"what i eat\"",
-    minDays: 14,
+    category: "Tech",
+    q: "iphone OR macbook OR \"ai tools\" OR chatgpt OR \"tech review\" OR vs",
+    videoCategoryId: "28",
+    minDays: 7,
   },
   {
-    category: "Lifestyle",
-    q: "\"morning habits\" OR \"healthy lifestyle\" OR fitness OR workout OR skincare",
-    minDays: 14,
-  },
-  {
-    category: "Vlog",
-    q: "\"day in the life\" OR \"week in the life\" OR \"behind the scenes\" OR \"my routine\"",
-    videoCategoryId: "22",
+    category: "Tech",
+    q: "\"tech review\" OR unboxing OR \"first impressions\" OR \"hands-on\" OR setup",
+    videoCategoryId: "28",
     minDays: 10,
+  },
+  {
+    category: "Tech",
+    q: "ai OR chatgpt OR claude OR gemini OR \"machine learning\" OR programming",
+    videoCategoryId: "28",
+    minDays: 7,
+  },
+  // Finance — 19 active rows.
+  {
+    category: "Finance",
+    q: "investing OR stocks OR money OR crypto OR bitcoin OR \"financial freedom\" OR \"personal finance\"",
+    minDays: 7,
   },
   {
     category: "Finance",
@@ -186,6 +162,12 @@ const TARGETED_SEARCHES: Array<{
     q: "\"stock market\" OR \"market crash\" OR \"economy\" OR recession",
     minDays: 7,
   },
+  // Other — catch-all. Run after critical niches but before Gaming.
+  {
+    category: "Other",
+    q: "documentary OR \"true story\" OR \"explained\" OR analysis",
+    minDays: 14,
+  },
   {
     category: "Other",
     q: "\"I made\" OR \"I built\" OR challenge OR experiment",
@@ -196,12 +178,26 @@ const TARGETED_SEARCHES: Array<{
     q: "\"how it works\" OR \"the science of\" OR investigation",
     minDays: 14,
   },
-  // Emerging breakout signals — different vocabulary than the existing
-  // "i tried/the truth about" query. Catches a different cohort.
+  // Emerging — non-category-specific breakouts. Critical for trend
+  // spotting. Run before Gaming because it surfaces small-channel virality.
+  {
+    category: "Emerging",
+    q: "\"i tried\" OR \"the truth about\" OR \"i spent\" OR \"i bought\"",
+    minDays: 5,
+  },
   {
     category: "Emerging",
     q: "\"my first\" OR \"first time\" OR \"i tested\" OR \"i compared\"",
     minDays: 7,
+  },
+  // ─── Tier 2: already-rich niches LAST ───────────────────────────────
+  // Gaming — already 71 active rows after balance archive. Run last
+  // because if quota dies mid-sync we'd rather lose Gaming than Vlog.
+  {
+    category: "Gaming",
+    q: "gameplay OR speedrun OR \"this update\" OR \"new patch\" OR review",
+    videoCategoryId: "20",
+    minDays: 5,
   },
 ];
 
@@ -210,22 +206,18 @@ const TARGETED_SEARCHES: Array<{
 // per-query freshness window, to catch viral newcomers in opkomende
 // niches before they show up in mostPopular.
 //
-// claude/backend-fix-1 follow-up: expanded from 5 → 12 trending queries.
-// Different freshness windows per query to catch fresh breakouts (3d)
-// AND topics that have legs (30d).
+// claude/backend-fix-1 follow-up #2: trimmed from 12 → 5 to stay under
+// the 10K/day YouTube API quota when combined with 21 targeted searches
+// + 20 mostPopular + channels.list. Total per sync ~2670 quota → 4 syncs/
+// day = 10,680/day (just over the cap by ~7%). For full safety the
+// scheduler interval should be 6h (4/day) instead of 3h (8/day) — see
+// scheduler.ts SIX_HOURS_MS constant.
 const TRENDING_SEARCHES: Array<{ q: string; minDays: number }> = [
   { q: "viral", minDays: 7 },
   { q: "trending OR viral now", minDays: 3 },
-  { q: "everyone is talking about", minDays: 7 },
-  { q: "what happened to", minDays: 14 },
-  { q: "the truth about", minDays: 14 },
-  { q: "best of 2026", minDays: 30 },
   { q: "you wont believe OR \"won't believe\"", minDays: 7 },
   { q: "\"this changed everything\"", minDays: 14 },
   { q: "\"insane\" OR \"crazy\"", minDays: 5 },
-  { q: "\"vs\"", minDays: 7 },
-  { q: "\"reaction\" OR \"reacting to\"", minDays: 5 },
-  { q: "\"compilation\"", minDays: 14 },
 ];
 
 // Channel-name pattern blocklist. These channels are usually labels,
@@ -397,11 +389,27 @@ const LIFESTYLE_TITLE_KEYWORDS = [
   "sustainable", "slow living",
 ];
 
+// claude/backend-fix-1 follow-up: expanded Vlog keyword list + relaxed
+// matching rule. The previous strict list (vlog/daily vlog/weekly vlog/…)
+// resulted in 0 Vlog rows after sync because most legit vloggers don't
+// put "vlog" in the literal title — their videos are dated diary content
+// like "I tried the world's spiciest noodles" or "moving into my first
+// apartment". Adding everyday-vlog vocabulary (week recap, life lately,
+// new home, first day, my reaction, tried) catches the actual content.
 const VLOG_TITLE_KEYWORDS = [
+  // Original explicit vlog markers
   "vlog", "daily vlog", "weekly vlog", "trip to", "travel vlog",
   "traveling to", "moving to", "moved out", "life update", "came back",
   "story time", "storytime", "draw my life", "q&a", "qna",
   "behind the scenes", "last week", "last month", "my first time",
+  // claude/backend-fix-1 follow-up additions — catch the implicit
+  // vlog content most creators upload without "vlog" in the title.
+  "i tried", "i tested", "my reaction", "first day", "new home",
+  "moved in", "week recap", "life lately", "what i did", "we visited",
+  "we tried", "spending the day", "spent a day", "a day at",
+  "going to", "we went to", "i went to", "we got", "i got my",
+  "trying", "tried", "review of my", "my new", "mini vlog",
+  "study vlog", "work vlog", "weekend vlog",
 ];
 
 function anyContains(haystack: string, needles: string[]): boolean {

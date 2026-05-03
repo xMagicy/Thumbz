@@ -24,7 +24,15 @@ import { lt } from "drizzle-orm";
 // Ronde 3 Blok 3: tightened from 6h → 3h for trend responsiveness.
 // Quota budget at 3h: 12 regions × 8 runs/day × ~430 units = ~3500/day,
 // well under the 10k daily quota.
-const SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000;
+//
+// claude/backend-fix-1 follow-up #2: relaxed back to 6h. Sourcing
+// expanded from 13 → 26 search queries (~2670 quota/run). At 8 runs/day
+// we'd burn 21k/day — quadruple the cap. At 4 runs/day = 10,680/day,
+// just over the 10k limit. With 6h interval and 5 trending queries
+// (down from 12) the realistic daily cost is closer to 9k. Pool grows
+// fast enough for the 200-500 target on this cadence: each sync brings
+// ~150 new rows, so 2-3 syncs hits the goal.
+const SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BOOT_DELAY_MS = 30 * 1000;
 const ARCHIVE_BOOT_DELAY_MS = 5 * 60 * 1000;
