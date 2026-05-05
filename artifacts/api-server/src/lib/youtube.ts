@@ -276,6 +276,11 @@ interface YtVideo {
 // boundary so we don't false-positive on substrings like "shortcut".
 const SHORTS_TEXT_PATTERN =
   /#?(shorts|short|ytshorts|youtubeshorts|yshort|reel|reels|tiktok)\b/i;
+// Hashtag-only Shorts markers — without the leading `#` these would
+// false-positive on long-form content (e.g. "POV cameras explained" or
+// "viral marketing"), so we require the hashtag form. Caught after the
+// generic SHORTS_TEXT_PATTERN.
+const SHORTS_HASHTAG_PATTERN = /#(pov|fyp|foryou|foryoupage)\b/i;
 const SHORTS_TAG_PATTERN = /(short|reel)/i;
 
 // Best landscape-vs-portrait signal we have. maxres is preferred (most
@@ -597,9 +602,11 @@ function passesPreClassifierFilters(
 
   // Title OR description hashtag/marker check.
   if (SHORTS_TEXT_PATTERN.test(snippet.title)) return "shorts_title_marker";
+  if (SHORTS_HASHTAG_PATTERN.test(snippet.title)) return "shorts_title_hashtag";
   if (
     snippet.description &&
-    SHORTS_TEXT_PATTERN.test(snippet.description)
+    (SHORTS_TEXT_PATTERN.test(snippet.description) ||
+      SHORTS_HASHTAG_PATTERN.test(snippet.description))
   ) {
     return "shorts_description_marker";
   }

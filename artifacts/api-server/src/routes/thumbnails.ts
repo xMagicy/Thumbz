@@ -28,7 +28,12 @@ const SHORTS_TITLE_EXCLUSION_SQL = sql`
   AND ${thumbnailsTable.title} NOT ILIKE '%#reels%'
   AND ${thumbnailsTable.title} NOT ILIKE '%#minivlog%'
   AND ${thumbnailsTable.title} NOT ILIKE '%#tiktok%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#pov%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#fyp%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#foryou%'
+  AND ${thumbnailsTable.title} NOT ILIKE '%#foryoupage%'
   AND ${thumbnailsTable.title} !~* '#?(shorts?|reels?|ytshorts?|youtubeshorts?|minivlog|tiktoks?)\\M'
+  AND ${thumbnailsTable.title} !~* '#(pov|fyp|foryou|foryoupage)\\M'
 `;
 
 // Layer 3 (defense in depth): structural Shorts gate based on stored
@@ -85,6 +90,11 @@ const toDto = (
   viewCount: t.viewCount,
   viewVelocity: t.viewVelocity,
   publishedAt: t.publishedAt ? t.publishedAt.toISOString() : null,
+  // Persisted at sync time + by recheck-shorts-via-api. Nullable for
+  // legacy rows that pre-date the column. Surfaced in the DTO so the
+  // admin tooling (and external diagnostics) can see at a glance which
+  // rows are still missing a measurement.
+  durationSec: t.durationSec,
   // Sourcing v2 (Blok A/E/F).
   appCategory: t.appCategory,
   archived: t.archived,

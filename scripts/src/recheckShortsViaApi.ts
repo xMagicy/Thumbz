@@ -26,6 +26,10 @@ const YT_BASE = "https://www.googleapis.com/youtube/v3";
 
 const SHORTS_TEXT_PATTERN =
   /#?(shorts|short|ytshorts|youtubeshorts|yshort|reel|reels|tiktok)\b/i;
+// Hashtag-only Shorts markers — `#` is required, otherwise long-form
+// titles like "viral marketing explained" or "POV cameras review"
+// would false-positive.
+const SHORTS_HASHTAG_PATTERN = /#(pov|fyp|foryou|foryoupage)\b/i;
 const SHORTS_TAG_PATTERN = /(short|reel)/i;
 
 interface YtThumb {
@@ -78,9 +82,13 @@ function decide(v: YtVideoItem): Verdict {
     if (snippet.title && SHORTS_TEXT_PATTERN.test(snippet.title)) {
       return { keep: false, reason: "shorts_title_marker", durationSec };
     }
+    if (snippet.title && SHORTS_HASHTAG_PATTERN.test(snippet.title)) {
+      return { keep: false, reason: "shorts_title_hashtag", durationSec };
+    }
     if (
       snippet.description &&
-      SHORTS_TEXT_PATTERN.test(snippet.description)
+      (SHORTS_TEXT_PATTERN.test(snippet.description) ||
+        SHORTS_HASHTAG_PATTERN.test(snippet.description))
     ) {
       return { keep: false, reason: "shorts_description_marker", durationSec };
     }
