@@ -15,6 +15,16 @@ type SyncStatus = {
     byStatus: Record<string, number>;
     bySource: Record<string, number>;
   };
+  pool: {
+    battlePool: number;
+    archived: number;
+    shortsArchived: number;
+    shortsLeaked: number;
+  };
+  duration: {
+    youtubeWithDuration: number;
+    youtubeMissingDuration: number;
+  };
   activity: {
     addedLast24h: number;
     syncedLast24h: number;
@@ -253,28 +263,80 @@ function StatusGrid({ data }: { data: SyncStatus }) {
   const cronHealthy =
     data.hoursSinceLastSync !== null && data.hoursSinceLastSync < 7;
 
+  // Shorts leak detection: any active+non-archived row with
+  // duration_sec ≤180 means the query gate is the only thing
+  // hiding it from battles. If this is non-zero, the auto-archive
+  // sweep didn't run (or ran but the row was re-activated since).
+  const shortsLeakedAccent: "ok" | "warn" =
+    data.pool.shortsLeaked === 0 ? "ok" : "warn";
+
+  // Duration coverage: how many active YouTube rows have a
+  // populated duration vs how many are still NULL. NULL rows
+  // pass through the query gate, so high NULL count = recheck
+  // hasn't run yet.
+  const totalYoutube =
+    data.duration.youtubeWithDuration + data.duration.youtubeMissingDuration;
+  const coveragePct =
+    totalYoutube > 0
+      ? Math.round((data.duration.youtubeWithDuration / totalYoutube) * 100)
+      : 0;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Stat
-        label="Last YouTube sync"
-        primary={hoursLabel}
-        secondary={lastSyncLabel}
-        accent={cronHealthy ? "ok" : "warn"}
-      />
-      <Stat
-        label="Activity (last 24h)"
-        primary={`+${data.activity.addedLast24h} added`}
-        secondary={`${data.activity.syncedLast24h} (re)synced`}
-      />
-      <Stat
-        label="Total thumbnails"
-        primary={data.counts.total.toLocaleString()}
-        secondary={breakdownLine(data.counts.byStatus)}
-      />
-      <Stat
-        label="By source"
-        primary={breakdownLine(data.counts.bySource)}
-      />
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Stat
+          label="Last YouTube sync"
+          primary={hoursLabel}
+          secondary={lastSyncLabel}
+          accent={cronHealthy ? "ok" : "warn"}
+        />
+        <Stat
+          label="Activity (last 24h)"
+          primary={`+${data.activity.addedLast24h} added`}
+          secondary={`${data.activity.syncedLast24h} (re)synced`}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Stat
+          label="Battle pool"
+          primary={data.pool.battlePool.toLocaleString()}
+          secondary="active, non-archived, non-Short"
+          accent="ok"
+        />
+        <Stat
+          label="Archived as Short"
+          primary={data.pool.shortsArchived.toLocaleString()}
+          secondary="duration ≤ 180s, archived"
+        />
+        <Stat
+          label="Shorts leaked"
+          primary={data.pool.shortsLeaked.toLocaleString()}
+          secondary={
+            data.pool.shortsLeaked === 0
+              ? "no Shorts in active pool"
+              : "Shorts still active — needs archive sweep"
+          }
+          accent={shortsLeakedAccent}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Stat
+          label="Duration coverage"
+          primary={`${coveragePct}%`}
+          secondary={`${data.duration.youtubeWithDuration} of ${totalYoutube} YT rows backfilled`}
+        />
+        <Stat
+          label="Total thumbnails"
+          primary={data.counts.total.toLocaleString()}
+          secondary={breakdownLine(data.counts.byStatus)}
+        />
+        <Stat
+          label="By source"
+          primary={breakdownLine(data.counts.bySource)}
+        />
+      </div>
     </div>
   );
 }

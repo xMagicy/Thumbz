@@ -110,6 +110,7 @@ router.get("/sync-status", async (req, res) => {
       bySourceRows,
       [{ addedLast24h }],
       [{ syncedLast24h }],
+      [poolRow],
     ] = await Promise.all([
       db
         .select({ lastSyncedAt: sql<Date | null>`MAX(${thumbnailsTable.lastSyncedAt})` })
@@ -131,11 +132,59 @@ router.get("/sync-status", async (req, res) => {
         .select({ syncedLast24h: count() })
         .from(thumbnailsTable)
         .where(gte(thumbnailsTable.lastSyncedAt, dayAgo)),
+      // One query, six counts. Mirrors exactly what
+      // /api/thumbnails(/battle) WHERE clauses use, so "battlePool"
+      // here equals the row count returned by the public list endpoint.
+      db.execute(sql`
+        SELECT
+          COUNT(*) FILTER (
+            WHERE status = 'active'
+              AND archived = FALSE
+              AND (duration_sec IS NULL OR duration_sec > 180)
+          )::int AS battle_pool,
+          COUNT(*) FILTER (WHERE archived = TRUE)::int AS archived,
+          COUNT(*) FILTER (
+            WHERE archived = TRUE
+              AND duration_sec IS NOT NULL
+              AND duration_sec <= 180
+          )::int AS shorts_archived,
+          COUNT(*) FILTER (
+            WHERE source = 'youtube' AND duration_sec IS NOT NULL
+          )::int AS yt_with_duration,
+          COUNT(*) FILTER (
+            WHERE source = 'youtube' AND duration_sec IS NULL
+          )::int AS yt_missing_duration,
+          COUNT(*) FILTER (
+            WHERE status = 'active'
+              AND archived = FALSE
+              AND duration_sec IS NOT NULL
+              AND duration_sec <= 180
+          )::int AS shorts_leaked
+        FROM thumbnails
+      `),
     ]);
 
     const hoursSinceLastSync = lastSyncedAt
       ? Math.round(((Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000) * 10) / 10
       : null;
+
+    const pool = (poolRow.rows?.[0] as
+      | {
+          battle_pool: number;
+          archived: number;
+          shorts_archived: number;
+          yt_with_duration: number;
+          yt_missing_duration: number;
+          shorts_leaked: number;
+        }
+      | undefined) ?? {
+      battle_pool: 0,
+      archived: 0,
+      shorts_archived: 0,
+      yt_with_duration: 0,
+      yt_missing_duration: 0,
+      shorts_leaked: 0,
+    };
 
     return res.json({
       ok: true,
@@ -145,6 +194,16 @@ router.get("/sync-status", async (req, res) => {
         total: Number(total),
         byStatus: Object.fromEntries(byStatusRows.map((r) => [r.status, Number(r.n)])),
         bySource: Object.fromEntries(bySourceRows.map((r) => [r.source, Number(r.n)])),
+      },
+      pool: {
+        battlePool: Number(pool.battle_pool),
+        archived: Number(pool.archived),
+        shortsArchived: Number(pool.shorts_archived),
+        shortsLeaked: Number(pool.shorts_leaked),
+      },
+      duration: {
+        youtubeWithDuration: Number(pool.yt_with_duration),
+        youtubeMissingDuration: Number(pool.yt_missing_duration),
       },
       activity: {
         addedLast24h: Number(addedLast24h),
