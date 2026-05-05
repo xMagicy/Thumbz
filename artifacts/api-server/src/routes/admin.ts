@@ -1,4 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { db, thumbnailsTable } from "@workspace/db";
+import { count, gte, sql } from "drizzle-orm";
 import { syncTrendingVideos } from "../lib/youtube";
 import { withSyncLock } from "../lib/syncLock";
 
@@ -84,6 +86,74 @@ router.post("/sync-youtube", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Manual YouTube sync failed");
     return res.status(500).json({ error: "sync_failed" });
+  }
+});
+
+/**
+ * GET /api/admin/sync-status
+ *
+ * Read-only health check for the YouTube sync. Returns the last time
+ * the sync touched any thumbnail, plus pool counts split by status and
+ * by source so the operator can spot at a glance whether the cron is
+ * still firing without triggering an actual sync (and burning quota).
+ *
+ * Requires the admin token (see requireAdminToken above).
+ */
+router.get("/sync-status", async (req, res) => {
+  try {
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const [
+      [{ lastSyncedAt }],
+      [{ total }],
+      byStatusRows,
+      bySourceRows,
+      [{ addedLast24h }],
+      [{ syncedLast24h }],
+    ] = await Promise.all([
+      db
+        .select({ lastSyncedAt: sql<Date | null>`MAX(${thumbnailsTable.lastSyncedAt})` })
+        .from(thumbnailsTable),
+      db.select({ total: count() }).from(thumbnailsTable),
+      db
+        .select({ status: thumbnailsTable.status, n: count() })
+        .from(thumbnailsTable)
+        .groupBy(thumbnailsTable.status),
+      db
+        .select({ source: thumbnailsTable.source, n: count() })
+        .from(thumbnailsTable)
+        .groupBy(thumbnailsTable.source),
+      db
+        .select({ addedLast24h: count() })
+        .from(thumbnailsTable)
+        .where(gte(thumbnailsTable.createdAt, dayAgo)),
+      db
+        .select({ syncedLast24h: count() })
+        .from(thumbnailsTable)
+        .where(gte(thumbnailsTable.lastSyncedAt, dayAgo)),
+    ]);
+
+    const hoursSinceLastSync = lastSyncedAt
+      ? Math.round(((Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000) * 10) / 10
+      : null;
+
+    return res.json({
+      ok: true,
+      lastSyncedAt: lastSyncedAt ?? null,
+      hoursSinceLastSync,
+      counts: {
+        total: Number(total),
+        byStatus: Object.fromEntries(byStatusRows.map((r) => [r.status, Number(r.n)])),
+        bySource: Object.fromEntries(bySourceRows.map((r) => [r.source, Number(r.n)])),
+      },
+      activity: {
+        addedLast24h: Number(addedLast24h),
+        syncedLast24h: Number(syncedLast24h),
+      },
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get sync status");
+    return res.status(500).json({ error: "sync_status_failed" });
   }
 });
 
