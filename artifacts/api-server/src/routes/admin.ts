@@ -110,7 +110,7 @@ router.get("/sync-status", async (req, res) => {
       bySourceRows,
       [{ addedLast24h }],
       [{ syncedLast24h }],
-      [poolRow],
+      poolResult,
     ] = await Promise.all([
       db
         .select({ lastSyncedAt: sql<Date | null>`MAX(${thumbnailsTable.lastSyncedAt})` })
@@ -168,7 +168,7 @@ router.get("/sync-status", async (req, res) => {
       ? Math.round(((Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000) * 10) / 10
       : null;
 
-    const pool = (poolRow.rows?.[0] as
+    const pool = (poolResult.rows[0] as
       | {
           battle_pool: number;
           archived: number;
