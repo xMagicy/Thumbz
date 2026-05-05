@@ -840,6 +840,7 @@ interface SyncSummary {
   totalCandidates?: number;
   totalAccepted?: number;
   totalArchivedByBalance?: number;
+  totalArchivedAsShorts?: number;
 }
 
 export async function syncTrendingVideos(opts?: {
@@ -1107,6 +1108,7 @@ export async function syncTrendingVideos(opts?: {
       const trendingArr = Array.from(a.meta.trendingRegions);
       const ratio = a.subscriberCount > 0 ? a.viewCount / a.subscriberCount : null;
       const categoryIdInt = snippet.categoryId ? Number(snippet.categoryId) : null;
+      const durationSec = parseIsoDuration(v.contentDetails?.duration);
 
       const [existing] = await db
         .select()
@@ -1152,6 +1154,7 @@ export async function syncTrendingVideos(opts?: {
             viewToSubRatio: ratio,
             publishedAt,
             lastSyncedAt: now,
+            durationSec,
             trendingRegions: trendingArr.length > 0 ? trendingArr : null,
             // Blok G
             viewsPerHour: a.viewsPerHour,
@@ -1194,6 +1197,7 @@ export async function syncTrendingVideos(opts?: {
             viewToSubRatio: ratio,
             publishedAt,
             lastSyncedAt: now,
+            durationSec,
             trendingRegions: trendingArr.length > 0 ? trendingArr : null,
             // Re-activate if a previously archived video makes the cut again.
             archived: false,
@@ -1221,6 +1225,15 @@ export async function syncTrendingVideos(opts?: {
   // ── Phase 8: Category balance archive (cap 20% per category) ─────
   const totalArchivedByBalance = await enforceCategoryBalance();
 
+  // ── Phase 9: Shorts auto-archive (defense in depth) ──────────────
+  // Any row with a populated duration ≤180s is archived, every sync,
+  // no questions asked. This is the durable backstop behind the sync
+  // filter and the query-time gate: even if a Short slips through
+  // passesPreClassifierFilters (or filter logic regresses in a future
+  // change), as soon as durationSec gets set on the row it gets
+  // archived on the next sync.
+  const totalArchivedAsShorts = await archiveShortsByDuration();
+
   logger.info(
     {
       regions: regions.length,
@@ -1232,6 +1245,7 @@ export async function syncTrendingVideos(opts?: {
       inserted,
       updated,
       archivedByBalance: totalArchivedByBalance,
+      archivedAsShorts: totalArchivedAsShorts,
       skipReasons: Object.fromEntries(skipReasons),
       classifierStats,
     },
@@ -1251,7 +1265,34 @@ export async function syncTrendingVideos(opts?: {
     totalCandidates,
     totalAccepted: regionBalanced.length,
     totalArchivedByBalance,
+    totalArchivedAsShorts,
   };
+}
+
+/**
+ * Defense-in-depth: archive any active row whose stored duration is
+ * ≤180 seconds. Runs at the end of every sync. Idempotent.
+ *
+ * Threshold matches the sync-time gate (`shorts_duration` skip reason)
+ * — keep the two in sync: if the gate moves to 240, this should too.
+ */
+async function archiveShortsByDuration(): Promise<number> {
+  const result = await db.execute(sql`
+    WITH archived AS (
+      UPDATE thumbnails
+         SET archived = TRUE
+       WHERE archived = FALSE
+         AND duration_sec IS NOT NULL
+         AND duration_sec <= 180
+       RETURNING 1
+    )
+    SELECT COUNT(*)::int AS n FROM archived
+  `);
+  const n = (result.rows[0] as { n: number } | undefined)?.n ?? 0;
+  if (n > 0) {
+    logger.info({ archived: n }, "Shorts auto-archive (duration <= 180s)");
+  }
+  return n;
 }
 
 /**

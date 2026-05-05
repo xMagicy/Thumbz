@@ -31,6 +31,23 @@ const SHORTS_TITLE_EXCLUSION_SQL = sql`
   AND ${thumbnailsTable.title} !~* '#?(shorts?|reels?|ytshorts?|youtubeshorts?|minivlog|tiktoks?)\\M'
 `;
 
+// Layer 3 (defense in depth): structural Shorts gate based on stored
+// duration. Rows are categorically excluded when duration_sec is set AND
+// ≤180 seconds (YouTube's max Shorts length, with a safety margin).
+//
+// NULL is allowed through deliberately: it means we haven't fetched a
+// duration for that row yet (legacy rows pre-dating the schema column).
+// The recheck-shorts-via-api script + the sync upsert path both populate
+// duration_sec, after which this gate kicks in automatically. Combined
+// with the post-sync archiveShortsByDuration sweep in lib/youtube.ts,
+// the same row gets archived too — so even if a future code path
+// resurrects archived rows, this query gate still hides Shorts at read
+// time.
+const DURATION_SHORTS_GATE_SQL = sql`
+  (${thumbnailsTable.durationSec} IS NULL
+   OR ${thumbnailsTable.durationSec} > 180)
+`;
+
 function normalizeNiche(raw: string | undefined): Niche | undefined {
   if (!raw) return undefined;
   const trimmed = raw.trim();
@@ -136,6 +153,7 @@ router.get("/", async (req, res) => {
       eq(thumbnailsTable.status, "active"),
       eq(thumbnailsTable.archived, false),
       SHORTS_TITLE_EXCLUSION_SQL,
+      DURATION_SHORTS_GATE_SQL,
     ];
     // Minimum-battles gate for ranking sorts. A "champion" with 0 battles
     // is just a fresh row at default ELO 1200 — surfacing those pollutes
@@ -261,6 +279,7 @@ router.get("/battle", async (req, res) => {
       eq(thumbnailsTable.status, "active"),
       eq(thumbnailsTable.archived, false),
       SHORTS_TITLE_EXCLUSION_SQL,
+      DURATION_SHORTS_GATE_SQL,
     ];
     // Same single-source-of-truth filter as the leaderboard list endpoint
     // (post task #16 backfill): app_category is the only bucket. Legacy

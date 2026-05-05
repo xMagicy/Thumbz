@@ -87,6 +87,12 @@ export const thumbnailsTable = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
     // Last time the YouTube sync touched this row.
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    // Video duration in seconds. Persisted so the query-time Shorts
+    // gate can reject rows with `duration_sec <= 180` without re-calling
+    // the YouTube API on every battle pair request. NULL on legacy rows
+    // until the recheckShortsViaApi backfill populates them; once
+    // populated, sync upserts and recheck both keep this fresh.
+    durationSec: integer("duration_sec"),
 
     // ── Sourcing v2 (Blok A) ───────────────────────────────────────────
     // Raw YouTube category id (1, 10, 20, ...). We keep the int so we
@@ -149,6 +155,7 @@ export const thumbnailsTable = pgTable(
     index("thumbnails_view_velocity_idx").on(t.viewVelocity),
     index("thumbnails_archived_idx").on(t.archived),
     index("thumbnails_elo_idx").on(t.eloRating),
+    index("thumbnails_duration_sec_idx").on(t.durationSec),
   ],
 );
 

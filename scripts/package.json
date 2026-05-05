@@ -8,6 +8,7 @@
     "backfill-app-category": "tsx ./src/backfillAppCategory.ts",
     "backfill-channel-logos": "tsx ./src/backfillChannelLogos.ts",
     "archive-shorts": "tsx ./src/archiveShorts.ts",
+    "recheck-shorts-via-api": "tsx ./src/recheckShortsViaApi.ts",
     "archive-trailers": "tsx ./src/archiveTrailers.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
